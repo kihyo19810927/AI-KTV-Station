@@ -1,0 +1,55 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  build-test:
+    runs-on: windows-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: 10.0.x
+          cache: true
+          cache-dependency-path: '**/packages.lock.json'
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+
+      - name: Restore locked dependencies
+        run: dotnet restore AI-KTV-Station.slnx --locked-mode
+
+      - name: Verify formatting
+        run: dotnet format AI-KTV-Station.slnx --verify-no-changes --no-restore
+
+      - name: Build
+        run: dotnet build AI-KTV-Station.slnx --configuration Release --no-restore
+
+      - name: Test with coverage
+        shell: pwsh
+        run: ./scripts/test.ps1 -NoRestore
+
+      - name: Build Web
+        shell: pwsh
+        run: |
+          if (Test-Path ./src/Station.Web/package-lock.json) {
+            npm.cmd ci --prefix ./src/Station.Web
+            npm.cmd run build --prefix ./src/Station.Web
+          } else {
+            Write-Output 'Station.Web package is deferred to KTVS-034.'
+          }
+
+      - name: Upload coverage
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage
+          path: TestResults/**/coverage.cobertura.xml
+          if-no-files-found: error

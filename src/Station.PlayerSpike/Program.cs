@@ -12,7 +12,8 @@ try
     var tracks = await mpv.GetPropertyAsync("track-list");
     Console.WriteLine($"TRACKS={tracks.GetArrayLength()}");
     int? vocal = null, backing = null, subtitle = null;
-    foreach (var track in tracks.EnumerateArray()) {
+    foreach (var track in tracks.EnumerateArray())
+    {
         var type = track.GetProperty("type").GetString(); var trackId = track.GetProperty("id").GetInt32();
         var title = track.TryGetProperty("title", out var titleValue) ? titleValue.GetString() ?? "" : "";
         Console.WriteLine($"TRACK {type} {trackId} {title}");
@@ -46,7 +47,7 @@ sealed class MpvProcess : IAsyncDisposable
     readonly Dictionary<int, TaskCompletionSource<JsonElement>> pending = [];
     async Task ReadAsync(StreamReader output)
     {
-        while (await output.ReadLineAsync() is { } line) { using var doc = JsonDocument.Parse(line); var root = doc.RootElement; if (root.TryGetProperty("event", out var ev)) { if (ev.GetString()=="end-file") endFile.TrySetResult(true); if (ev.GetString()=="file-loaded") fileLoaded.TrySetResult(true); } if (root.TryGetProperty("request_id", out var rid) && pending.Remove(rid.GetInt32(), out var tcs)) tcs.TrySetResult(root.Clone()); }
+        while (await output.ReadLineAsync() is { } line) { using var doc = JsonDocument.Parse(line); var root = doc.RootElement; if (root.TryGetProperty("event", out var ev)) { if (ev.GetString() == "end-file") endFile.TrySetResult(true); if (ev.GetString() == "file-loaded") fileLoaded.TrySetResult(true); } if (root.TryGetProperty("request_id", out var rid) && pending.Remove(rid.GetInt32(), out var tcs)) tcs.TrySetResult(root.Clone()); }
         exited.TrySetResult(true);
     }
     readonly TaskCompletionSource<bool> fileLoaded = new(), endFile = new(), exited = new();
