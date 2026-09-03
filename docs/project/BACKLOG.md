@@ -18,8 +18,8 @@
 |---|---|---|---|---|---|
 | KTVS-006 | 解决方案和项目依赖方向 | KTVS-004 | Done | Domain/Application/Infrastructure/Server/Desktop/Web 骨架可构建，依赖方向自动检查 | 无 |
 | KTVS-007 | 配置、日志和错误模型 | KTVS-006 | Done | 强类型配置、JSON 日志/脱敏边界、统一 Result/Error 有测试 | 无敏感默认值 |
-| KTVS-008 | 测试基线 | KTVS-006 | In Progress | xUnit、测试数据工厂、覆盖率命令可执行 | NuGet 依赖已锁定 |
-| KTVS-009 | CI 基线 | KTVS-006,008 | Todo | restore/build/test/Web build/格式检查工作流 | CI 云端运行待首次推送后确认 |
+| KTVS-008 | 测试基线 | KTVS-006 | Done | xUnit、测试数据工厂、覆盖率命令可执行，生成物不入库 | NuGet 依赖已锁定 |
+| KTVS-009 | CI 基线 | KTVS-006,008 | In Progress | restore/build/test/Web build/格式检查工作流 | CI 云端运行待首次推送后确认 |
 | KTVS-010 | 本地开发脚本 | KTVS-006,008 | Todo | bootstrap/build/test/run 命令文档化并在本机通过 | 无 |
 
 ## 后续阶段门禁

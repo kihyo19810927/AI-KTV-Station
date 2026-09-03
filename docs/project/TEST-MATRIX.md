@@ -7,6 +7,7 @@
 | .NET 解决方案构建 | Release、单节点、禁用共享编译 | 通过（6 项目，0 警告/错误） | 并行编译受当前沙箱管道权限限制 |
 | Result/配置/日志脱敏 | xUnit | 通过（10/10） | 无 |
 | .NET 领域单元测试 | xUnit | 基线已建立 | 领域功能随任务补充 |
+| 覆盖率 | coverlet + Cobertura | line-rate 0.9677 | 当前仅基线代码，不代表后续功能覆盖率 |
 | Host/API/SignalR | 集成测试 | 未开始 | .NET SDK |
 | mpv IPC | 生成夹具 + Windows named-pipe 实机进程 | 软件 Spike 通过 | 真实 MKV/设备待验收 |
 | ffprobe 解析 | 固定 JSON 样本 | 未开始 | 无（实现阶段） |

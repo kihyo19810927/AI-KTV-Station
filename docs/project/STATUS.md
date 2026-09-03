@@ -7,8 +7,8 @@
 - 分支：`task-KTVS-001-002-phase0`
 - 版本：`0.1.0-dev`
 - 阶段：Phase 1：工程骨架与持续集成
-- 已完成：KTVS-001 至 KTVS-007
-- 当前任务：KTVS-008 测试基线
+- 已完成：KTVS-001 至 KTVS-008
+- 当前任务：KTVS-009 CI 基线
 
 ## 调查结果
 
@@ -26,6 +26,8 @@ KTVS-006：`dotnet build AI-KTV-Station.slnx --configuration Release -m:1 -p:Use
 
 KTVS-007：xUnit 测试 10/10 通过；Release 解决方案构建 0 警告/0 错误。测试覆盖 Result/Error、配置验证和敏感日志属性脱敏。NuGet 版本集中管理并生成锁文件。
 
+KTVS-008：统一测试脚本 10/10 通过，Cobertura line-rate `0.9677`；测试数据工厂和锁文件已纳入基线。已清理并忽略误提交的 `tests/**/bin`、`obj` 与 `TestResults`。
+
 ## 外部阻塞
 
 1. 真实 MKV、挂载目录和电视/功放/手机验收需用户后续执行，不阻塞软件开发。
@@ -36,4 +38,4 @@ KTVS-007：xUnit 测试 10/10 通过；Release 解决方案构建 0 警告/0 错
 
 ## 下一推荐任务
 
-执行 `KTVS-008`：完善测试数据工厂、覆盖率和统一测试命令。
+执行 `KTVS-009`：建立 restore/build/test/格式检查 CI 工作流。
