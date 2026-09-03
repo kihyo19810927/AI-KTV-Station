@@ -14,6 +14,8 @@
 | 领域持久化 | Song/MediaFile 离线状态往返 | 通过 | 无 |
 | MediaSource 管理 | 临时 Unicode 多目录 + SQLite | 通过（添加/启停/缺失/重复） | 真实 CloudDrive 待验收 |
 | API 路径泄漏 | 公共 DTO 反射断言 | 通过（无 Path 属性） | 后续 API 契约仍需复测 |
+| 只读增量扫描 | 临时 Unicode 目录 | 通过（增量、离线保留、错误隔离） | 真实 CloudDrive 待验收 |
+| 扫描取消/恢复 | 受控异步枚举器 | 通过（Cancelled + checkpoint） | 后续恢复入口仍需 API 测试 |
 | Host/API/SignalR | 集成测试 | 未开始 | .NET SDK |
 | mpv IPC | 生成夹具 + Windows named-pipe 实机进程 | 软件 Spike 通过 | 真实 MKV/设备待验收 |
 | ffprobe 解析 | 固定 JSON 样本 | 未开始 | 无（实现阶段） |

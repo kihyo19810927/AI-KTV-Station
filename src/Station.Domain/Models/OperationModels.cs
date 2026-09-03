@@ -11,6 +11,7 @@ public sealed class ScanRun
     public long UpdatedFiles { get; set; }
     public long ErrorCount { get; set; }
     public string? ErrorSummary { get; set; }
+    public string? CheckpointRelativePath { get; set; }
 }
 
 public sealed class PlaybackError

@@ -28,8 +28,8 @@
 |---|---|---|---|---|---|
 | KTVS-011 | 领域模型与 SQLite Schema | KTVS-010 | Done | 14 个首版实体、EF Core 映射、InitialCreate 迁移和 SQLite 集成测试 | 无 |
 | KTVS-012 | MediaSource 管理 | KTVS-011 | Done | 多根目录、启停、只读路径验证；公共 DTO 无真实路径 | 测试使用临时目录 |
-| KTVS-013 | 文件枚举与增量扫描 | KTVS-012 | In Progress | 可取消、可恢复、错误隔离、离线不删索引 | 真实挂载待验收 |
-| KTVS-014 | 文件名解析器 | KTVS-011 | Todo | 容错规则和脱敏样本回归测试 | 用户真实命名样本后补 |
+| KTVS-013 | 文件枚举与增量扫描 | KTVS-012 | Done | 可取消、检查点、错误隔离、增量更新；离线不删索引 | 真实挂载待验收 |
+| KTVS-014 | 文件名解析器 | KTVS-011 | In Progress | 容错规则和脱敏样本回归测试 | 用户真实命名样本后补 |
 | KTVS-015 | ffprobe 媒体探测 | KTVS-013 | Todo | 时长、轨道、编码信息与失败分类 | 生成 MKV 可自动测 |
 | KTVS-016 | NFO 可选读取 | KTVS-011 | Todo | 不一致处理、人工字段优先级 | 无 |
 | KTVS-017 | 搜索规范化 | KTVS-011 | Todo | 拼音、简拼、原文规范化有 Unicode 测试 | 无 |
