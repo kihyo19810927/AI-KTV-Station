@@ -1,9 +1,10 @@
 using Station.Application.Common;
+using Station.Application.Metadata;
 using Station.Domain.Models;
 
 namespace Station.Application.Scanning;
 
-public sealed class MediaScanService(IMediaScanRepository repository, IMediaFileEnumerator fileEnumerator)
+public sealed class MediaScanService(IMediaScanRepository repository, IMediaFileEnumerator fileEnumerator, IMediaFilenameParser? filenameParser = null)
 {
     private const int CheckpointBatchSize = 100;
 
@@ -30,7 +31,7 @@ public sealed class MediaScanService(IMediaScanRepository repository, IMediaFile
                 seen.Add(relativePath);
                 if (!existing.TryGetValue(relativePath, out var file))
                 {
-                    var title = Path.GetFileNameWithoutExtension(relativePath);
+                    var metadata = (filenameParser ?? new KtvFilenameParser()).Parse(relativePath);
                     file = new MediaFile
                     {
                         MediaSourceId = source.Id,
@@ -38,7 +39,20 @@ public sealed class MediaScanService(IMediaScanRepository repository, IMediaFile
                         SizeBytes = entry.SizeBytes!.Value,
                         LastWriteTime = entry.LastWriteTime!.Value,
                         Availability = AvailabilityStatus.Available,
-                        Song = new Song { Title = title, NormalizedTitle = title, Availability = AvailabilityStatus.Available },
+                        Song = new Song
+                        {
+                            Title = metadata.Title,
+                            NormalizedTitle = metadata.Title.Normalize(),
+                            Language = metadata.Language,
+                            Category = metadata.Category,
+                            Quality = metadata.Quality,
+                            Availability = AvailabilityStatus.Available,
+                            Artists = metadata.ArtistCandidates.Select((artist, order) => new SongArtist
+                            {
+                                Order = order,
+                                Artist = new Artist { Name = artist, NormalizedName = artist.Normalize() },
+                            }).ToList(),
+                        },
                     };
                     await repository.AddFileAsync(file, cancellationToken);
                     existing.Add(relativePath, file);
