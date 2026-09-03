@@ -6,9 +6,9 @@
 
 - 分支：`task-KTVS-001-002-phase0`
 - 版本：`0.1.0-dev`
-- 阶段：Phase 1：工程骨架与持续集成
-- 已完成：KTVS-001 至 KTVS-009
-- 当前任务：KTVS-010 本地开发脚本
+- 阶段：Phase 2：数据库、扫描与搜索
+- 已完成：KTVS-001 至 KTVS-010
+- 当前任务：KTVS-011 领域模型与 SQLite Schema
 
 ## 调查结果
 
@@ -30,6 +30,8 @@ KTVS-008：统一测试脚本 10/10 通过，Cobertura line-rate `0.9677`；测�
 
 KTVS-009：本地执行 locked restore、format verify、Release build 和 coverage test 全部通过；构建 0 警告/0 错误，测试 10/10。GitHub Actions 工作流尚未推送运行，保持待外部验证。
 
+KTVS-010：`bootstrap.ps1`、`build.ps1`、`test.ps1` 与 Server smoke 连续通过；输出 `BOOTSTRAP=passed`、`BUILD=passed`、10/10 测试及 `SERVER_SMOKE=passed`。
+
 ## 外部阻塞
 
 1. 真实 MKV、挂载目录和电视/功放/手机验收需用户后续执行，不阻塞软件开发。
@@ -40,4 +42,4 @@ KTVS-009：本地执行 locked restore、format verify、Release build 和 cover
 
 ## 下一推荐任务
 
-执行 `KTVS-010`：统一 bootstrap/build/test/run 本地脚本与开发文档。
+执行 `KTVS-011`：建立首版领域模型、EF Core SQLite 映射和迁移测试。

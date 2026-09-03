@@ -12,7 +12,9 @@ Station 与 AI-KTV-Builder 独立：Builder 制作成品 MKV，Station 只读索
 
 ## 开发
 
-目标技术栈为 .NET 10、WPF/MVVM、ASP.NET Core Minimal API、SignalR、React/TypeScript/Vite、EF Core/SQLite、mpv JSON IPC 和 ffprobe。当前机器缺少 .NET SDK 与 mpv，具体验证状态记录在 `docs/project/STATUS.md`。
+目标技术栈为 .NET 10、WPF/MVVM、ASP.NET Core Minimal API、SignalR、React/TypeScript/Vite、EF Core/SQLite、mpv JSON IPC 和 ffprobe。当前环境和验证状态记录在 `docs/project/STATUS.md`。
+
+本机开发命令见 [docs/project/DEVELOPMENT.md](docs/project/DEVELOPMENT.md)。
 
 ## 安全提醒
 
