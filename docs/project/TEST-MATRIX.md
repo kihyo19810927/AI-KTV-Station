@@ -12,6 +12,8 @@
 | Server 启动 | 本地进程 + `/health` | 通过 | 无 |
 | EF Core SQLite 迁移 | 随机临时数据库 + `MigrateAsync` | 通过（InitialCreate） | 无 |
 | 领域持久化 | Song/MediaFile 离线状态往返 | 通过 | 无 |
+| MediaSource 管理 | 临时 Unicode 多目录 + SQLite | 通过（添加/启停/缺失/重复） | 真实 CloudDrive 待验收 |
+| API 路径泄漏 | 公共 DTO 反射断言 | 通过（无 Path 属性） | 后续 API 契约仍需复测 |
 | Host/API/SignalR | 集成测试 | 未开始 | .NET SDK |
 | mpv IPC | 生成夹具 + Windows named-pipe 实机进程 | 软件 Spike 通过 | 真实 MKV/设备待验收 |
 | ffprobe 解析 | 固定 JSON 样本 | 未开始 | 无（实现阶段） |
