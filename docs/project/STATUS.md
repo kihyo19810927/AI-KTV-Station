@@ -7,8 +7,8 @@
 - 分支：`task-KTVS-001-002-phase0`
 - 版本：`0.1.0-dev`
 - 阶段：Phase 2：数据库、扫描与搜索
-- 已完成：KTVS-001 至 KTVS-010
-- 当前任务：KTVS-011 领域模型与 SQLite Schema
+- 已完成：KTVS-001 至 KTVS-011
+- 当前任务：KTVS-012 MediaSource 管理
 
 ## 调查结果
 
@@ -32,6 +32,8 @@ KTVS-009：本地执行 locked restore、format verify、Release build 和 cover
 
 KTVS-010：`bootstrap.ps1`、`build.ps1`、`test.ps1` 与 Server smoke 连续通过；输出 `BOOTSTRAP=passed`、`BUILD=passed`、10/10 测试及 `SERVER_SMOKE=passed`。
 
+KTVS-011：Release 构建 0 警告/错误；11/11 测试通过，其中临时 SQLite 执行 `InitialCreate` 并往返保存离线 Song/MediaFile；EF 工具列出 `20260903142705_InitialCreate (Pending)`。
+
 ## 外部阻塞
 
 1. 真实 MKV、挂载目录和电视/功放/手机验收需用户后续执行，不阻塞软件开发。
@@ -42,4 +44,4 @@ KTVS-010：`bootstrap.ps1`、`build.ps1`、`test.ps1` 与 Server smoke 连续通
 
 ## 下一推荐任务
 
-执行 `KTVS-011`：建立首版领域模型、EF Core SQLite 映射和迁移测试。
+执行 `KTVS-012`：实现 MediaSource 多根目录、启停与安全路径验证。

@@ -26,8 +26,8 @@
 
 | ID | 标题 | 依赖 | 状态 | 验收标准 | 风险/用户参与 |
 |---|---|---|---|---|---|
-| KTVS-011 | 领域模型与 SQLite Schema | KTVS-010 | In Progress | 首版实体、EF Core 映射、迁移和 SQLite 集成测试 | 无 |
-| KTVS-012 | MediaSource 管理 | KTVS-011 | Todo | 多根目录、启停、路径验证，不暴露访客路径 | 本机路径用测试目录 |
+| KTVS-011 | 领域模型与 SQLite Schema | KTVS-010 | Done | 14 个首版实体、EF Core 映射、InitialCreate 迁移和 SQLite 集成测试 | 无 |
+| KTVS-012 | MediaSource 管理 | KTVS-011 | In Progress | 多根目录、启停、路径验证，不暴露访客路径 | 本机路径用测试目录 |
 | KTVS-013 | 文件枚举与增量扫描 | KTVS-012 | Todo | 可取消、可恢复、错误隔离、离线不删索引 | 真实挂载待验收 |
 | KTVS-014 | 文件名解析器 | KTVS-011 | Todo | 容错规则和脱敏样本回归测试 | 用户真实命名样本后补 |
 | KTVS-015 | ffprobe 媒体探测 | KTVS-013 | Todo | 时长、轨道、编码信息与失败分类 | 生成 MKV 可自动测 |
