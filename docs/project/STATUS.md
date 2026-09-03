@@ -7,8 +7,8 @@
 - 分支：`task-KTVS-001-002-phase0`
 - 版本：`0.1.0-dev`
 - 阶段：Phase 1：工程骨架与持续集成
-- 已完成：KTVS-001 至 KTVS-006
-- 当前任务：KTVS-007 配置、日志和错误模型
+- 已完成：KTVS-001 至 KTVS-007
+- 当前任务：KTVS-008 测试基线
 
 ## 调查结果
 
@@ -24,6 +24,8 @@
 
 KTVS-006：`dotnet build AI-KTV-Station.slnx --configuration Release -m:1 -p:UseSharedCompilation=false` 成功，0 警告/0 错误；依赖检查输出 `PROJECT_DEPENDENCIES=passed`。沙箱内并行 MSBuild 会遇到命名管道权限限制，基线命令暂用 `-m:1` 与禁用共享编译。
 
+KTVS-007：xUnit 测试 10/10 通过；Release 解决方案构建 0 警告/0 错误。测试覆盖 Result/Error、配置验证和敏感日志属性脱敏。NuGet 版本集中管理并生成锁文件。
+
 ## 外部阻塞
 
 1. 真实 MKV、挂载目录和电视/功放/手机验收需用户后续执行，不阻塞软件开发。
@@ -34,4 +36,4 @@ KTVS-006：`dotnet build AI-KTV-Station.slnx --configuration Release -m:1 -p:Use
 
 ## 下一推荐任务
 
-执行 `KTVS-007`：建立强类型配置、日志脱敏边界和统一错误模型。
+执行 `KTVS-008`：完善测试数据工厂、覆盖率和统一测试命令。

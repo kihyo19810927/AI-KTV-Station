@@ -1,0 +1,22 @@
+{
+  "version": 2,
+  "dependencies": {
+    "net10.0-windows7.0": {
+      "station.application": {
+        "type": "Project",
+        "dependencies": {
+          "Station.Domain": "[1.0.0, )"
+        }
+      },
+      "station.domain": {
+        "type": "Project"
+      },
+      "station.infrastructure": {
+        "type": "Project",
+        "dependencies": {
+          "Station.Application": "[1.0.0, )"
+        }
+      }
+    }
+  }
+}

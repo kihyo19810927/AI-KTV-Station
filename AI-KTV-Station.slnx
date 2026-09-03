@@ -9,4 +9,7 @@
   <Folder Name="/spikes/">
     <Project Path="src/Station.PlayerSpike/Station.PlayerSpike.csproj" />
   </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/Station.Core.Tests/Station.Core.Tests.csproj" />
+  </Folder>
 </Solution>
