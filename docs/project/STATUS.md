@@ -6,9 +6,9 @@
 
 - 分支：`task-KTVS-001-002-phase0`
 - 版本：`0.1.0-dev`
-- 阶段：Phase 0：仓库调查与架构定稿
-- 已完成：KTVS-001、KTVS-002、KTVS-003、KTVS-004
-- 当前任务：KTVS-005 实际环境基线
+- 阶段：Phase 1：工程骨架与持续集成
+- 已完成：KTVS-001 至 KTVS-005（Phase 0 软件工作）
+- 当前任务：KTVS-006 解决方案和项目依赖方向
 
 ## 调查结果
 
@@ -20,11 +20,11 @@
 
 ## 最近验证
 
-已执行：`powershell -ExecutionPolicy Bypass -File scripts/run-player-spike.ps1`；结果包含 `TRACKS=4`、两路 audio、一路 sub、`TIME_POS=0.000000`、`END_FILE=received`。真实电视/功放/手机/115 与真实 MKV 仍未验证。
+已执行：`pwsh.exe -ExecutionPolicy Bypass -File scripts/verify-environment.ps1`；结果为 .NET `10.0.400`、Node `v24.18.0`、npm `11.16.0`、FFmpeg/ffprobe `8.1.2`、mpv `v0.41.0-dev-g41f6a6450`，夹具 `10.023s`、四轨与中文标题正确、`END_FILE=received`、`ENVIRONMENT_BASELINE=passed`。真实设备项仍未验证。
 
 ## 外部阻塞
 
-1. KTVS-005 前由用户提供脱敏的真实 MKV、挂载目录和电视/功放/手机验收条件。
+1. 真实 MKV、挂载目录和电视/功放/手机验收需用户后续执行，不阻塞软件开发。
 
 ## 用户实机验收（待验证）
 
@@ -32,4 +32,4 @@
 
 ## 下一推荐任务
 
-完成 `KTVS-005` 自动环境报告与待实机验收清单，然后进入 Phase 1 的 `KTVS-006`。
+执行 `KTVS-006`：建立解决方案和项目依赖方向。

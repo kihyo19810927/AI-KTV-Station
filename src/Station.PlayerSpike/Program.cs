@@ -20,7 +20,7 @@ try
         if (type == "audio" && title.Contains("伴奏")) backing = trackId;
         if (type == "sub") subtitle = trackId;
     }
-    if (vocal is null) vocal = 1; if (backing is null) backing = 2; if (subtitle is null) subtitle = 1;
+    if (vocal is null || backing is null || subtitle is null) throw new InvalidOperationException("required titled audio/subtitle tracks not found");
     await mpv.SetPropertyAsync("aid", vocal.Value); await mpv.SetPropertyAsync("aid", backing.Value); await mpv.SetPropertyAsync("sid", subtitle.Value);
     var time = await mpv.GetPropertyAsync("time-pos"); Console.WriteLine($"TIME_POS={time}");
     await mpv.WaitForEventAsync("end-file", TimeSpan.FromSeconds(15));

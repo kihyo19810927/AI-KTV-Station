@@ -1,4 +1,5 @@
 $ErrorActionPreference = 'Stop'
+if ($PSVersionTable.PSVersion.Major -lt 7) { throw 'PowerShell 7 (pwsh.exe) is required for reliable Unicode native arguments.' }
 $root = Resolve-Path (Join-Path $PSScriptRoot '..'); $media = Join-Path $root 'tests\fixtures\Unicode 测试\演示歌曲.mkv'
 & (Join-Path $PSScriptRoot 'generate-test-media.ps1') -Output $media
 $mpv = Get-ChildItem "$env:LOCALAPPDATA\Microsoft\WinGet\Packages" -Filter mpv.exe -Recurse -ErrorAction SilentlyContinue | Select-Object -First 1 -ExpandProperty FullName
