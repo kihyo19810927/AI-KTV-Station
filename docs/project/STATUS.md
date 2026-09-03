@@ -7,8 +7,8 @@
 - 分支：`task-KTVS-001-002-phase0`
 - 版本：`0.1.0-dev`
 - 阶段：Phase 1：工程骨架与持续集成
-- 已完成：KTVS-001 至 KTVS-005（Phase 0 软件工作）
-- 当前任务：KTVS-006 解决方案和项目依赖方向
+- 已完成：KTVS-001 至 KTVS-006
+- 当前任务：KTVS-007 配置、日志和错误模型
 
 ## 调查结果
 
@@ -22,6 +22,8 @@
 
 已执行：`pwsh.exe -ExecutionPolicy Bypass -File scripts/verify-environment.ps1`；结果为 .NET `10.0.400`、Node `v24.18.0`、npm `11.16.0`、FFmpeg/ffprobe `8.1.2`、mpv `v0.41.0-dev-g41f6a6450`，夹具 `10.023s`、四轨与中文标题正确、`END_FILE=received`、`ENVIRONMENT_BASELINE=passed`。真实设备项仍未验证。
 
+KTVS-006：`dotnet build AI-KTV-Station.slnx --configuration Release -m:1 -p:UseSharedCompilation=false` 成功，0 警告/0 错误；依赖检查输出 `PROJECT_DEPENDENCIES=passed`。沙箱内并行 MSBuild 会遇到命名管道权限限制，基线命令暂用 `-m:1` 与禁用共享编译。
+
 ## 外部阻塞
 
 1. 真实 MKV、挂载目录和电视/功放/手机验收需用户后续执行，不阻塞软件开发。
@@ -32,4 +34,4 @@
 
 ## 下一推荐任务
 
-执行 `KTVS-006`：建立解决方案和项目依赖方向。
+执行 `KTVS-007`：建立强类型配置、日志脱敏边界和统一错误模型。

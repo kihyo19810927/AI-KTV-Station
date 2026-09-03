@@ -1,0 +1,12 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/Station.Domain/Station.Domain.csproj" />
+    <Project Path="src/Station.Application/Station.Application.csproj" />
+    <Project Path="src/Station.Infrastructure/Station.Infrastructure.csproj" />
+    <Project Path="src/Station.Server/Station.Server.csproj" />
+    <Project Path="src/Station.Desktop/Station.Desktop.csproj" />
+  </Folder>
+  <Folder Name="/spikes/">
+    <Project Path="src/Station.PlayerSpike/Station.PlayerSpike.csproj" />
+  </Folder>
+</Solution>

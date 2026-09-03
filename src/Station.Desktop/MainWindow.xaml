@@ -1,0 +1,8 @@
+<Window x:Class="Station.Desktop.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="AI-KTV Station" Width="960" Height="640">
+    <Grid>
+        <TextBlock Text="AI-KTV Station" HorizontalAlignment="Center" VerticalAlignment="Center" FontSize="32" />
+    </Grid>
+</Window>
