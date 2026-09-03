@@ -7,8 +7,8 @@
 - 分支：`task-KTVS-001-002-phase0`
 - 版本：`0.1.0-dev`
 - 阶段：Phase 0：仓库调查与架构定稿
-- 已完成：KTVS-001、KTVS-002（文档基线）
-- 当前任务：等待完成环境准备后进入 KTVS-003
+- 已完成：KTVS-001、KTVS-002、KTVS-003
+- 当前任务：KTVS-004 架构决策记录
 
 ## 调查结果
 
@@ -16,17 +16,15 @@
 - Git 已初始化为独立仓库；保留原计划文件，未覆盖用户文件。
 - Node.js `v24.18.0`、npm `11.16.0` 可用。
 - `ffprobe`/`ffmpeg` 可用（来自 `D:\Applications\ffmpeg\bin`，未写入项目配置）。
-- .NET SDK 不在 PATH；mpv 不在 PATH。
+- .NET SDK `10.0.400`（绝对路径可用）；mpv 已由 WinGet 安装并可定位。
 
 ## 最近验证
 
-已执行只读环境调查：目录、Git、计划文档、Node/npm、mpv、ffprobe/ffmpeg。由于 .NET SDK/mpv 缺失，尚无可执行的 .NET 构建、测试或真实播放验证。
+已执行：`powershell -ExecutionPolicy Bypass -File scripts/run-player-spike.ps1`；结果包含 `TRACKS=4`、两路 audio、一路 sub、`TIME_POS=0.000000`、`END_FILE=received`。真实电视/功放/手机/115 与真实 MKV 仍未验证。
 
 ## 外部阻塞
 
-1. 安装/提供可用的 .NET 10 SDK。
-2. 提供可执行的 mpv（仅在用户准备好后用于测试，不需要提交二进制）。
-3. KTVS-005 前由用户提供脱敏的真实 MKV、挂载目录和电视/功放/手机验收条件。
+1. KTVS-005 前由用户提供脱敏的真实 MKV、挂载目录和电视/功放/手机验收条件。
 
 ## 用户实机验收（待验证）
 
