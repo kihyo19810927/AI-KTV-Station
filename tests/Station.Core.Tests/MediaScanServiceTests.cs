@@ -1,5 +1,7 @@
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
+using Station.Application.Common;
+using Station.Application.Media;
 using Station.Application.Scanning;
 using Station.Domain.Models;
 using Station.Infrastructure.Persistence;
@@ -69,6 +71,46 @@ public sealed class MediaScanServiceTests
         Assert.Equal(ScanStatus.Cancelled, (await database.ScanRuns.SingleAsync()).Status);
     }
 
+    [Fact]
+    public async Task New_file_probe_persists_duration_and_tracks()
+    {
+        await using var database = CreateDatabase();
+        await database.Database.EnsureCreatedAsync();
+        var root = Path.Combine(Path.GetTempPath(), $"ai-ktv-probe-{Guid.NewGuid():N}");
+        var source = new MediaSource { Name = "Fixture", RootPath = root, Availability = AvailabilityStatus.Available };
+        database.MediaSources.Add(source);
+        await database.SaveChangesAsync();
+        var scanner = new MediaScanService(new EfMediaScanRepository(database), new SingleFileEnumerator(), mediaProbe: new SuccessfulProbe());
+
+        var result = await scanner.ScanAsync(source.Id);
+
+        Assert.Equal(ScanStatus.Completed, result.Value.Status);
+        var file = await database.MediaFiles.Include(x => x.Tracks).SingleAsync();
+        Assert.NotNull(file.DurationSeconds);
+        Assert.Equal(10.023, file.DurationSeconds.Value, 3);
+        Assert.Equal(2, file.Tracks.Count);
+        Assert.Contains(file.Tracks, x => x.Type == MediaTrackType.Audio && x.Title == "伴奏");
+    }
+
+    [Fact]
+    public async Task Probe_failure_marks_file_unreadable_without_removing_index()
+    {
+        await using var database = CreateDatabase();
+        await database.Database.EnsureCreatedAsync();
+        var source = new MediaSource { Name = "Fixture", RootPath = "unused", Availability = AvailabilityStatus.Available };
+        database.MediaSources.Add(source);
+        await database.SaveChangesAsync();
+        var scanner = new MediaScanService(new EfMediaScanRepository(database), new SingleFileEnumerator(), mediaProbe: new FailedProbe());
+
+        var result = await scanner.ScanAsync(source.Id);
+
+        Assert.Equal(1, result.Value.ErrorCount);
+        Assert.Equal(1, await database.MediaFiles.CountAsync());
+        var file = await database.MediaFiles.SingleAsync();
+        Assert.Equal(AvailabilityStatus.Unreadable, file.Availability);
+        Assert.Equal("media_probe.process_failed", file.LastErrorCode);
+    }
+
     private static StationDbContext CreateDatabase()
     {
         var connection = new SqliteConnection("Data Source=:memory:"); connection.Open();
@@ -92,5 +134,30 @@ public sealed class MediaScanServiceTests
             await Task.Yield();
             cancellationToken.ThrowIfCancellationRequested();
         }
+    }
+
+    private sealed class SingleFileEnumerator : IMediaFileEnumerator
+    {
+        public async IAsyncEnumerable<MediaEnumerationEntry> EnumerateAsync(MediaSource source, [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken = default)
+        {
+            await Task.Yield();
+            yield return MediaEnumerationEntry.File("测试歌曲.mkv", 1024, DateTimeOffset.UnixEpoch);
+        }
+    }
+
+    private sealed class SuccessfulProbe : IMediaProbe
+    {
+        public Task<Result<MediaProbeResult>> ProbeAsync(string mediaPath, CancellationToken cancellationToken = default) =>
+            Task.FromResult(Result<MediaProbeResult>.Success(new MediaProbeResult(10.023,
+            [
+                new(0, MediaTrackType.Video, "h264", null, null),
+                new(1, MediaTrackType.Audio, "aac", "zho", "伴奏"),
+            ])));
+    }
+
+    private sealed class FailedProbe : IMediaProbe
+    {
+        public Task<Result<MediaProbeResult>> ProbeAsync(string mediaPath, CancellationToken cancellationToken = default) =>
+            Task.FromResult(Result<MediaProbeResult>.Failure(new Error("media_probe.process_failed", "Probe failed.")));
     }
 }

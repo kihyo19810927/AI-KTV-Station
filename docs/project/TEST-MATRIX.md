@@ -19,7 +19,8 @@
 | 文件名解析 | 计划样本 + Unicode/容错回归 | 通过（9 个断言场景） | 真实脱敏命名样本后补 |
 | Host/API/SignalR | 集成测试 | 未开始 | .NET SDK |
 | mpv IPC | 生成夹具 + Windows named-pipe 实机进程 | 软件 Spike 通过 | 真实 MKV/设备待验收 |
-| ffprobe 解析 | 固定 JSON 样本 | 未开始 | 无（实现阶段） |
+| ffprobe JSON/失败分类 | 固定 JSON、缺失可执行文件、扫描器替身 | 通过 | 无 |
+| ffprobe 真实进程 | `scripts/test-media-probe.ps1` + 自动生成 Unicode MKV | 通过（10.023s、4 轨） | 真实挂载媒体待验收 |
 | React Web | npm build/test | 未开始 | Web 工程尚未建立 |
 | 环境与生成 MKV | `scripts/verify-environment.ps1` | 通过（10.023s、4 轨、中文标题） | 无 |
 | 真实 MKV/设备 | `ENVIRONMENT-BASELINE.md` 用户验收步骤 | 待验证 | 用户设备、样本和挂载 |

@@ -1,10 +1,15 @@
 using Station.Application.Common;
+using Station.Application.Media;
 using Station.Application.Metadata;
 using Station.Domain.Models;
 
 namespace Station.Application.Scanning;
 
-public sealed class MediaScanService(IMediaScanRepository repository, IMediaFileEnumerator fileEnumerator, IMediaFilenameParser? filenameParser = null)
+public sealed class MediaScanService(
+    IMediaScanRepository repository,
+    IMediaFileEnumerator fileEnumerator,
+    IMediaFilenameParser? filenameParser = null,
+    IMediaProbe? mediaProbe = null)
 {
     private const int CheckpointBatchSize = 100;
 
@@ -29,6 +34,7 @@ public sealed class MediaScanService(IMediaScanRepository repository, IMediaFile
                 if (entry.IsError) { run.ErrorCount++; run.ErrorSummary = entry.ErrorCode; continue; }
                 var relativePath = Normalize(entry.RelativePath);
                 seen.Add(relativePath);
+                var requiresProbe = false;
                 if (!existing.TryGetValue(relativePath, out var file))
                 {
                     var metadata = (filenameParser ?? new KtvFilenameParser()).Parse(relativePath);
@@ -57,6 +63,7 @@ public sealed class MediaScanService(IMediaScanRepository repository, IMediaFile
                     await repository.AddFileAsync(file, cancellationToken);
                     existing.Add(relativePath, file);
                     run.UpdatedFiles++;
+                    requiresProbe = true;
                 }
                 else if (file.SizeBytes != entry.SizeBytes || file.LastWriteTime != entry.LastWriteTime || file.Availability != AvailabilityStatus.Available)
                 {
@@ -65,7 +72,10 @@ public sealed class MediaScanService(IMediaScanRepository repository, IMediaFile
                     file.Availability = AvailabilityStatus.Available;
                     file.LastErrorCode = null;
                     run.UpdatedFiles++;
+                    requiresProbe = true;
                 }
+                if (requiresProbe && mediaProbe is not null)
+                    await ProbeAsync(source, file, run, cancellationToken);
                 if (run.DiscoveredFiles % CheckpointBatchSize == 0) await repository.SaveChangesAsync(cancellationToken);
             }
 
@@ -101,6 +111,33 @@ public sealed class MediaScanService(IMediaScanRepository repository, IMediaFile
             await repository.SaveChangesAsync(CancellationToken.None);
             throw;
         }
+    }
+
+    private async Task ProbeAsync(MediaSource source, MediaFile file, ScanRun run, CancellationToken cancellationToken)
+    {
+        var relativePath = file.RelativePath.Replace('/', Path.DirectorySeparatorChar);
+        var result = await mediaProbe!.ProbeAsync(Path.Combine(source.RootPath, relativePath), cancellationToken);
+        if (!result.IsSuccess)
+        {
+            file.Availability = AvailabilityStatus.Unreadable;
+            file.LastErrorCode = result.Error.Code;
+            run.ErrorCount++;
+            run.ErrorSummary = result.Error.Code;
+            return;
+        }
+
+        file.DurationSeconds = result.Value.DurationSeconds;
+        file.Tracks.Clear();
+        file.Tracks.AddRange(result.Value.Tracks.Select(track => new MediaTrack
+        {
+            StreamId = track.StreamId,
+            Type = track.Type,
+            Codec = track.Codec,
+            Language = track.Language,
+            Title = track.Title,
+        }));
+        file.Availability = AvailabilityStatus.Available;
+        file.LastErrorCode = null;
     }
 
     private static string Normalize(string relativePath) => relativePath.Replace('\\', '/').TrimStart('/');
