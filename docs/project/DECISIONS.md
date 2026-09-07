@@ -10,5 +10,6 @@
 | 2026-09-03 | EF Core + SQLite/FTS5，歌曲身份与媒体在线状态分离 | [ADR-0004](../adr/ADR-0004-sqlite-persistence-and-search.md) |
 | 2026-09-03 | React/Vite 静态产物由 ASP.NET Core 托管 | [ADR-0005](../adr/ADR-0005-web-build-and-hosting.md) |
 | 2026-09-03 | 短期、限定房间/角色的令牌；默认仅局域网暴露 | [ADR-0006](../adr/ADR-0006-room-authentication.md) |
+| 2026-09-07 | 歌曲字段按人工修正、NFO、文件名逐字段合并；NFO 异常或不一致不阻止入库 | Accepted（KTVS-016） |
 
 重大、跨模块的决定在 `docs/adr/` 单独记录；实现变更必须同步更新或 Supersede 对应 ADR。

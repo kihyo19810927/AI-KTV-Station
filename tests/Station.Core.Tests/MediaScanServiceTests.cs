@@ -2,6 +2,7 @@ using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using Station.Application.Common;
 using Station.Application.Media;
+using Station.Application.Metadata;
 using Station.Application.Scanning;
 using Station.Domain.Models;
 using Station.Infrastructure.Persistence;
@@ -111,6 +112,24 @@ public sealed class MediaScanServiceTests
         Assert.Equal("media_probe.process_failed", file.LastErrorCode);
     }
 
+    [Fact]
+    public async Task New_file_uses_optional_nfo_metadata()
+    {
+        await using var database = CreateDatabase();
+        await database.Database.EnsureCreatedAsync();
+        var source = new MediaSource { Name = "Fixture", RootPath = "unused", Availability = AvailabilityStatus.Available };
+        database.MediaSources.Add(source);
+        await database.SaveChangesAsync();
+        var scanner = new MediaScanService(new EfMediaScanRepository(database), new SingleFileEnumerator(), metadataReader: new NfoReader());
+
+        await scanner.ScanAsync(source.Id);
+
+        var song = await database.Songs.Include(x => x.Artists).ThenInclude(x => x.Artist).SingleAsync();
+        Assert.Equal("NFO 标题", song.Title);
+        Assert.Equal("歌手乙", song.Artists.Single().Artist.Name);
+        Assert.Equal(2026, song.Year);
+    }
+
     private static StationDbContext CreateDatabase()
     {
         var connection = new SqliteConnection("Data Source=:memory:"); connection.Open();
@@ -159,5 +178,11 @@ public sealed class MediaScanServiceTests
     {
         public Task<Result<MediaProbeResult>> ProbeAsync(string mediaPath, CancellationToken cancellationToken = default) =>
             Task.FromResult(Result<MediaProbeResult>.Failure(new Error("media_probe.process_failed", "Probe failed.")));
+    }
+
+    private sealed class NfoReader : INfoMetadataReader
+    {
+        public Task<NfoReadResult> ReadForMediaAsync(string mediaPath, CancellationToken cancellationToken = default) =>
+            Task.FromResult(new NfoReadResult(new NfoSongMetadata("NFO 标题", ["歌手乙"], "国语", "流行", 2026, "4K", null), []));
     }
 }

@@ -9,7 +9,8 @@ public sealed class MediaScanService(
     IMediaScanRepository repository,
     IMediaFileEnumerator fileEnumerator,
     IMediaFilenameParser? filenameParser = null,
-    IMediaProbe? mediaProbe = null)
+    IMediaProbe? mediaProbe = null,
+    INfoMetadataReader? metadataReader = null)
 {
     private const int CheckpointBatchSize = 100;
 
@@ -37,7 +38,12 @@ public sealed class MediaScanService(
                 var requiresProbe = false;
                 if (!existing.TryGetValue(relativePath, out var file))
                 {
-                    var metadata = (filenameParser ?? new KtvFilenameParser()).Parse(relativePath);
+                    var filenameMetadata = (filenameParser ?? new KtvFilenameParser()).Parse(relativePath);
+                    var mediaPath = Path.Combine(source.RootPath, relativePath.Replace('/', Path.DirectorySeparatorChar));
+                    var nfo = metadataReader is null
+                        ? NfoReadResult.Missing
+                        : await metadataReader.ReadForMediaAsync(mediaPath, cancellationToken);
+                    var metadata = SongMetadataResolver.Resolve(filenameMetadata, nfo);
                     file = new MediaFile
                     {
                         MediaSourceId = source.Id,
@@ -51,9 +57,10 @@ public sealed class MediaScanService(
                             NormalizedTitle = metadata.Title.Normalize(),
                             Language = metadata.Language,
                             Category = metadata.Category,
+                            Year = metadata.Year,
                             Quality = metadata.Quality,
                             Availability = AvailabilityStatus.Available,
-                            Artists = metadata.ArtistCandidates.Select((artist, order) => new SongArtist
+                            Artists = metadata.Artists.Select((artist, order) => new SongArtist
                             {
                                 Order = order,
                                 Artist = new Artist { Name = artist, NormalizedName = artist.Normalize() },
