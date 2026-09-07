@@ -12,19 +12,38 @@ public sealed class MediaScanService(
     IMediaFilenameParser? filenameParser = null,
     IMediaProbe? mediaProbe = null,
     INfoMetadataReader? metadataReader = null,
-    ISearchTextNormalizer? searchTextNormalizer = null)
+    ISearchTextNormalizer? searchTextNormalizer = null) : IMediaScanRunner
 {
     private const int CheckpointBatchSize = 100;
 
     public async Task<Result<ScanRun>> ScanAsync(Guid mediaSourceId, CancellationToken cancellationToken = default)
     {
+        return await ScanCoreAsync(mediaSourceId, Guid.NewGuid(), null, cancellationToken);
+    }
+
+    public async Task<Result<ScanRun>> ScanAsync(
+        Guid mediaSourceId,
+        Guid scanRunId,
+        IProgress<MediaScanProgress> progress,
+        CancellationToken cancellationToken = default)
+    {
+        return await ScanCoreAsync(mediaSourceId, scanRunId, progress, cancellationToken);
+    }
+
+    private async Task<Result<ScanRun>> ScanCoreAsync(
+        Guid mediaSourceId,
+        Guid scanRunId,
+        IProgress<MediaScanProgress>? progress,
+        CancellationToken cancellationToken)
+    {
         var source = await repository.FindSourceAsync(mediaSourceId, cancellationToken);
         if (source is null) return Result<ScanRun>.Failure(new Error("scan.source_not_found", "Media source was not found."));
         if (!source.IsEnabled) return Result<ScanRun>.Failure(new Error("scan.source_disabled", "Media source is disabled."));
 
-        var run = new ScanRun { MediaSourceId = source.Id, Status = ScanStatus.Running, CreatedAt = DateTimeOffset.UtcNow };
+        var run = new ScanRun { Id = scanRunId, MediaSourceId = source.Id, Status = ScanStatus.Running, CreatedAt = DateTimeOffset.UtcNow };
         await repository.AddRunAsync(run, cancellationToken);
         await repository.SaveChangesAsync(cancellationToken);
+        Report(run, progress);
         var existing = (await repository.ListFilesAsync(source.Id, cancellationToken)).ToDictionary(x => Normalize(x.RelativePath), StringComparer.OrdinalIgnoreCase);
         var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
@@ -85,6 +104,7 @@ public sealed class MediaScanService(
                 if (SongSearchKeyUpdater.Update(file.Song, searchTextNormalizer ?? new InvariantSearchTextNormalizer()) && !isNew)
                     run.UpdatedFiles++;
                 if (run.DiscoveredFiles % CheckpointBatchSize == 0) await repository.SaveChangesAsync(cancellationToken);
+                Report(run, progress);
             }
 
             if (run.ErrorCount == 0)
@@ -101,6 +121,7 @@ public sealed class MediaScanService(
             source.LastScanAt = run.CompletedAt;
             source.Availability = run.ErrorCount == 0 ? AvailabilityStatus.Available : AvailabilityStatus.Unknown;
             await repository.SaveChangesAsync(cancellationToken);
+            Report(run, progress);
             return Result<ScanRun>.Success(run);
         }
         catch (OperationCanceledException)
@@ -108,6 +129,7 @@ public sealed class MediaScanService(
             run.Status = ScanStatus.Cancelled;
             run.CompletedAt = DateTimeOffset.UtcNow;
             await repository.SaveChangesAsync(CancellationToken.None);
+            Report(run, progress);
             return Result<ScanRun>.Success(run);
         }
         catch (Exception exception)
@@ -117,9 +139,13 @@ public sealed class MediaScanService(
             run.ErrorCount++;
             run.ErrorSummary = exception.GetType().Name;
             await repository.SaveChangesAsync(CancellationToken.None);
+            Report(run, progress);
             throw;
         }
     }
+
+    private static void Report(ScanRun run, IProgress<MediaScanProgress>? progress) =>
+        progress?.Report(new MediaScanProgress(run.Id, run.Status, run.DiscoveredFiles, run.UpdatedFiles, run.ErrorCount));
 
     private static SongArtist CreateArtist(string name, int order) => new() { Order = order, Artist = new Artist { Name = name } };
 

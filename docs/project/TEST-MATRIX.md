@@ -25,6 +25,8 @@
 | 搜索规范化 | Unicode NFKC、空白/紧凑键、简繁、拼音/简拼、旧索引补填 | 通过（4 个场景） | 多音词真实样本后补 |
 | FTS5 搜索契约 | SQLite 迁移、简繁/拼音/简拼、分页/排序/筛选、同步与路径反射 | 通过（2 个集成场景） | 无 |
 | FTS5 100k 性能 | `scripts/test-search-performance.ps1`，30 次混合查询 | 通过（P95 4.74ms，max 5.03ms） | 300k/低规格 Windows 后补 |
+| 扫描协调器 | 独立 DI scope、进度、同源去重、取消、FTS rebuild | 通过（2 个并发场景） | 无 |
+| 扫描管理 API | TestServer 创建/查询/取消/结果、真实空目录扫描、历史回读、路径反射 | 通过（3 个集成场景） | 认证随 Phase 5；真实挂载待验收 |
 | React Web | npm build/test | 未开始 | Web 工程尚未建立 |
 | 环境与生成 MKV | `scripts/verify-environment.ps1` | 通过（10.023s、4 轨、中文标题） | 无 |
 | 真实 MKV/设备 | `ENVIRONMENT-BASELINE.md` 用户验收步骤 | 待验证 | 用户设备、样本和挂载 |

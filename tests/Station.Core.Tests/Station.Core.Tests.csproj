@@ -7,11 +7,13 @@
   <ItemGroup>
     <PackageReference Include="coverlet.collector" PrivateAssets="all" IncludeAssets="runtime; build; native; contentfiles; analyzers; buildtransitive" />
     <PackageReference Include="Microsoft.NET.Test.Sdk" />
+    <PackageReference Include="Microsoft.AspNetCore.Mvc.Testing" />
     <PackageReference Include="xunit" />
     <PackageReference Include="xunit.runner.visualstudio" PrivateAssets="all" IncludeAssets="runtime; build; native; contentfiles; analyzers; buildtransitive" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\..\src\Station.Application\Station.Application.csproj" />
     <ProjectReference Include="..\..\src\Station.Infrastructure\Station.Infrastructure.csproj" />
+    <ProjectReference Include="..\..\src\Station.Server\Station.Server.csproj" />
   </ItemGroup>
 </Project>

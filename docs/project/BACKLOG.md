@@ -34,7 +34,7 @@
 | KTVS-016 | NFO 可选读取 | KTVS-011 | Done | 不一致处理、人工字段优先级 | XML 安全边界和 Unicode 临时夹具测试通过 |
 | KTVS-017 | 搜索规范化 | KTVS-011 | Done | 拼音、简拼、原文规范化有 Unicode 测试 | ToolGood.Words 3.1.0.3 / Apache-2.0 已记录并锁定 |
 | KTVS-018 | FTS 搜索与筛选 | KTVS-011,017 | Done | 分页/排序/筛选及 100k 性能基线 | 100k 混合查询 P95 4.74ms；300k/低规格机后补 |
-| KTVS-019 | 扫描管理 API | KTVS-013,015 | In Progress | 创建、取消、进度、结果 API | 无 |
+| KTVS-019 | 扫描管理 API | KTVS-013,015 | Done | 创建、取消、进度、结果 API | 真实 CloudDrive 扫描仍待实机验收 |
 
 ## 后续阶段门禁
 
@@ -42,4 +42,5 @@
 - Phase 1 门禁：全新克隆一条命令构建、测试和 Web 构建通过。
 - Phase 1 软件门禁：bootstrap/build/test/server smoke 已通过；正式 Web build 随 KTVS-034 完成，GitHub runner 待首次推送验证。
 - Phase 2 门禁：真实脱敏曲库扫描、错误报告、100k 搜索性能，且不修改媒体。
+- Phase 2 软件门禁：生成/临时夹具的扫描、错误隔离、FTS 和 100k 性能已通过；真实脱敏 CloudDrive 曲库扫描保持待实机验收，不阻塞 Phase 3 软件开发。
 - Phase 3 及以后：详见权威开发计划第 15 节；每个任务完成前同步 STATUS、测试和文档。
