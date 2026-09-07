@@ -33,8 +33,8 @@
 | KTVS-015 | ffprobe 媒体探测 | KTVS-013 | Done | 时长、轨道、编码信息与失败分类 | 生成 MKV 自动测试通过；真实挂载待验收 |
 | KTVS-016 | NFO 可选读取 | KTVS-011 | Done | 不一致处理、人工字段优先级 | XML 安全边界和 Unicode 临时夹具测试通过 |
 | KTVS-017 | 搜索规范化 | KTVS-011 | Done | 拼音、简拼、原文规范化有 Unicode 测试 | ToolGood.Words 3.1.0.3 / Apache-2.0 已记录并锁定 |
-| KTVS-018 | FTS 搜索与筛选 | KTVS-011,017 | In Progress | 分页/排序/筛选及 100k 性能基线 | 无 |
-| KTVS-019 | 扫描管理 API | KTVS-013,015 | Todo | 创建、取消、进度、结果 API | 无 |
+| KTVS-018 | FTS 搜索与筛选 | KTVS-011,017 | Done | 分页/排序/筛选及 100k 性能基线 | 100k 混合查询 P95 4.74ms；300k/低规格机后补 |
+| KTVS-019 | 扫描管理 API | KTVS-013,015 | In Progress | 创建、取消、进度、结果 API | 无 |
 
 ## 后续阶段门禁
 

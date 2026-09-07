@@ -12,5 +12,6 @@
 | 2026-09-03 | 短期、限定房间/角色的令牌；默认仅局域网暴露 | [ADR-0006](../adr/ADR-0006-room-authentication.md) |
 | 2026-09-07 | 歌曲字段按人工修正、NFO、文件名逐字段合并；NFO 异常或不一致不阻止入库 | Accepted（KTVS-016） |
 | 2026-09-07 | 搜索规范化经应用端口隔离，Infrastructure 使用 ToolGood.Words 预计算简繁、拼音和简拼键 | [ADR-0007](../adr/ADR-0007-search-text-normalization.md) |
+| 2026-09-07 | 公开搜索文档表由 trigger 同步 external-content FTS5，查询不访问媒体路径 | [ADR-0008](../adr/ADR-0008-fts5-search-index.md) |
 
 重大、跨模块的决定在 `docs/adr/` 单独记录；实现变更必须同步更新或 Supersede 对应 ADR。
