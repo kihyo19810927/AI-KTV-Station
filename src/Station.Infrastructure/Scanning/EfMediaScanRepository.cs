@@ -11,7 +11,11 @@ public sealed class EfMediaScanRepository(StationDbContext database) : IMediaSca
         database.MediaSources.SingleOrDefaultAsync(x => x.Id == sourceId, cancellationToken);
 
     public async Task<IReadOnlyList<MediaFile>> ListFilesAsync(Guid sourceId, CancellationToken cancellationToken = default) =>
-        await database.MediaFiles.Include(x => x.Tracks).Where(x => x.MediaSourceId == sourceId).ToListAsync(cancellationToken);
+        await database.MediaFiles
+            .Include(x => x.Tracks)
+            .Include(x => x.Song).ThenInclude(x => x.Artists).ThenInclude(x => x.Artist)
+            .Where(x => x.MediaSourceId == sourceId)
+            .ToListAsync(cancellationToken);
 
     public Task AddFileAsync(MediaFile file, CancellationToken cancellationToken = default) => database.MediaFiles.AddAsync(file, cancellationToken).AsTask();
     public Task AddRunAsync(ScanRun run, CancellationToken cancellationToken = default) => database.ScanRuns.AddAsync(run, cancellationToken).AsTask();

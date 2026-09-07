@@ -93,7 +93,8 @@
         "type": "Project",
         "dependencies": {
           "Microsoft.EntityFrameworkCore.Sqlite": "[10.0.11, )",
-          "Station.Application": "[1.0.0, )"
+          "Station.Application": "[1.0.0, )",
+          "ToolGood.Words": "[3.1.0.3, )"
         }
       },
       "Microsoft.EntityFrameworkCore.Sqlite": {
@@ -107,6 +108,12 @@
           "SQLitePCLRaw.bundle_e_sqlite3": "2.1.12",
           "SQLitePCLRaw.core": "2.1.12"
         }
+      },
+      "ToolGood.Words": {
+        "type": "CentralTransitive",
+        "requested": "[3.1.0.3, )",
+        "resolved": "3.1.0.3",
+        "contentHash": "+rqHT30SJW/dtJKxt1pVe76Rvv2tGy4j/7swRkAxUTj3AAPVL4dPB2YswMNnIVxXWQfMvUTaU4clliiFbC994Q=="
       }
     }
   }

@@ -7,6 +7,7 @@ using Station.Application.Scanning;
 using Station.Domain.Models;
 using Station.Infrastructure.Persistence;
 using Station.Infrastructure.Scanning;
+using Station.Infrastructure.Search;
 
 namespace Station.Core.Tests;
 
@@ -120,7 +121,11 @@ public sealed class MediaScanServiceTests
         var source = new MediaSource { Name = "Fixture", RootPath = "unused", Availability = AvailabilityStatus.Available };
         database.MediaSources.Add(source);
         await database.SaveChangesAsync();
-        var scanner = new MediaScanService(new EfMediaScanRepository(database), new SingleFileEnumerator(), metadataReader: new NfoReader());
+        var scanner = new MediaScanService(
+            new EfMediaScanRepository(database),
+            new SingleFileEnumerator(),
+            metadataReader: new NfoReader(),
+            searchTextNormalizer: new ToolGoodSearchTextNormalizer());
 
         await scanner.ScanAsync(source.Id);
 
@@ -128,6 +133,43 @@ public sealed class MediaScanServiceTests
         Assert.Equal("NFO 标题", song.Title);
         Assert.Equal("歌手乙", song.Artists.Single().Artist.Name);
         Assert.Equal(2026, song.Year);
+        Assert.Equal("nfobiaoti", song.TitlePinyin);
+        Assert.Equal("nfobt", song.TitleInitials);
+    }
+
+    [Fact]
+    public async Task Existing_index_with_empty_search_keys_is_backfilled_without_touching_media()
+    {
+        await using var database = CreateDatabase();
+        await database.Database.EnsureCreatedAsync();
+        var source = new MediaSource { Name = "Fixture", RootPath = "unused", Availability = AvailabilityStatus.Available };
+        var song = new Song
+        {
+            Title = "夜曲",
+            Availability = AvailabilityStatus.Available,
+            Artists = [new SongArtist { Artist = new Artist { Name = "周杰伦" } }],
+        };
+        database.MediaFiles.Add(new MediaFile
+        {
+            MediaSource = source,
+            Song = song,
+            RelativePath = "测试歌曲.mkv",
+            SizeBytes = 1024,
+            LastWriteTime = DateTimeOffset.UnixEpoch,
+            Availability = AvailabilityStatus.Available,
+        });
+        await database.SaveChangesAsync();
+        var scanner = new MediaScanService(
+            new EfMediaScanRepository(database),
+            new SingleFileEnumerator(),
+            searchTextNormalizer: new ToolGoodSearchTextNormalizer());
+
+        var result = await scanner.ScanAsync(source.Id);
+
+        Assert.Equal(1, result.Value.UpdatedFiles);
+        Assert.Equal("yequ", song.TitlePinyin);
+        Assert.Equal("zhoujielun", song.Artists.Single().Artist.Pinyin);
+        Assert.Equal("zjl", song.Artists.Single().Artist.Initials);
     }
 
     private static StationDbContext CreateDatabase()

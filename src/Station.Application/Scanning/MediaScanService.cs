@@ -1,6 +1,7 @@
 using Station.Application.Common;
 using Station.Application.Media;
 using Station.Application.Metadata;
+using Station.Application.Search;
 using Station.Domain.Models;
 
 namespace Station.Application.Scanning;
@@ -10,7 +11,8 @@ public sealed class MediaScanService(
     IMediaFileEnumerator fileEnumerator,
     IMediaFilenameParser? filenameParser = null,
     IMediaProbe? mediaProbe = null,
-    INfoMetadataReader? metadataReader = null)
+    INfoMetadataReader? metadataReader = null,
+    ISearchTextNormalizer? searchTextNormalizer = null)
 {
     private const int CheckpointBatchSize = 100;
 
@@ -36,6 +38,7 @@ public sealed class MediaScanService(
                 var relativePath = Normalize(entry.RelativePath);
                 seen.Add(relativePath);
                 var requiresProbe = false;
+                var isNew = false;
                 if (!existing.TryGetValue(relativePath, out var file))
                 {
                     var filenameMetadata = (filenameParser ?? new KtvFilenameParser()).Parse(relativePath);
@@ -54,23 +57,19 @@ public sealed class MediaScanService(
                         Song = new Song
                         {
                             Title = metadata.Title,
-                            NormalizedTitle = metadata.Title.Normalize(),
                             Language = metadata.Language,
                             Category = metadata.Category,
                             Year = metadata.Year,
                             Quality = metadata.Quality,
                             Availability = AvailabilityStatus.Available,
-                            Artists = metadata.Artists.Select((artist, order) => new SongArtist
-                            {
-                                Order = order,
-                                Artist = new Artist { Name = artist, NormalizedName = artist.Normalize() },
-                            }).ToList(),
+                            Artists = metadata.Artists.Select((artist, order) => CreateArtist(artist, order)).ToList(),
                         },
                     };
                     await repository.AddFileAsync(file, cancellationToken);
                     existing.Add(relativePath, file);
                     run.UpdatedFiles++;
                     requiresProbe = true;
+                    isNew = true;
                 }
                 else if (file.SizeBytes != entry.SizeBytes || file.LastWriteTime != entry.LastWriteTime || file.Availability != AvailabilityStatus.Available)
                 {
@@ -83,6 +82,8 @@ public sealed class MediaScanService(
                 }
                 if (requiresProbe && mediaProbe is not null)
                     await ProbeAsync(source, file, run, cancellationToken);
+                if (SongSearchKeyUpdater.Update(file.Song, searchTextNormalizer ?? new InvariantSearchTextNormalizer()) && !isNew)
+                    run.UpdatedFiles++;
                 if (run.DiscoveredFiles % CheckpointBatchSize == 0) await repository.SaveChangesAsync(cancellationToken);
             }
 
@@ -119,6 +120,8 @@ public sealed class MediaScanService(
             throw;
         }
     }
+
+    private static SongArtist CreateArtist(string name, int order) => new() { Order = order, Artist = new Artist { Name = name } };
 
     private async Task ProbeAsync(MediaSource source, MediaFile file, ScanRun run, CancellationToken cancellationToken)
     {

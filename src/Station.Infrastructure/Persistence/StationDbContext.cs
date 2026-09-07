@@ -22,8 +22,29 @@ public sealed class StationDbContext(DbContextOptions<StationDbContext> options)
 
     protected override void OnModelCreating(ModelBuilder model)
     {
-        model.Entity<Song>(e => { e.Property(x => x.Title).HasMaxLength(300); e.Property(x => x.NormalizedTitle).HasMaxLength(300); e.Property(x => x.Availability).HasConversion<string>(); e.HasIndex(x => x.NormalizedTitle); });
-        model.Entity<Artist>(e => { e.Property(x => x.Name).HasMaxLength(200); e.Property(x => x.NormalizedName).HasMaxLength(200); e.HasIndex(x => x.NormalizedName); });
+        model.Entity<Song>(e =>
+        {
+            e.Property(x => x.Title).HasMaxLength(300);
+            e.Property(x => x.NormalizedTitle).HasMaxLength(300);
+            e.Property(x => x.SimplifiedTitle).HasMaxLength(300);
+            e.Property(x => x.TraditionalTitle).HasMaxLength(300);
+            e.Property(x => x.TitlePinyin).HasMaxLength(1200);
+            e.Property(x => x.TitleInitials).HasMaxLength(300);
+            e.Property(x => x.CompactTitle).HasMaxLength(300);
+            e.Property(x => x.Availability).HasConversion<string>();
+            e.HasIndex(x => x.NormalizedTitle);
+        });
+        model.Entity<Artist>(e =>
+        {
+            e.Property(x => x.Name).HasMaxLength(200);
+            e.Property(x => x.NormalizedName).HasMaxLength(200);
+            e.Property(x => x.SimplifiedName).HasMaxLength(200);
+            e.Property(x => x.TraditionalName).HasMaxLength(200);
+            e.Property(x => x.Pinyin).HasMaxLength(800);
+            e.Property(x => x.Initials).HasMaxLength(200);
+            e.Property(x => x.CompactName).HasMaxLength(200);
+            e.HasIndex(x => x.NormalizedName);
+        });
         model.Entity<SongArtist>(e => { e.HasKey(x => new { x.SongId, x.ArtistId }); e.HasIndex(x => new { x.SongId, x.Order }).IsUnique(); });
         model.Entity<MediaSource>(e => { e.Property(x => x.Name).HasMaxLength(200); e.Property(x => x.Availability).HasConversion<string>(); });
         model.Entity<MediaFile>(e => { e.Property(x => x.RelativePath).HasMaxLength(1024); e.Property(x => x.Availability).HasConversion<string>(); e.HasIndex(x => new { x.MediaSourceId, x.RelativePath }).IsUnique(); });

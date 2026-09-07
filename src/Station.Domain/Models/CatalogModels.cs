@@ -5,6 +5,11 @@ public sealed class Song
     public Guid Id { get; set; } = Guid.NewGuid();
     public string Title { get; set; } = string.Empty;
     public string NormalizedTitle { get; set; } = string.Empty;
+    public string SimplifiedTitle { get; set; } = string.Empty;
+    public string TraditionalTitle { get; set; } = string.Empty;
+    public string TitlePinyin { get; set; } = string.Empty;
+    public string TitleInitials { get; set; } = string.Empty;
+    public string CompactTitle { get; set; } = string.Empty;
     public string? Language { get; set; }
     public string? Category { get; set; }
     public int? Year { get; set; }
@@ -19,8 +24,11 @@ public sealed class Artist
     public Guid Id { get; set; } = Guid.NewGuid();
     public string Name { get; set; } = string.Empty;
     public string NormalizedName { get; set; } = string.Empty;
+    public string SimplifiedName { get; set; } = string.Empty;
+    public string TraditionalName { get; set; } = string.Empty;
     public string? Pinyin { get; set; }
     public string? Initials { get; set; }
+    public string CompactName { get; set; } = string.Empty;
     public List<SongArtist> Songs { get; set; } = [];
 }
 
