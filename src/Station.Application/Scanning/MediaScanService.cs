@@ -1,6 +1,7 @@
 using Station.Application.Common;
 using Station.Application.Media;
 using Station.Application.Metadata;
+using Station.Application.Playback;
 using Station.Application.Search;
 using Station.Domain.Models;
 
@@ -12,7 +13,8 @@ public sealed class MediaScanService(
     IMediaFilenameParser? filenameParser = null,
     IMediaProbe? mediaProbe = null,
     INfoMetadataReader? metadataReader = null,
-    ISearchTextNormalizer? searchTextNormalizer = null) : IMediaScanRunner
+    ISearchTextNormalizer? searchTextNormalizer = null,
+    AudioTrackClassifier? audioTrackClassifier = null) : IMediaScanRunner
 {
     private const int CheckpointBatchSize = 100;
 
@@ -138,7 +140,8 @@ public sealed class MediaScanService(
             run.CompletedAt = DateTimeOffset.UtcNow;
             run.ErrorCount++;
             run.ErrorSummary = exception.GetType().Name;
-            await repository.SaveChangesAsync(CancellationToken.None);
+            try { await repository.SaveChangesAsync(CancellationToken.None); }
+            catch (Exception) { /* Preserve the original scan failure. */ }
             Report(run, progress);
             throw;
         }
@@ -164,14 +167,35 @@ public sealed class MediaScanService(
 
         file.DurationSeconds = result.Value.DurationSeconds;
         file.Tracks.Clear();
-        file.Tracks.AddRange(result.Value.Tracks.Select(track => new MediaTrack
+        foreach (var track in result.Value.Tracks)
         {
-            StreamId = track.StreamId,
-            Type = track.Type,
-            Codec = track.Codec,
-            Language = track.Language,
-            Title = track.Title,
-        }));
+            var mediaTrack = new MediaTrack
+            {
+                MediaFile = file,
+                StreamId = track.StreamId,
+                Type = track.Type,
+                Codec = track.Codec,
+                Language = track.Language,
+                Title = track.Title,
+            };
+            file.Tracks.Add(mediaTrack);
+            await repository.AddTrackAsync(mediaTrack, cancellationToken);
+        }
+        if (file.TrackMapping?.IsManualOverride != true)
+        {
+            var automatic = (audioTrackClassifier ?? new AudioTrackClassifier())
+                .CreateAutomaticMapping(file.Id, file.Tracks, file.TrackMapping?.DefaultSubtitleTrackId);
+            if (file.TrackMapping is null)
+            {
+                file.TrackMapping = automatic;
+            }
+            else
+            {
+                file.TrackMapping.BackingTrackId = automatic.BackingTrackId;
+                file.TrackMapping.VocalTrackId = automatic.VocalTrackId;
+                file.TrackMapping.IsManualOverride = false;
+            }
+        }
         file.Availability = AvailabilityStatus.Available;
         file.LastErrorCode = null;
     }

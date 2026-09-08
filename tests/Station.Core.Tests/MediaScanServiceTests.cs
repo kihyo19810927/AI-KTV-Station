@@ -92,6 +92,8 @@ public sealed class MediaScanServiceTests
         Assert.Equal(10.023, file.DurationSeconds.Value, 3);
         Assert.Equal(2, file.Tracks.Count);
         Assert.Contains(file.Tracks, x => x.Type == MediaTrackType.Audio && x.Title == "伴奏");
+        Assert.Equal(1, file.TrackMapping?.BackingTrackId);
+        Assert.False(file.TrackMapping?.IsManualOverride);
     }
 
     [Fact]
@@ -111,6 +113,35 @@ public sealed class MediaScanServiceTests
         var file = await database.MediaFiles.SingleAsync();
         Assert.Equal(AvailabilityStatus.Unreadable, file.Availability);
         Assert.Equal("media_probe.process_failed", file.LastErrorCode);
+    }
+
+    [Fact]
+    public async Task Reprobe_does_not_overwrite_manual_track_mapping()
+    {
+        await using var database = CreateDatabase();
+        await database.Database.EnsureCreatedAsync();
+        var source = new MediaSource { Name = "Fixture", RootPath = "unused", Availability = AvailabilityStatus.Available };
+        var file = new MediaFile
+        {
+            MediaSource = source,
+            Song = new Song { Title = "测试歌曲" },
+            RelativePath = "测试歌曲.mkv",
+            SizeBytes = 1,
+            LastWriteTime = DateTimeOffset.UnixEpoch,
+            Availability = AvailabilityStatus.Available,
+            TrackMapping = new TrackMapping { BackingTrackId = 2, VocalTrackId = 1, IsManualOverride = true },
+        };
+        database.MediaFiles.Add(file);
+        await database.SaveChangesAsync();
+        var scanner = new MediaScanService(new EfMediaScanRepository(database), new SingleFileEnumerator(), mediaProbe: new SuccessfulProbe());
+
+        await scanner.ScanAsync(source.Id);
+
+        database.ChangeTracker.Clear();
+        var mapping = await database.TrackMappings.SingleAsync();
+        Assert.True(mapping.IsManualOverride);
+        Assert.Equal(2, mapping.BackingTrackId);
+        Assert.Equal(1, mapping.VocalTrackId);
     }
 
     [Fact]
