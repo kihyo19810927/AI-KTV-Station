@@ -1,14 +1,14 @@
 # 项目状态
 
-更新时间：2026-09-07
+更新时间：2026-09-08
 
 ## 当前基线
 
 - 分支：`task-KTVS-001-002-phase0`
 - 版本：`0.1.0-dev`
 - 阶段：Phase 3：播放器与播放状态机
-- 已完成：KTVS-001 至 KTVS-019
-- 当前任务：KTVS-020 `IPlayerAdapter` 契约
+- 已完成：KTVS-001 至 KTVS-020
+- 当前任务：KTVS-021 mpv 进程与 IPC
 
 ## 调查结果
 
@@ -50,6 +50,8 @@ KTVS-018：默认测试 38/38、独立性能测试 1/1 通过。FTS5 覆盖简�
 
 KTVS-019：默认测试 43/43 通过，Server smoke 通过。后台协调器使用独立 scope，覆盖创建、实时计数、同源去重、定向取消、终态、重启后持久化结果回读及完成后 FTS rebuild；API 契约反射确认不含路径字段。
 
+KTVS-020：默认测试 48/48 通过。Application 层正式定义 `IPlayerAdapter` 的启停、加载、播放控制、状态读取和异步事件流，以及播放实例/事件关联 ID、结束原因、可重试错误分类和参数验证；程序集引用检查确认不依赖 Infrastructure 或 mpv。
+
 ## 外部阻塞
 
 1. 真实 MKV、挂载目录和电视/功放/手机验收需用户后续执行，不阻塞软件开发。
@@ -60,4 +62,4 @@ KTVS-019：默认测试 43/43 通过，Server smoke 通过。后台协调器使�
 
 ## 下一推荐任务
 
-执行 `KTVS-020`：定义播放器状态、命令、事件和错误的 `IPlayerAdapter` 契约。
+执行 `KTVS-021`：把 KTVS-003 Spike 演进为 `IPlayerAdapter` 的生产 mpv named-pipe JSON IPC 实现。
