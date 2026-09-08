@@ -125,7 +125,7 @@ public sealed class MpvPlayerAdapter : IPlayerAdapter
             }
 
             stopping = true;
-            if (before.PlaybackId is { } playbackId)
+            if (before.PlaybackId is { } playbackId && before.State is PlayerLifecycleState.Preparing or PlayerLifecycleState.Playing or PlayerLifecycleState.Paused)
                 Publish(new PlaybackEndedEvent(Guid.NewGuid(), DateTimeOffset.UtcNow, playbackId, PlaybackEndReason.Stopped));
             try { await SendCommandAsync(cancellationToken, "quit").ConfigureAwait(false); }
             catch (Exception ex) when (ex is not OperationCanceledException) { }
@@ -143,11 +143,11 @@ public sealed class MpvPlayerAdapter : IPlayerAdapter
         if (validation is not null) return Result<PlayerSnapshot>.Failure(validation);
         return await ExecuteAsync(async () =>
         {
-            var previous = CurrentSnapshot().PlaybackId;
-            if (previous is not null)
+            var before = CurrentSnapshot();
+            if (before.PlaybackId is { } previous && before.State is PlayerLifecycleState.Preparing or PlayerLifecycleState.Playing or PlayerLifecycleState.Paused)
             {
                 suppressNextEndFile = true;
-                Publish(new PlaybackEndedEvent(Guid.NewGuid(), DateTimeOffset.UtcNow, previous.Value, PlaybackEndReason.Replaced));
+                Publish(new PlaybackEndedEvent(Guid.NewGuid(), DateTimeOffset.UtcNow, previous, PlaybackEndReason.Replaced));
             }
             ChangeState(PlayerLifecycleState.Preparing, request.PlaybackId, null);
             var loaded = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -254,11 +254,15 @@ public sealed class MpvPlayerAdapter : IPlayerAdapter
         var subtitleId = ParseOptionalId(await GetPropertyAsync("sid", cancellationToken).ConfigureAwait(false));
         var tracksElement = await GetPropertyAsync("track-list", cancellationToken).ConfigureAwait(false);
         var tracks = ParseTracks(tracksElement);
-        var activeId = CurrentSnapshot().PlaybackId;
-        var nextState = activeId is null ? PlayerLifecycleState.Idle :
-            pause.ValueKind == JsonValueKind.True ? PlayerLifecycleState.Paused : PlayerLifecycleState.Playing;
+        var current = CurrentSnapshot();
+        var activeId = current.PlaybackId;
+        var nextState = current.State is PlayerLifecycleState.Ended or PlayerLifecycleState.Failed
+            ? current.State
+            : activeId is null
+                ? PlayerLifecycleState.Idle
+                : pause.ValueKind == JsonValueKind.True ? PlayerLifecycleState.Paused : PlayerLifecycleState.Playing;
         var next = new PlayerSnapshot(nextState, activeId, TimeSpan.FromSeconds(position ?? 0),
-            duration is null ? null : TimeSpan.FromSeconds(duration.Value), volume, audioId, subtitleId, tracks);
+            duration is null ? null : TimeSpan.FromSeconds(duration.Value), volume, audioId, subtitleId, tracks, current.Failure);
         SetSnapshot(next);
         return next;
     }
