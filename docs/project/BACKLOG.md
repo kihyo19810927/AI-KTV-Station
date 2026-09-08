@@ -41,8 +41,8 @@
 | ID | 标题 | 依赖 | 状态 | 验收标准 | 风险/用户参与 |
 |---|---|---|---|---|---|
 | KTVS-020 | `IPlayerAdapter` 契约 | KTVS-006 | Done | 启停/加载/控制/状态/事件端口及稳定错误分类；Application 不依赖 mpv | 无 |
-| KTVS-021 | mpv 进程与 IPC | KTVS-003,020 | In Progress | 唯一 pipe、请求关联、并发读写、超时、退出和协议错误 | 生成 MKV 自动测；真实设备后验收 |
-| KTVS-022 | 播放状态机 | KTVS-020,021 | Todo | Idle/Preparing/Playing/Paused/Failed 合法迁移与迟到事件处理 | 无 |
+| KTVS-021 | mpv 进程与 IPC | KTVS-003,020 | Done | 唯一 pipe、请求关联、并发读写、超时、退出和协议错误 | 生成 MKV 自动测通过；真实设备后验收 |
+| KTVS-022 | 播放状态机 | KTVS-020,021 | In Progress | Idle/Preparing/Playing/Paused/Failed 合法迁移与迟到事件处理 | 无 |
 | KTVS-023 | 音量、进度和字幕控制 | KTVS-021,022 | Todo | 参数验证、状态同步和错误映射 | 真实功放/字幕显示待验收 |
 | KTVS-024 | 原唱/伴奏轨道映射 | KTVS-015,021 | Todo | 自动候选、人工修正和持久化优先级 | 真实音轨语义待验收 |
 | KTVS-025 | 播放故障恢复 | KTVS-022,024 | Todo | 离线/403/超时/崩溃分类、重试与自动跳过 | 真实 CloudDrive 故障后验收 |
