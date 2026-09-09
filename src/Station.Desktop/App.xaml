@@ -11,6 +11,7 @@
             <SolidColorBrush x:Key="PrimaryTextBrush" Color="#171923" />
             <SolidColorBrush x:Key="SecondaryTextBrush" Color="#667085" />
             <Style TargetType="Button"><Setter Property="MinHeight" Value="40" /><Setter Property="Padding" Value="14,8" /><Setter Property="Cursor" Value="Hand" /></Style>
+            <Style TargetType="ListView"><Setter Property="AllowDrop" Value="True" /><EventSetter Event="PreviewMouseMove" Handler="QueueList_PreviewMouseMove" /><EventSetter Event="Drop" Handler="QueueList_Drop" /></Style>
         </ResourceDictionary>
     </Application.Resources>
 </Application>

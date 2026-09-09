@@ -15,6 +15,14 @@ public sealed record QueueEntry(
     QueueItemStatus Status,
     DateTimeOffset RequestedAt);
 
+public interface IRoomQueueService
+{
+    Task<Result<IReadOnlyList<QueueEntry>>> ListAsync(RoomIdentity identity, CancellationToken cancellationToken = default);
+    Task<Result<bool>> RemoveAsync(RoomIdentity identity, Guid itemId, CancellationToken cancellationToken = default);
+    Task<Result<QueueEntry>> MoveToTopAsync(RoomIdentity identity, Guid itemId, CancellationToken cancellationToken = default);
+    Task<Result<IReadOnlyList<QueueEntry>>> ReorderBeforeAsync(RoomIdentity identity, Guid itemId, Guid? beforeItemId, CancellationToken cancellationToken = default);
+}
+
 public interface IRoomQueueRepository
 {
     Task<RoomSession?> FindRoomAsync(Guid roomId, CancellationToken cancellationToken = default);
@@ -24,6 +32,7 @@ public interface IRoomQueueRepository
     Task<IReadOnlyList<QueueItem>> ListActiveAsync(Guid roomId, CancellationToken cancellationToken = default);
     Task AddAsync(QueueItem item, CancellationToken cancellationToken = default);
     Task SaveChangesAsync(CancellationToken cancellationToken = default);
+    Task SaveReorderAsync(IReadOnlyList<QueueItem> orderedItems, CancellationToken cancellationToken = default);
 }
 
 public interface IRoomQueueLock
@@ -55,7 +64,7 @@ public sealed class InProcessRoomQueueLock : IRoomQueueLock
 public sealed class RoomQueueService(
     IRoomQueueRepository repository,
     IRoomQueueLock queueLock,
-    TimeProvider clock)
+    TimeProvider clock) : IRoomQueueService
 {
     private const long PositionStep = 1024;
 
@@ -137,6 +146,33 @@ public sealed class RoomQueueService(
             await repository.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
         }
         return Result<QueueEntry>.Success(Map(item));
+    }
+
+    public async Task<Result<IReadOnlyList<QueueEntry>>> ReorderBeforeAsync(
+        RoomIdentity identity,
+        Guid itemId,
+        Guid? beforeItemId,
+        CancellationToken cancellationToken = default)
+    {
+        if (!RoomAuthorizationPolicy.Allows(identity.Role, RoomPermission.ReorderQueue))
+            return Failure<IReadOnlyList<QueueEntry>>("queue.forbidden", "Host permission is required.");
+        if (itemId == Guid.Empty || beforeItemId == Guid.Empty || beforeItemId == itemId)
+            return Failure<IReadOnlyList<QueueEntry>>("queue.invalid_reorder", "Queue reorder target is invalid.");
+        await using var lease = await queueLock.AcquireAsync(identity.RoomId, cancellationToken).ConfigureAwait(false);
+        var context = await ValidateContextAsync(identity, cancellationToken).ConfigureAwait(false);
+        if (context.IsFailure) return Result<IReadOnlyList<QueueEntry>>.Failure(context.Error);
+        var active = await repository.ListActiveAsync(identity.RoomId, cancellationToken).ConfigureAwait(false);
+        var waiting = active.Where(x => x.Status == QueueItemStatus.Waiting).OrderBy(x => x.Position).ToList();
+        var moving = waiting.SingleOrDefault(x => x.Id == itemId);
+        if (moving is null) return Failure<IReadOnlyList<QueueEntry>>("queue.item_not_mutable", "Only waiting items can be reordered.");
+        waiting.Remove(moving);
+        var targetIndex = beforeItemId is null ? waiting.Count : waiting.FindIndex(x => x.Id == beforeItemId);
+        if (targetIndex < 0) return Failure<IReadOnlyList<QueueEntry>>("queue.target_not_found", "Queue reorder target was not found.");
+        waiting.Insert(targetIndex, moving);
+        for (var index = 0; index < waiting.Count; index++) waiting[index].Position = checked((index + 1L) * PositionStep);
+        await repository.SaveReorderAsync(waiting, cancellationToken).ConfigureAwait(false);
+        var nonWaiting = active.Where(x => x.Status != QueueItemStatus.Waiting);
+        return Result<IReadOnlyList<QueueEntry>>.Success(nonWaiting.Concat(waiting).OrderBy(x => x.Position).Select(Map).ToArray());
     }
 
     public async Task<Result<IReadOnlyList<QueueEntry>>> ListAsync(

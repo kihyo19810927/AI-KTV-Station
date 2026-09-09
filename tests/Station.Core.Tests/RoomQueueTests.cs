@@ -70,6 +70,21 @@ public sealed class RoomQueueTests
     }
 
     [Fact]
+    public async Task Host_can_reorder_waiting_item_before_another_or_to_end()
+    {
+        await using var fixture = await QueueFixture.CreateAsync();
+        var first = (await fixture.Service.RequestAsync(fixture.HostIdentity, fixture.Songs[0].Id)).Value;
+        var second = (await fixture.Service.RequestAsync(fixture.HostIdentity, fixture.Songs[1].Id)).Value;
+        var third = (await fixture.Service.RequestAsync(fixture.HostIdentity, fixture.Songs[2].Id)).Value;
+
+        var before = await fixture.Service.ReorderBeforeAsync(fixture.HostIdentity, third.Id, second.Id);
+        Assert.Equal([first.Id, third.Id, second.Id], before.Value.Select(x => x.Id));
+        var end = await fixture.Service.ReorderBeforeAsync(fixture.HostIdentity, first.Id, null);
+        Assert.Equal([third.Id, second.Id, first.Id], end.Value.Select(x => x.Id));
+        Assert.Equal(3, end.Value.Select(x => x.Position).Distinct().Count());
+    }
+
+    [Fact]
     public async Task Concurrent_requests_are_serialized_without_duplicate_positions()
     {
         await using var fixture = await QueueFixture.CreateAsync(limit: 30, songCount: 20);

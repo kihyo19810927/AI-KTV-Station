@@ -33,4 +33,15 @@ public sealed class EfRoomQueueRepository(StationDbContext database) : IRoomQueu
         database.QueueItems.AddAsync(item, cancellationToken).AsTask();
 
     public Task SaveChangesAsync(CancellationToken cancellationToken = default) => database.SaveChangesAsync(cancellationToken);
+
+    public async Task SaveReorderAsync(IReadOnlyList<QueueItem> orderedItems, CancellationToken cancellationToken = default)
+    {
+        var finalPositions = orderedItems.Select(x => x.Position).ToArray();
+        await using var transaction = await database.Database.BeginTransactionAsync(cancellationToken);
+        for (var index = 0; index < orderedItems.Count; index++) orderedItems[index].Position = long.MinValue + index;
+        await database.SaveChangesAsync(cancellationToken);
+        for (var index = 0; index < orderedItems.Count; index++) orderedItems[index].Position = finalPositions[index];
+        await database.SaveChangesAsync(cancellationToken);
+        await transaction.CommitAsync(cancellationToken);
+    }
 }

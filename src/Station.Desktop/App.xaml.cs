@@ -8,6 +8,12 @@ using Station.Infrastructure.Health;
 using Station.Infrastructure.Persistence;
 using Station.Application.Playback;
 using Station.Infrastructure.Playback;
+using Station.Application.Queue;
+using Station.Desktop.Services;
+using Station.Infrastructure.Queue;
+using System.Windows.Controls;
+using System.Windows.Input;
+using System.Windows;
 
 namespace Station.Desktop;
 
@@ -33,6 +39,11 @@ public partial class App : System.Windows.Application
         }));
         collection.AddSingleton<PlaybackControlService>();
         collection.AddSingleton<PlaybackConsoleViewModel>();
+        collection.AddSingleton<IRoomQueueRepository, EfRoomQueueRepository>();
+        collection.AddSingleton<IRoomQueueLock, InProcessRoomQueueLock>();
+        collection.AddSingleton<IRoomQueueService, RoomQueueService>();
+        collection.AddSingleton<HostRoomContext>();
+        collection.AddSingleton<QueueManagementViewModel>();
         collection.AddSingleton<MainWindowViewModel>();
         collection.AddSingleton<MainWindow>();
         services = collection.BuildServiceProvider(new ServiceProviderOptions { ValidateOnBuild = true, ValidateScopes = true });
@@ -56,5 +67,19 @@ public partial class App : System.Windows.Application
         }
         var root = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Microsoft", "WinGet", "Packages");
         return Directory.Exists(root) ? Directory.EnumerateFiles(root, "mpv.exe", SearchOption.AllDirectories).FirstOrDefault() : null;
+    }
+
+    private void QueueList_PreviewMouseMove(object sender, MouseEventArgs e)
+    {
+        if (e.LeftButton != MouseButtonState.Pressed || sender is not ListView list || list.SelectedItem is not QueueEntry item) return;
+        DragDrop.DoDragDrop(list, item, DragDropEffects.Move);
+    }
+
+    private async void QueueList_Drop(object sender, System.Windows.DragEventArgs e)
+    {
+        if (sender is not ListView list || list.DataContext is not QueueManagementViewModel viewModel || e.Data.GetData(typeof(QueueEntry)) is not QueueEntry moving) return;
+        var element = list.InputHitTest(e.GetPosition(list)) as DependencyObject;
+        var container = ItemsControl.ContainerFromElement(list, element) as ListViewItem;
+        await viewModel.MoveBeforeAsync(moving, container?.DataContext as QueueEntry);
     }
 }
