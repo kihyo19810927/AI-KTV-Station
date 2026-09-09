@@ -1,0 +1,15 @@
+.catalog-notice {
+  margin: 0 16px 10px;
+  padding: 9px 11px;
+  border-radius: 9px;
+  color: #5b21b6;
+  background: #f1edff;
+  font-size: 13px;
+}
+
+@media (prefers-color-scheme: dark) {
+  .catalog-notice {
+    color: #ddd6fe;
+    background: #2c1f4a;
+  }
+}

@@ -1,0 +1,1 @@
+export interface QueueEntry { id: string; songId: string; title: string; requestedByGuestId: string; requestedByNickname: string; position: number; status: 'Waiting' | 'Preparing' | 'Playing'; requestedAt: string }
