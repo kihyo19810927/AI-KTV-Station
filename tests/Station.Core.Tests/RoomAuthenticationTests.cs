@@ -56,6 +56,21 @@ public sealed class RoomAuthenticationTests
     }
 
     [Fact]
+    public async Task Admin_guest_list_contains_public_state_but_never_token_hash()
+    {
+        await using var database = CreateDatabase(); await database.Database.EnsureCreatedAsync();
+        var room = await AddOpenRoomAsync(database);
+        var service = new RoomAuthenticationService(new EfRoomIdentityRepository(database), new Sha256RoomTokenProtector(), new AdjustableTimeProvider(Start));
+        await service.IssueHostAsync(room.Id, "主持人"); await service.JoinAsync(room.JoinCode, "访客");
+
+        var guests = await service.ListGuestsAsync(room.Id);
+
+        Assert.Equal(2, guests.Value.Count);
+        Assert.Contains(guests.Value, x => x.Role == RoomRole.Host); Assert.Contains(guests.Value, x => x.Role == RoomRole.Guest);
+        Assert.DoesNotContain(typeof(RoomGuestAdminDetails).GetProperties(), x => x.Name.Contains("Token", StringComparison.OrdinalIgnoreCase) || x.Name.Contains("Hash", StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Fact]
     public async Task Expired_revoked_invalid_and_closed_room_tokens_are_rejected()
     {
         await using var database = CreateDatabase();

@@ -40,6 +40,17 @@ public sealed class RoomLifecycleTests
         Assert.Null((await service.GetCurrentAsync()).Value);
     }
 
+    [Fact]
+    public async Task Host_can_update_open_room_queue_limit()
+    {
+        await using var database = CreateDatabase(); await database.Database.EnsureCreatedAsync();
+        var service = new RoomLifecycleService(new EfRoomRepository(database), new SequenceCodeGenerator("ABC234"));
+        var room = (await service.CreateAsync()).Value;
+        Assert.Equal(25, (await service.SetQueueLimitAsync(room.Id, 25)).Value.MaxQueuedSongsPerGuest);
+        Assert.Equal(25, (await database.RoomSessions.SingleAsync()).MaxQueuedSongsPerGuest);
+        Assert.Equal("room.invalid_queue_limit", (await service.SetQueueLimitAsync(room.Id, 0)).Error.Code);
+    }
+
     [Theory]
     [InlineData(0)]
     [InlineData(101)]

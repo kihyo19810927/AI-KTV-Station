@@ -32,6 +32,8 @@ public sealed record RoomIdentity(
     RoomRole Role,
     DateTimeOffset ExpiresAt);
 
+public sealed record RoomGuestAdminDetails(Guid Id, string Nickname, RoomRole Role, DateTimeOffset JoinedAt, DateTimeOffset ExpiresAt, bool IsRevoked);
+
 public sealed record ProtectedRoomToken(string Value, string Hash);
 
 public interface IRoomTokenProtector
@@ -46,6 +48,7 @@ public interface IRoomIdentityRepository
     Task<RoomSession?> FindRoomAsync(Guid roomId, CancellationToken cancellationToken = default);
     Task<Guest?> FindByTokenHashAsync(string tokenHash, CancellationToken cancellationToken = default);
     Task<Guest?> FindGuestAsync(Guid guestId, CancellationToken cancellationToken = default);
+    Task<IReadOnlyList<Guest>> ListGuestsAsync(Guid roomId, CancellationToken cancellationToken = default);
     Task AddGuestAsync(Guest guest, CancellationToken cancellationToken = default);
     Task SaveChangesAsync(CancellationToken cancellationToken = default);
 }
@@ -123,6 +126,15 @@ public sealed class RoomAuthenticationService(
             await repository.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
         }
         return Result<bool>.Success(true);
+    }
+
+    public async Task<Result<IReadOnlyList<RoomGuestAdminDetails>>> ListGuestsAsync(Guid roomId, CancellationToken cancellationToken = default)
+    {
+        if (roomId == Guid.Empty) return Failure<IReadOnlyList<RoomGuestAdminDetails>>("auth.invalid_room", "Room id is required.");
+        var room = await repository.FindRoomAsync(roomId, cancellationToken).ConfigureAwait(false);
+        if (room is null) return Failure<IReadOnlyList<RoomGuestAdminDetails>>("room.not_found", "Room was not found.");
+        var guests = await repository.ListGuestsAsync(roomId, cancellationToken).ConfigureAwait(false);
+        return Result<IReadOnlyList<RoomGuestAdminDetails>>.Success(guests.OrderBy(x => x.JoinedAt).Select(x => new RoomGuestAdminDetails(x.Id, x.Nickname, x.IsHost ? RoomRole.Host : RoomRole.Guest, x.JoinedAt, x.ExpiresAt, x.RevokedAt is not null)).ToArray());
     }
 
     private async Task<Result<IssuedRoomToken>> IssueAsync(

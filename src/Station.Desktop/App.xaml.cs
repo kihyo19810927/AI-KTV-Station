@@ -26,6 +26,8 @@ using Station.Infrastructure.MediaSources;
 using Station.Infrastructure.Metadata;
 using Station.Infrastructure.Scanning;
 using Station.Infrastructure.Search;
+using Station.Application.Rooms;
+using Station.Infrastructure.Rooms;
 
 namespace Station.Desktop;
 
@@ -71,6 +73,15 @@ public partial class App : System.Windows.Application
         collection.AddSingleton<IMediaScanRunner, MediaScanService>();
         collection.AddSingleton<ICatalogScanService, CatalogScanService>();
         collection.AddSingleton<CatalogManagementViewModel>();
+        collection.AddSingleton<IRoomRepository, EfRoomRepository>();
+        collection.AddSingleton<IRoomJoinCodeGenerator, SecureRoomJoinCodeGenerator>();
+        collection.AddSingleton<RoomLifecycleService>();
+        collection.AddSingleton<IRoomIdentityRepository, EfRoomIdentityRepository>();
+        collection.AddSingleton<IRoomTokenProtector, Sha256RoomTokenProtector>();
+        collection.AddSingleton<RoomAuthenticationService>();
+        collection.AddSingleton<IQrCodeRenderer, QrCodeRenderer>();
+        collection.AddSingleton<ILanAddressProvider, LanAddressProvider>();
+        collection.AddSingleton<RoomManagementViewModel>();
         collection.AddSingleton<MainWindowViewModel>();
         collection.AddSingleton<MainWindow>();
         services = collection.BuildServiceProvider(new ServiceProviderOptions { ValidateOnBuild = true, ValidateScopes = true });
@@ -79,6 +90,7 @@ public partial class App : System.Windows.Application
         MainWindow.Show();
         await services.GetRequiredService<MainWindowViewModel>().RefreshHealthAsync();
         await services.GetRequiredService<CatalogManagementViewModel>().InitializeAsync();
+        await services.GetRequiredService<RoomManagementViewModel>().RefreshAsync();
     }
 
     protected override void OnExit(System.Windows.ExitEventArgs e)

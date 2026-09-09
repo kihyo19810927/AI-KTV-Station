@@ -10,5 +10,6 @@
   </ItemGroup>
   <ItemGroup>
     <PackageReference Include="Microsoft.Extensions.DependencyInjection" />
+    <PackageReference Include="QRCoder" />
   </ItemGroup>
 </Project>

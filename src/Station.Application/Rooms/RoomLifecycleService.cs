@@ -82,6 +82,17 @@ public sealed class RoomLifecycleService(IRoomRepository repository, IRoomJoinCo
         return Result<RoomAdminDetails?>.Success(room is null ? null : Map(room));
     }
 
+    public async Task<Result<RoomAdminDetails>> SetQueueLimitAsync(Guid roomId, int maxQueuedSongsPerGuest, CancellationToken cancellationToken = default)
+    {
+        if (maxQueuedSongsPerGuest is < 1 or > 100) return Failure("room.invalid_queue_limit", "Guest queue limit must be between 1 and 100.");
+        var room = await repository.FindAsync(roomId, cancellationToken).ConfigureAwait(false);
+        if (room is null) return Failure("room.not_found", "Room was not found.");
+        if (room.Status != RoomStatus.Open) return Failure("room.closed", "The room is closed.");
+        room.MaxQueuedSongsPerGuest = maxQueuedSongsPerGuest;
+        await repository.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
+        return Result<RoomAdminDetails>.Success(Map(room));
+    }
+
     private static bool IsValidJoinCode(string value) => value.Length == 6 && value.All(char.IsAsciiLetterOrDigit);
     private static RoomAdminDetails Map(RoomSession room) =>
         new(room.Id, room.JoinCode, room.Status, room.CreatedAt, room.ClosedAt, room.MaxQueuedSongsPerGuest);

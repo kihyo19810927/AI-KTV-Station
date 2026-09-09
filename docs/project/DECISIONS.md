@@ -14,5 +14,6 @@
 | 2026-09-07 | 搜索规范化经应用端口隔离，Infrastructure 使用 ToolGood.Words 预计算简繁、拼音和简拼键 | [ADR-0007](../adr/ADR-0007-search-text-normalization.md) |
 | 2026-09-07 | 公开搜索文档表由 trigger 同步 external-content FTS5，查询不访问媒体路径 | [ADR-0008](../adr/ADR-0008-fts5-search-index.md) |
 | 2026-09-08 | 单次播放器故障与业务恢复分离；有限重试、错误留痕、离线不删索引 | [ADR-0009](../adr/ADR-0009-playback-failure-recovery.md) |
+| 2026-09-10 | 主控二维码使用 MIT QRCoder 1.8.0，仅编码局域网 URL 与房间码 | Accepted（KTVS-046） |
 
 重大、跨模块的决定在 `docs/adr/` 单独记录；实现变更必须同步更新或 Supersede 对应 ADR。

@@ -23,6 +23,9 @@ public sealed class EfRoomIdentityRepository(StationDbContext database) : IRoomI
     public Task<Guest?> FindGuestAsync(Guid guestId, CancellationToken cancellationToken = default) =>
         database.Guests.Include(x => x.RoomSession).SingleOrDefaultAsync(x => x.Id == guestId, cancellationToken);
 
+    public async Task<IReadOnlyList<Guest>> ListGuestsAsync(Guid roomId, CancellationToken cancellationToken = default) =>
+        await database.Guests.AsNoTracking().Where(x => x.RoomSessionId == roomId).ToListAsync(cancellationToken);
+
     public Task AddGuestAsync(Guest guest, CancellationToken cancellationToken = default) =>
         database.Guests.AddAsync(guest, cancellationToken).AsTask();
 
