@@ -66,6 +66,8 @@ public sealed class MediaFile
     public double? DurationSeconds { get; set; }
     public AvailabilityStatus Availability { get; set; }
     public string? LastErrorCode { get; set; }
+    public string? LyricsRelativePath { get; set; }
+    public string? LyricsFormat { get; set; }
     public List<MediaTrack> Tracks { get; set; } = [];
     public TrackMapping? TrackMapping { get; set; }
 }

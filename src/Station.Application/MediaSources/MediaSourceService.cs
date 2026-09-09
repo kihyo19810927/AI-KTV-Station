@@ -3,7 +3,15 @@ using Station.Domain.Models;
 
 namespace Station.Application.MediaSources;
 
-public sealed class MediaSourceService(IMediaSourceRepository repository, IMediaPathInspector pathInspector)
+public interface IMediaSourceService
+{
+    Task<Result<MediaSourceAdminDetails>> AddAsync(string name, string rootPath, CancellationToken cancellationToken = default);
+    Task<Result<MediaSourceAdminDetails>> SetEnabledAsync(Guid id, bool enabled, CancellationToken cancellationToken = default);
+    Task<IReadOnlyList<MediaSourceSummary>> ListPublicAsync(CancellationToken cancellationToken = default);
+    Task<IReadOnlyList<MediaSourceAdminDetails>> ListAdminAsync(CancellationToken cancellationToken = default);
+}
+
+public sealed class MediaSourceService(IMediaSourceRepository repository, IMediaPathInspector pathInspector) : IMediaSourceService
 {
     public async Task<Result<MediaSourceAdminDetails>> AddAsync(string name, string rootPath, CancellationToken cancellationToken = default)
     {

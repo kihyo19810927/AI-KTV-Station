@@ -52,6 +52,10 @@
 | WPF 健康仪表盘 | xUnit + SQLite 内存库 + ViewModel 替身 | 通过（组件汇总、安全摘要、刷新状态） | CloudDrive/115 实挂待验收 |
 | WPF 播放控制台 | xUnit 播放器替身 + Release XAML 编译 | 通过（状态/进度、轨道分组、控制命令） | 真实 MKV/电视/功放待验收 |
 | WPF 队列管理 | xUnit + SQLite 唯一索引 + Release XAML 编译 | 通过（刷新、授权重排、事务换位、空房间） | 拖放手感待 Windows 实机验收 |
+| 多格式/辅助文件扫描 | 临时 MPG/MPEG/MKV/KSC/RAR + SQLite | 通过（视频入库、KSC 关联、RAR 忽略、无 NFO 文件名建库） | 小批真实 115 样本待验收 |
+| 分目录增量建库 | 两个年度临时来源依次扫描 | 通过（先入库可用、后续追加、既有来源保持可用） | 全库规模随 KTVS-049 |
+| 保留式数据库升级 | 上一迁移预置数据 → 最新迁移 | 通过（歌曲、收藏、历史、人工音轨映射保留） | 正式库升级前仍需备份演练 |
+| WPF 曲库管理 | xUnit 服务替身 + Release XAML 编译 | 通过（搜索、来源列表、添加目录不自动扫描） | 真实曲库 UI/扫描验收待执行 |
 | 环境与生成 MKV | `scripts/verify-environment.ps1` | 通过（10.023s、4 轨、中文标题） | 无 |
 | 真实 MKV/设备 | `ENVIRONMENT-BASELINE.md` 用户验收步骤 | 待验证 | 用户设备、样本和挂载 |
 

@@ -14,6 +14,18 @@ using Station.Infrastructure.Queue;
 using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows;
+using Station.Application.Catalog;
+using Station.Application.Media;
+using Station.Application.MediaSources;
+using Station.Application.Metadata;
+using Station.Application.Scanning;
+using Station.Application.Search;
+using Station.Infrastructure.Catalog;
+using Station.Infrastructure.Media;
+using Station.Infrastructure.MediaSources;
+using Station.Infrastructure.Metadata;
+using Station.Infrastructure.Scanning;
+using Station.Infrastructure.Search;
 
 namespace Station.Desktop;
 
@@ -21,7 +33,7 @@ public partial class App : System.Windows.Application
 {
     private ServiceProvider? services;
 
-    protected override void OnStartup(System.Windows.StartupEventArgs e)
+    protected override async void OnStartup(System.Windows.StartupEventArgs e)
     {
         base.OnStartup(e);
         var collection = new ServiceCollection();
@@ -44,12 +56,29 @@ public partial class App : System.Windows.Application
         collection.AddSingleton<IRoomQueueService, RoomQueueService>();
         collection.AddSingleton<HostRoomContext>();
         collection.AddSingleton<QueueManagementViewModel>();
+        collection.AddSingleton<IMediaSourceRepository, EfMediaSourceRepository>();
+        collection.AddSingleton<IMediaPathInspector, FileSystemMediaPathInspector>();
+        collection.AddSingleton<IMediaSourceService, MediaSourceService>();
+        collection.AddSingleton<ISearchTextNormalizer, ToolGoodSearchTextNormalizer>();
+        collection.AddSingleton<ISongSearchIndex, SqliteSongSearchIndex>();
+        collection.AddSingleton<ICatalogAdminRepository, EfCatalogAdminRepository>();
+        collection.AddSingleton<ICatalogAdminService, CatalogAdminService>();
+        collection.AddSingleton<IMediaScanRepository, EfMediaScanRepository>();
+        collection.AddSingleton<IMediaFileEnumerator, FileSystemMediaFileEnumerator>();
+        collection.AddSingleton<IMediaFilenameParser, KtvFilenameParser>();
+        collection.AddSingleton<INfoMetadataReader, NfoXmlMetadataReader>();
+        collection.AddSingleton<IMediaProbe>(_ => new FfprobeMediaProbe(FindExecutable("ffprobe.exe") ?? "ffprobe.exe", TimeSpan.FromSeconds(30)));
+        collection.AddSingleton<IMediaScanRunner, MediaScanService>();
+        collection.AddSingleton<ICatalogScanService, CatalogScanService>();
+        collection.AddSingleton<CatalogManagementViewModel>();
         collection.AddSingleton<MainWindowViewModel>();
         collection.AddSingleton<MainWindow>();
         services = collection.BuildServiceProvider(new ServiceProviderOptions { ValidateOnBuild = true, ValidateScopes = true });
+        await services.GetRequiredService<StationDbContext>().Database.MigrateAsync();
         MainWindow = services.GetRequiredService<MainWindow>();
         MainWindow.Show();
-        _ = services.GetRequiredService<MainWindowViewModel>().RefreshHealthAsync();
+        await services.GetRequiredService<MainWindowViewModel>().RefreshHealthAsync();
+        await services.GetRequiredService<CatalogManagementViewModel>().InitializeAsync();
     }
 
     protected override void OnExit(System.Windows.ExitEventArgs e)
@@ -67,6 +96,16 @@ public partial class App : System.Windows.Application
         }
         var root = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Microsoft", "WinGet", "Packages");
         return Directory.Exists(root) ? Directory.EnumerateFiles(root, "mpv.exe", SearchOption.AllDirectories).FirstOrDefault() : null;
+    }
+
+    private static string? FindExecutable(string name)
+    {
+        foreach (var directory in (Environment.GetEnvironmentVariable("PATH") ?? string.Empty).Split(Path.PathSeparator, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+        {
+            var candidate = Path.Combine(directory, name);
+            if (File.Exists(candidate)) return candidate;
+        }
+        return null;
     }
 
     private void QueueList_PreviewMouseMove(object sender, MouseEventArgs e)

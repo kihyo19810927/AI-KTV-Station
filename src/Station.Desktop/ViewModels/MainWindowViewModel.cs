@@ -13,11 +13,12 @@ public sealed class MainWindowViewModel : ObservableObject
     private readonly IStationHealthService? healthService;
     private string healthStatus = "正在检查本机状态…";
     private IReadOnlyList<HealthComponent> healthComponents = [];
-    public MainWindowViewModel(IStationHealthService? healthService = null, PlaybackConsoleViewModel? playbackConsole = null, QueueManagementViewModel? queueManagement = null)
+    public MainWindowViewModel(IStationHealthService? healthService = null, PlaybackConsoleViewModel? playbackConsole = null, QueueManagementViewModel? queueManagement = null, CatalogManagementViewModel? catalogManagement = null)
     {
         this.healthService = healthService;
         PlaybackConsole = playbackConsole;
         QueueManagement = queueManagement;
+        CatalogManagement = catalogManagement;
         NavigationItems = new ReadOnlyCollection<NavigationItem>([new(DesktopPage.Dashboard, "仪表盘", "服务、播放器和曲库运行状态"), new(DesktopPage.NowPlaying, "正在播放", "播放、音轨、字幕、音量和进度"), new(DesktopPage.Queue, "点歌队列", "调整顺序、置顶、删除和插播"), new(DesktopPage.Catalog, "曲库管理", "搜索、扫描和元数据修正"), new(DesktopPage.Room, "房间与二维码", "开关房间、访客和点歌规则"), new(DesktopPage.Settings, "设置与诊断", "路径、端口、日志和恢复建议")]);
         current = NavigationItems[0];
         NavigateCommand = new RelayCommand<DesktopPage>(Navigate);
@@ -27,6 +28,7 @@ public sealed class MainWindowViewModel : ObservableObject
     public ICommand NavigateCommand { get; }
     public PlaybackConsoleViewModel? PlaybackConsole { get; }
     public QueueManagementViewModel? QueueManagement { get; }
+    public CatalogManagementViewModel? CatalogManagement { get; }
     public ICommand RefreshHealthCommand { get; }
     public IReadOnlyList<HealthComponent> HealthComponents { get => healthComponents; private set => SetProperty(ref healthComponents, value); }
     public string HealthStatus { get => healthStatus; private set => SetProperty(ref healthStatus, value); }

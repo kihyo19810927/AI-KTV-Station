@@ -33,12 +33,13 @@ public sealed class FileSystemMediaFileEnumerator : IMediaFileEnumerator
             foreach (var path in files.Order())
             {
                 cancellationToken.ThrowIfCancellationRequested();
-                if (!string.Equals(Path.GetExtension(path), ".mkv", StringComparison.OrdinalIgnoreCase)) continue;
+                var kind = MediaFormatPolicy.Classify(path);
+                if (kind is null) continue;
                 MediaEnumerationEntry entry;
                 try
                 {
                     var info = new FileInfo(path);
-                    entry = MediaEnumerationEntry.File(ToRelative(source.RootPath, path), info.Length, info.LastWriteTimeUtc);
+                    entry = MediaEnumerationEntry.File(ToRelative(source.RootPath, path), info.Length, info.LastWriteTimeUtc, kind.Value);
                 }
                 catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or FileNotFoundException)
                 {

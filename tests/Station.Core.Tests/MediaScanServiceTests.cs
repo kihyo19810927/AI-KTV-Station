@@ -14,6 +14,43 @@ namespace Station.Core.Tests;
 public sealed class MediaScanServiceTests
 {
     [Fact]
+    public async Task Mpg_is_indexed_without_nfo_ksc_is_linked_and_rar_is_not_playable()
+    {
+        var root = Path.Combine(Path.GetTempPath(), $"ai-ktv-formats-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(root);
+        await File.WriteAllTextAsync(Path.Combine(root, "歌手甲-测试歌-国语-流行.mpg"), "video");
+        await File.WriteAllTextAsync(Path.Combine(root, "歌手甲-测试歌-国语-流行.ksc"), "karaoke lyrics");
+        await File.WriteAllTextAsync(Path.Combine(root, "待解压曲包.rar"), "archive");
+        try
+        {
+            await using var database = CreateDatabase();
+            await database.Database.EnsureCreatedAsync();
+            var source = new MediaSource { Name = "Fixture", RootPath = root, Availability = AvailabilityStatus.Available };
+            database.MediaSources.Add(source); await database.SaveChangesAsync();
+
+            var result = await new MediaScanService(new EfMediaScanRepository(database), new FileSystemMediaFileEnumerator()).ScanAsync(source.Id);
+
+            Assert.True(result.IsSuccess);
+            Assert.Equal(3, result.Value.DiscoveredFiles);
+            var media = await database.MediaFiles.Include(x => x.Song).SingleAsync();
+            Assert.EndsWith(".mpg", media.RelativePath, StringComparison.OrdinalIgnoreCase);
+            Assert.EndsWith(".ksc", media.LyricsRelativePath, StringComparison.OrdinalIgnoreCase);
+            Assert.Equal("KSC", media.LyricsFormat);
+            Assert.Equal("测试歌", media.Song.Title);
+            Assert.DoesNotContain(await database.MediaFiles.Select(x => x.RelativePath).ToListAsync(), x => x.EndsWith(".rar", StringComparison.OrdinalIgnoreCase));
+        }
+        finally { Directory.Delete(root, true); }
+    }
+
+    [Theory]
+    [InlineData("song.MKV", MediaEntryKind.PlayableMedia)]
+    [InlineData("song.mpg", MediaEntryKind.PlayableMedia)]
+    [InlineData("song.MPEG", MediaEntryKind.PlayableMedia)]
+    [InlineData("song.ksc", MediaEntryKind.LyricsSidecar)]
+    [InlineData("bundle.RAR", MediaEntryKind.IgnoredArchive)]
+    public void Format_policy_classifies_media_sidecars_and_archives(string path, MediaEntryKind expected) => Assert.Equal(expected, MediaFormatPolicy.Classify(path));
+
+    [Fact]
     public async Task Scan_is_read_only_incremental_and_retains_missing_index()
     {
         var root = Path.Combine(Path.GetTempPath(), $"ai-ktv-scan-{Guid.NewGuid():N}");
@@ -38,6 +75,32 @@ public sealed class MediaScanServiceTests
             var missing = await scanner.ScanAsync(source.Id);
             Assert.Equal(2, await database.MediaFiles.CountAsync());
             Assert.Equal(AvailabilityStatus.Offline, (await database.MediaFiles.SingleAsync(x => x.RelativePath == "第一首.mkv")).Availability);
+        }
+        finally { Directory.Delete(root, true); }
+    }
+
+    [Fact]
+    public async Task Completed_directories_can_be_indexed_incrementally_without_replacing_existing_catalog()
+    {
+        var root = Path.Combine(Path.GetTempPath(), $"ai-ktv-years-{Guid.NewGuid():N}");
+        var year16 = Path.Combine(root, "16年"); var year17 = Path.Combine(root, "17年");
+        Directory.CreateDirectory(year16); Directory.CreateDirectory(year17);
+        await File.WriteAllTextAsync(Path.Combine(year16, "歌手甲-第一首-国语-流行.mkv"), "one");
+        await File.WriteAllTextAsync(Path.Combine(year17, "歌手乙-第二首-国语-流行.mpg"), "two");
+        try
+        {
+            await using var database = CreateDatabase(); await database.Database.EnsureCreatedAsync();
+            var first = new MediaSource { Name = "16年", RootPath = year16, Availability = AvailabilityStatus.Available };
+            var second = new MediaSource { Name = "17年", RootPath = year17, Availability = AvailabilityStatus.Available };
+            database.MediaSources.AddRange(first, second); await database.SaveChangesAsync();
+            var scanner = new MediaScanService(new EfMediaScanRepository(database), new FileSystemMediaFileEnumerator());
+
+            Assert.True((await scanner.ScanAsync(first.Id)).IsSuccess);
+            Assert.True((await scanner.ScanAsync(second.Id)).IsSuccess);
+
+            Assert.Equal(2, await database.Songs.CountAsync());
+            Assert.Equal(2, await database.MediaFiles.CountAsync());
+            Assert.All(await database.MediaFiles.ToListAsync(), x => Assert.Equal(AvailabilityStatus.Available, x.Availability));
         }
         finally { Directory.Delete(root, true); }
     }

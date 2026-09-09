@@ -47,7 +47,7 @@ public sealed class StationDbContext(DbContextOptions<StationDbContext> options)
         });
         model.Entity<SongArtist>(e => { e.HasKey(x => new { x.SongId, x.ArtistId }); e.HasIndex(x => new { x.SongId, x.Order }).IsUnique(); });
         model.Entity<MediaSource>(e => { e.Property(x => x.Name).HasMaxLength(200); e.Property(x => x.Availability).HasConversion<string>(); });
-        model.Entity<MediaFile>(e => { e.Property(x => x.RelativePath).HasMaxLength(1024); e.Property(x => x.Availability).HasConversion<string>(); e.HasIndex(x => new { x.MediaSourceId, x.RelativePath }).IsUnique(); });
+        model.Entity<MediaFile>(e => { e.Property(x => x.RelativePath).HasMaxLength(1024); e.Property(x => x.LyricsRelativePath).HasMaxLength(1024); e.Property(x => x.LyricsFormat).HasMaxLength(20); e.Property(x => x.Availability).HasConversion<string>(); e.HasIndex(x => new { x.MediaSourceId, x.RelativePath }).IsUnique(); });
         model.Entity<MediaTrack>(e => { e.Property(x => x.Type).HasConversion<string>(); e.HasIndex(x => new { x.MediaFileId, x.StreamId, x.Type }).IsUnique(); });
         model.Entity<TrackMapping>().HasKey(x => x.MediaFileId);
         model.Entity<RoomSession>(e => { e.Property(x => x.Status).HasConversion<string>(); e.HasIndex(x => x.JoinCode).IsUnique(); e.HasIndex(x => x.OpenSlot).IsUnique(); });

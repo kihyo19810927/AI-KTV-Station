@@ -48,6 +48,7 @@ public sealed class MediaScanService(
         Report(run, progress);
         var existing = (await repository.ListFilesAsync(source.Id, cancellationToken)).ToDictionary(x => Normalize(x.RelativePath), StringComparer.OrdinalIgnoreCase);
         var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var lyricsSidecars = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
 
         try
         {
@@ -57,6 +58,12 @@ public sealed class MediaScanService(
                 run.CheckpointRelativePath = entry.RelativePath;
                 if (entry.IsError) { run.ErrorCount++; run.ErrorSummary = entry.ErrorCode; continue; }
                 var relativePath = Normalize(entry.RelativePath);
+                if (entry.Kind == MediaEntryKind.IgnoredArchive) continue;
+                if (entry.Kind == MediaEntryKind.LyricsSidecar)
+                {
+                    lyricsSidecars[WithoutExtension(relativePath)] = relativePath;
+                    continue;
+                }
                 seen.Add(relativePath);
                 var requiresProbe = false;
                 var isNew = false;
@@ -107,6 +114,23 @@ public sealed class MediaScanService(
                     run.UpdatedFiles++;
                 if (run.DiscoveredFiles % CheckpointBatchSize == 0) await repository.SaveChangesAsync(cancellationToken);
                 Report(run, progress);
+            }
+
+            foreach (var file in existing.Values)
+            {
+                var lyrics = lyricsSidecars.GetValueOrDefault(WithoutExtension(Normalize(file.RelativePath)));
+                if (lyrics is not null && !string.Equals(file.LyricsRelativePath, lyrics, StringComparison.OrdinalIgnoreCase))
+                {
+                    file.LyricsRelativePath = lyrics;
+                    file.LyricsFormat = "KSC";
+                    run.UpdatedFiles++;
+                }
+                else if (lyrics is null && run.ErrorCount == 0 && file.LyricsRelativePath is not null)
+                {
+                    file.LyricsRelativePath = null;
+                    file.LyricsFormat = null;
+                    run.UpdatedFiles++;
+                }
             }
 
             if (run.ErrorCount == 0)
@@ -201,4 +225,5 @@ public sealed class MediaScanService(
     }
 
     private static string Normalize(string relativePath) => relativePath.Replace('\\', '/').TrimStart('/');
+    private static string WithoutExtension(string relativePath) => Path.ChangeExtension(relativePath, null) ?? relativePath;
 }

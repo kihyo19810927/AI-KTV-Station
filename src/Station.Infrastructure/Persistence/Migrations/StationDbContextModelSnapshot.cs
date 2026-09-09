@@ -138,6 +138,14 @@ namespace Station.Infrastructure.Persistence.Migrations
                     b.Property<string>("LastErrorCode")
                         .HasColumnType("TEXT");
 
+                    b.Property<string>("LyricsFormat")
+                        .HasMaxLength(20)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("LyricsRelativePath")
+                        .HasMaxLength(1024)
+                        .HasColumnType("TEXT");
+
                     b.Property<DateTimeOffset>("LastWriteTime")
                         .HasColumnType("TEXT");
 
