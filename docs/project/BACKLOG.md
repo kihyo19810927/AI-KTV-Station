@@ -90,8 +90,8 @@
 |---|---|---|---|---|---|
 | KTVS-048 | 端到端测试 | KTVS-040,047 | Done | 临时 MPG/KSC 经扫描→FTS 搜索→API 入房/点歌→播放编排→完成历史闭环 | 真实设备场景后验收 |
 | KTVS-049 | 大曲库性能测试 | KTVS-048 | Done | 100k/300k SQLite FTS 查询与扫描应用层吞吐基线 | CloudDrive/ffprobe/低规格机后验收 |
-| KTVS-050 | CloudDrive 故障注入 | KTVS-048 | In Progress | 断挂载、超时、403 和恢复 | 真实 CloudDrive 后验收 |
-| KTVS-051 | 进程和断电恢复 | KTVS-048 | Todo | mpv 崩溃、应用重启和 DB 恢复 | 断电实机后验收 |
+| KTVS-050 | CloudDrive 故障注入 | KTVS-048 | Done | 合成断挂、命令超时、403、重扫恢复与索引保留 | 真实 CloudDrive 后验收 |
+| KTVS-051 | 进程和断电恢复 | KTVS-048 | In Progress | mpv 崩溃、应用重启和 DB 恢复 | 断电实机后验收 |
 | KTVS-052 | 安全审查 | KTVS-040,047 | Todo | 局域网绑定、令牌、日志和路径审计 | 无 |
 | KTVS-053 | 依赖与许可证审查 | KTVS-040,047 | Todo | 前后端及二进制依赖清单和许可证结论 | 不明许可证时询问 |
 | KTVS-054 | 用户验收测试包 | KTVS-048,049,050,051,052,053 | Todo | 检查表、样例房间和诊断说明 | 用户执行实机验收 |

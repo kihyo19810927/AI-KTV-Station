@@ -39,7 +39,7 @@ public sealed class QueuePlaybackOrchestratorTests
         await service.StartAsync(store.RoomId);
         var playbackId = service.Current.PlaybackId!.Value;
 
-        var failure = new PlayerFailure("player.process_exited", PlayerFailureKind.ProcessExited, true, "Interrupted");
+        var failure = new PlayerFailure("player.command_timeout", PlayerFailureKind.CommandTimeout, true, "Interrupted");
         await service.HandleAsync(new PlaybackFailedEvent(Guid.NewGuid(), DateTimeOffset.UtcNow, playbackId, failure));
 
         Assert.Equal(store.Items[0].QueueItemId, service.Current.QueueItemId);
@@ -49,6 +49,10 @@ public sealed class QueuePlaybackOrchestratorTests
         Assert.Equal(2, player.StartCount);
         Assert.Equal(1, player.StopCount);
         Assert.Single(errors.Errors);
+
+        await service.HandleAsync(new PlaybackEndedEvent(Guid.NewGuid(), DateTimeOffset.UtcNow, service.Current.PlaybackId!.Value, PlaybackEndReason.Completed));
+        Assert.Null(service.Current.QueueItemId);
+        Assert.Equal(PlaybackOutcome.Completed, store.Completed.Single().Outcome);
     }
 
     [Fact]

@@ -4,4 +4,4 @@ KTVS-025 将单次播放器故障和业务恢复策略分离。`PlaybackRecovery
 
 媒体离线、加载失败等可恢复错误耗尽次数后自动跳过当前歌曲；不支持媒体直接跳过。mpv 缺失、启动失败、非法参数或状态属于主机配置问题，停止播放编排，避免整列歌曲重复失败。
 
-`PlaybackRecoveryService` 在返回决定前记录 `PlaybackError`。诊断摘要仅由错误分类和恢复动作组成，不记录媒体路径或原始 IPC。`EfPlaybackFailureStore` 对临时不可用媒体只更新 `Availability`/`LastErrorCode`，保留歌曲、媒体索引和错误历史。真实 115/CloudDrive 断挂、403 和恢复时延待实机验收。
+`PlaybackRecoveryService` 在返回决定前记录 `PlaybackError`。诊断摘要仅由错误分类和恢复动作组成，不记录媒体路径或原始 IPC。`EfPlaybackFailureStore` 对临时不可用媒体只更新 `Availability`/`LastErrorCode`，保留歌曲、媒体索引和错误历史。模拟 403、断挂、命令超时与恢复由 KTVS-050 覆盖；真实 115/CloudDrive 错误映射和恢复时延仍待实机验收。
