@@ -63,6 +63,7 @@
 | CloudDrive 故障注入 | 临时 SQLite/媒体 + 错误枚举器 + 可控播放器 | 通过（断挂不误删、403 离线保留、重扫恢复、超时重启并完成） | 真实 115/CloudDrive 错误文本和时延待验收 |
 | 进程与启动恢复 | SQLite 文件重开 + 三种活动队列状态 + 真实 mpv 进程终止 | 通过（重入队、旧历史闭合、幂等恢复、mpv 可重试崩溃事件） | 突然断电与磁盘写缓存待实机验收 |
 | 安全边界 | 配置验证、loopback 策略、TestServer、OpenAPI、脱敏和 Web 存储测试 | 通过（显式 IP、仅本机管理、无路径/哈希契约、安全头、令牌不进 URL/localStorage） | LAN HTTP 被动监听风险；严禁公网暴露 |
+| 依赖与许可证 | NuGet/NPM 锁文件、已还原包元数据、ffmpeg buildconf、mpv version | 通过（清单已生成；V1 禁止捆绑 mpv/FFmpeg） | 项目自身许可、未来二进制分发需用户批准 |
 | 环境与生成 MKV | `scripts/verify-environment.ps1` | 通过（10.023s、4 轨、中文标题） | 无 |
 | 真实 MKV/设备 | `ENVIRONMENT-BASELINE.md` 用户验收步骤 | 待验证 | 用户设备、样本和挂载 |
 
