@@ -10,7 +10,7 @@ public interface ISongSearchIndex
     Task<Result<SongSearchPage>> SearchAsync(SongSearchQuery query, CancellationToken cancellationToken = default);
 }
 
-public enum SongSearchSort { Relevance, Title, YearDescending }
+public enum SongSearchSort { Relevance, Title, YearDescending, RecentlyAdded }
 
 public sealed record SongSearchQuery(
     string? Text = null,
@@ -33,4 +33,5 @@ public sealed record SongSearchItem(
     string? Category,
     string? Quality,
     int? Year,
-    AvailabilityStatus Availability);
+    AvailabilityStatus Availability,
+    DateTimeOffset? AddedAt = null);

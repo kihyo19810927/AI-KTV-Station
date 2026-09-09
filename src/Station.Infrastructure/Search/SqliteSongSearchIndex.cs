@@ -29,6 +29,7 @@ public sealed class SqliteSongSearchIndex(StationDbContext database, ISearchText
         if (songIds.Count == 0) return;
         var songs = await database.Songs.AsNoTracking()
             .Include(x => x.Artists).ThenInclude(x => x.Artist)
+            .Include(x => x.MediaFiles)
             .Where(x => songIds.Contains(x.Id)).ToListAsync(cancellationToken);
         var found = songs.Select(x => x.Id).ToHashSet();
         await database.Database.OpenConnectionAsync(cancellationToken);
@@ -68,6 +69,7 @@ public sealed class SqliteSongSearchIndex(StationDbContext database, ISearchText
         {
             SongSearchSort.Title => "d.NormalizedTitle, d.SongId",
             SongSearchSort.YearDescending => "d.Year DESC, d.NormalizedTitle, d.SongId",
+            SongSearchSort.RecentlyAdded => "d.AddedAt DESC, d.NormalizedTitle, d.SongId",
             _ when match is not null => "Rank, d.NormalizedTitle, d.SongId",
             _ => "d.NormalizedTitle, d.SongId",
         };
@@ -78,7 +80,7 @@ public sealed class SqliteSongSearchIndex(StationDbContext database, ISearchText
             var connection = database.Database.GetDbConnection();
             var total = await CountAsync(connection, from, predicate, query, match, cancellationToken);
             await using var command = connection.CreateCommand();
-            command.CommandText = $"SELECT d.SongId, d.Title, d.Artists, d.Language, d.Category, d.Quality, d.Year, d.Availability, {rank} AS Rank FROM {from}{predicate} ORDER BY {order} LIMIT @limit OFFSET @offset";
+            command.CommandText = $"SELECT d.SongId, d.Title, d.Artists, d.Language, d.Category, d.Quality, d.Year, d.Availability, d.AddedAt, {rank} AS Rank FROM {from}{predicate} ORDER BY {order} LIMIT @limit OFFSET @offset";
             AddParameters(command, query, match);
             Add(command, "@limit", query.PageSize);
             Add(command, "@offset", (long)(query.Page - 1) * query.PageSize);
@@ -104,11 +106,11 @@ public sealed class SqliteSongSearchIndex(StationDbContext database, ISearchText
         await using var command = transaction.Connection!.CreateCommand();
         command.Transaction = transaction;
         command.CommandText = """
-            INSERT INTO SongSearchDocuments (SongId, Title, NormalizedTitle, Artists, Language, Category, Quality, Year, Availability, Terms)
-            VALUES (@id, @title, @normalizedTitle, @artists, @language, @category, @quality, @year, @availability, @terms)
+            INSERT INTO SongSearchDocuments (SongId, Title, NormalizedTitle, Artists, Language, Category, Quality, Year, Availability, Terms, AddedAt)
+            VALUES (@id, @title, @normalizedTitle, @artists, @language, @category, @quality, @year, @availability, @terms, @addedAt)
             ON CONFLICT(SongId) DO UPDATE SET Title=excluded.Title, NormalizedTitle=excluded.NormalizedTitle, Artists=excluded.Artists,
               Language=excluded.Language, Category=excluded.Category, Quality=excluded.Quality, Year=excluded.Year,
-              Availability=excluded.Availability, Terms=excluded.Terms
+              Availability=excluded.Availability, Terms=excluded.Terms, AddedAt=excluded.AddedAt
             """;
         Add(command, "@id", song.Id.ToString("D"));
         Add(command, "@title", song.Title);
@@ -120,6 +122,7 @@ public sealed class SqliteSongSearchIndex(StationDbContext database, ISearchText
         Add(command, "@year", song.Year);
         Add(command, "@availability", song.Availability.ToString());
         Add(command, "@terms", terms);
+        Add(command, "@addedAt", song.MediaFiles.Count == 0 ? null : song.MediaFiles.Max(x => x.LastWriteTime).UtcDateTime.ToString("O", System.Globalization.CultureInfo.InvariantCulture));
         await command.ExecuteNonQueryAsync(cancellationToken);
     }
 
@@ -185,5 +188,6 @@ public sealed class SqliteSongSearchIndex(StationDbContext database, ISearchText
         Guid.Parse(reader.GetString(0)), reader.GetString(1), reader.GetString(2),
         reader.IsDBNull(3) ? null : reader.GetString(3), reader.IsDBNull(4) ? null : reader.GetString(4),
         reader.IsDBNull(5) ? null : reader.GetString(5), reader.IsDBNull(6) ? null : reader.GetInt32(6),
-        Enum.Parse<AvailabilityStatus>(reader.GetString(7)));
+        Enum.Parse<AvailabilityStatus>(reader.GetString(7)),
+        reader.IsDBNull(8) ? null : DateTimeOffset.Parse(reader.GetString(8), System.Globalization.CultureInfo.InvariantCulture));
 }

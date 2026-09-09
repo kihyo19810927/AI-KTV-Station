@@ -57,6 +57,20 @@ public sealed class SongSearchIndexTests
         Assert.Empty((await fixture.Search("🎤")).Items);
     }
 
+    [Fact]
+    public async Task Sorts_recently_added_by_latest_media_write_time()
+    {
+        await using var fixture = await SearchFixture.CreateAsync();
+        await fixture.AddAsync("较早歌曲", "甲", "国语", "流行", "1080P", 2025, new DateTimeOffset(2026, 1, 1, 0, 0, 0, TimeSpan.Zero));
+        await fixture.AddAsync("最近歌曲", "乙", "国语", "流行", "1080P", 2020, new DateTimeOffset(2026, 9, 1, 0, 0, 0, TimeSpan.Zero));
+        await fixture.Index.RebuildAsync();
+
+        var result = await fixture.Index.SearchAsync(new SongSearchQuery(PageSize: 10, Sort: SongSearchSort.RecentlyAdded));
+
+        Assert.Equal("最近歌曲", result.Value.Items[0].Title);
+        Assert.Equal(new DateTimeOffset(2026, 9, 1, 0, 0, 0, TimeSpan.Zero), result.Value.Items[0].AddedAt);
+    }
+
     private sealed class SearchFixture : IAsyncDisposable
     {
         private readonly string databasePath;
@@ -80,7 +94,7 @@ public sealed class SongSearchIndexTests
             return new SearchFixture(path, database);
         }
 
-        public async Task<Song> AddAsync(string title, string artistName, string language, string category, string quality, int year)
+        public async Task<Song> AddAsync(string title, string artistName, string language, string category, string quality, int year, DateTimeOffset? mediaWriteTime = null)
         {
             var song = new Song
             {
@@ -91,6 +105,7 @@ public sealed class SongSearchIndexTests
                 Year = year,
                 Availability = AvailabilityStatus.Available,
                 Artists = [new SongArtist { Artist = new Artist { Name = artistName } }],
+                MediaFiles = mediaWriteTime is null ? [] : [new MediaFile { RelativePath = $"{title}.mkv", LastWriteTime = mediaWriteTime.Value, Availability = AvailabilityStatus.Available, MediaSource = new MediaSource { Name = $"source-{title}", RootPath = $"fixture-{title}", Availability = AvailabilityStatus.Available } }],
             };
             SongSearchKeyUpdater.Update(song, Normalizer);
             Database.Songs.Add(song);
