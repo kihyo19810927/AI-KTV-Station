@@ -4,13 +4,19 @@ import { beforeEach, vi } from 'vitest'
 import { App } from './App'
 import { SessionProvider } from './state/session'
 
+const realtime = vi.hoisted(() => ({ snapshot: null as null | { version: number; roomId: string; queue: unknown[]; playback?: unknown }, lastUrl: '', invokeArgs: [] as unknown[] }))
+vi.mock('@microsoft/signalr', () => ({
+  HubConnectionState: { Disconnected: 'Disconnected' }, LogLevel: { Warning: 3 },
+  HubConnectionBuilder: class { withUrl(url: string) { realtime.lastUrl = url; return this } withAutomaticReconnect() { return this } configureLogging() { return this } build() { return { state: 'Connected', on: vi.fn(), off: vi.fn(), onreconnecting: vi.fn(), onreconnected: vi.fn(), onclose: vi.fn(), start: vi.fn().mockResolvedValue(undefined), stop: vi.fn().mockResolvedValue(undefined), invoke: vi.fn().mockImplementation(async (...args: unknown[]) => { realtime.invokeArgs = args; return { version: realtime.snapshot?.version ?? 0, snapshot: realtime.snapshot, events: [] } }) } } },
+}))
+
 const validSession = { roomId: 'room-1', roomName: '客厅 KTV', guestId: 'guest-1', nickname: '小明', role: 'Guest' as const, token: 'short-lived-token', expiresAt: '2099-01-01T00:00:00Z' }
 function renderApp(path: string) { return render(<MemoryRouter initialEntries={[path]}><SessionProvider><App /></SessionProvider></MemoryRouter>) }
 
 describe('mobile application shell', () => {
-  beforeEach(() => { sessionStorage.clear(); vi.restoreAllMocks(); vi.spyOn(globalThis, 'fetch').mockImplementation(async () => new Response(JSON.stringify({ items: [], total: 0, page: 1, pageSize: 20 }), { status: 200, headers: { 'Content-Type': 'application/json' } })) })
+  beforeEach(() => { sessionStorage.clear(); realtime.snapshot = { version: 0, roomId: 'room-1', queue: [] }; realtime.lastUrl = ''; realtime.invokeArgs = []; vi.restoreAllMocks(); vi.spyOn(globalThis, 'fetch').mockImplementation(async () => new Response(JSON.stringify({ items: [], total: 0, page: 1, pageSize: 20 }), { status: 200, headers: { 'Content-Type': 'application/json' } })) })
   it('renders join route', () => { renderApp('/join'); expect(screen.getByRole('heading', { name: 'AI-KTV Station' })).toBeInTheDocument(); expect(screen.getByRole('button', { name: '加入房间' })).toBeInTheDocument() })
-  it('restores a valid session and renders the approved discovery shell', () => { sessionStorage.setItem('ai-ktv-station.room-session.v1', JSON.stringify(validSession)); renderApp('/room/discover'); expect(screen.getByText('小明 · 访客')).toBeInTheDocument(); expect(screen.getByPlaceholderText('搜索歌名、歌手或拼音')).toBeInTheDocument(); expect(screen.getByRole('navigation', { name: '主导航' })).toBeInTheDocument() })
+  it('restores a valid session and renders the approved discovery shell', async () => { sessionStorage.setItem('ai-ktv-station.room-session.v1', JSON.stringify(validSession)); renderApp('/room/discover'); expect(await screen.findByText('小明 · 访客 · 已连接')).toBeInTheDocument(); expect(screen.getByPlaceholderText('搜索歌名、歌手或拼音')).toBeInTheDocument(); expect(screen.getByRole('navigation', { name: '主导航' })).toBeInTheDocument() })
   it('joins a room and persists the short-lived session', async () => {
     vi.mocked(fetch).mockResolvedValue(new Response(JSON.stringify({ ...validSession, guestId: 'guest-1' }), { status: 200, headers: { 'Content-Type': 'application/json' } }))
     renderApp('/join?code=ktv826')
@@ -46,12 +52,16 @@ describe('mobile application shell', () => {
   })
   it('lists only my songs and removes a waiting item', async () => {
     const items = [{ id: 'mine-1', songId: 'song-1', title: '我的歌', requestedByGuestId: 'guest-1', requestedByNickname: '小明', position: 1, status: 'Waiting', requestedAt: '2026-09-10T00:00:00Z' }, { id: 'other-1', songId: 'song-2', title: '别人的歌', requestedByGuestId: 'guest-2', requestedByNickname: '朋友', position: 2, status: 'Waiting', requestedAt: '2026-09-10T00:00:00Z' }]
-    vi.mocked(fetch).mockImplementation(async (_url, init) => init?.method === 'DELETE' ? new Response(null, { status: 204 }) : new Response(JSON.stringify(items), { status: 200, headers: { 'Content-Type': 'application/json' } }))
+    realtime.snapshot = { version: 5, roomId: 'room-1', queue: items }; vi.mocked(fetch).mockImplementation(async (_url, init) => init?.method === 'DELETE' ? new Response(null, { status: 204 }) : new Response(JSON.stringify(items), { status: 200, headers: { 'Content-Type': 'application/json' } }))
     sessionStorage.setItem('ai-ktv-station.room-session.v1', JSON.stringify(validSession)); renderApp('/room/queue'); await screen.findByText('我的歌'); expect(screen.queryByText('别人的歌')).not.toBeInTheDocument(); expect(screen.getByText('我已点 1 首 · 房间共 2 首')).toBeInTheDocument(); fireEvent.click(screen.getByRole('button', { name: '删除 我的歌' })); await waitFor(() => expect(screen.queryByText('我的歌')).not.toBeInTheDocument())
   })
   it('translates the server-side guest queue limit', async () => {
     const song = { songId: 'song-1', title: '夜曲', artists: '周杰伦', availability: 'Available' }
     vi.mocked(fetch).mockImplementation(async (url, init) => { if (String(url).startsWith('/api/catalog')) return new Response(JSON.stringify({ items: [song], total: 1, page: 1, pageSize: 20 }), { status: 200, headers: { 'Content-Type': 'application/json' } }); if (init?.method === 'POST') return new Response(JSON.stringify({ title: 'Guest queue limit was reached.', code: 'queue.guest_limit_reached' }), { status: 409 }); return new Response(JSON.stringify([]), { status: 200, headers: { 'Content-Type': 'application/json' } }) })
     sessionStorage.setItem('ai-ktv-station.room-session.v1', JSON.stringify(validSession)); renderApp('/room/discover'); await screen.findByText('夜曲'); fireEvent.click(screen.getByRole('button', { name: '点播 夜曲' })); expect(await screen.findByRole('status')).toHaveTextContent('点歌数量已达到本房间上限')
+  })
+  it('subscribes without putting the token in the hub URL and renders the playback snapshot', async () => {
+    realtime.snapshot = { version: 8, roomId: 'room-1', queue: [{ id: 'playing-1', songId: 'song-1', title: '正在唱的歌', requestedByGuestId: 'guest-1', requestedByNickname: '小明', position: 1, status: 'Playing', requestedAt: '2026-09-10T00:00:00Z' }], playback: { playbackId: 'p1', state: 'Playing', position: '00:00:03' } }
+    sessionStorage.setItem('ai-ktv-station.room-session.v1', JSON.stringify(validSession)); renderApp('/room/discover'); await screen.findByText('正在唱的歌'); expect(realtime.lastUrl).toBe('/hubs/room'); expect(realtime.lastUrl).not.toContain('short-lived-token'); expect(realtime.invokeArgs).toEqual(['Subscribe', 'short-lived-token', null])
   })
 })

@@ -3,6 +3,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { ApiError } from '../../api/client'
 import { useSession } from '../../state/session'
 import type { QueueEntry } from '../queue/types'
+import { NowPlaying } from '../../realtime/NowPlaying'
 
 interface SongSearchItem { songId: string; title: string; artists: string; language?: string; category?: string; quality?: string; year?: number; availability: 'Available' | 'Offline' | 'Unreadable' }
 interface SongSearchPage { items: SongSearchItem[]; total: number; page: number; pageSize: number }
@@ -53,7 +54,7 @@ export function DiscoverPage() {
   const hasMore = result ? result.items.length < result.total : false
   return <>
     <label className="search-box"><Search aria-hidden="true" /><span className="sr-only">搜索歌曲</span><input value={text} onChange={event => setText(event.target.value)} placeholder="搜索歌名、歌手或拼音" /></label>
-    <section className="now-playing" aria-label="正在播放"><span className="album"><Music2 aria-hidden="true" /></span><div><small>正在播放</small><strong>等待主持人开始播放</strong></div><span>—</span></section>
+    <NowPlaying />
     <section className="catalog-filters" aria-label="曲库筛选">
       <label><span className="sr-only">语言</span><select value={filters.language} onChange={event => updateFilter('language', event.target.value)}><option value="">全部语言</option><option>国语</option><option>粤语</option><option>英语</option></select></label>
       <label><span className="sr-only">分类</span><select value={filters.category} onChange={event => updateFilter('category', event.target.value)}><option value="">全部分类</option><option>流行</option><option>经典</option><option>儿歌</option></select></label>
