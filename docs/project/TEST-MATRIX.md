@@ -50,6 +50,7 @@
 | 手机 Web 兼容基线 | Vitest 静态契约 + Vite 多浏览器目标 | 通过（320px、44px 触摸、焦点、safe-area、viewport、Chrome/Edge/Safari 构建目标） | Android Chrome 与 iPhone Safari 后验收 |
 | WPF 主控壳 | net10.0-windows xUnit + Release XAML 构建 | 通过（六目标导航、命令和属性通知 2 个场景） | Windows 缩放、多屏和视觉后验收 |
 | WPF 健康仪表盘 | xUnit + SQLite 内存库 + ViewModel 替身 | 通过（组件汇总、安全摘要、刷新状态） | CloudDrive/115 实挂待验收 |
+| WPF 播放控制台 | xUnit 播放器替身 + Release XAML 编译 | 通过（状态/进度、轨道分组、控制命令） | 真实 MKV/电视/功放待验收 |
 | 环境与生成 MKV | `scripts/verify-environment.ps1` | 通过（10.023s、4 轨、中文标题） | 无 |
 | 真实 MKV/设备 | `ENVIRONMENT-BASELINE.md` 用户验收步骤 | 待验证 | 用户设备、样本和挂载 |
 
