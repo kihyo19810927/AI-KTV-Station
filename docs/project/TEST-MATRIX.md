@@ -43,6 +43,7 @@
 | 收藏/历史/热门 | 幂等收藏、访客隔离、历史房间分页、成功播放聚合、参数验证、REST 契约 | 通过（4 个服务场景 + API 端到端） | 无 |
 | React Web 基线 | TypeScript、Vitest、Vite 生产构建、ASP.NET 静态根页/SPA 深链 | 通过（4 个前端场景 + 2 个托管路径） | Android/iPhone 后验收 |
 | Web 加入与会话恢复 | Vitest + jsdom，真实 API 客户端请求替身 | 通过（9 个前端场景：加入、预填、恢复、退出、过期/损坏清理） | 二维码与 Android/iPhone 标签页生命周期后验收 |
+| Web 曲库搜索 | Vitest + API 请求替身 | 通过（防抖查询、筛选参数、分页追加、空状态、错误重试、离线禁用） | 大曲库滚动与手机软键盘后验收 |
 | 环境与生成 MKV | `scripts/verify-environment.ps1` | 通过（10.023s、4 轨、中文标题） | 无 |
 | 真实 MKV/设备 | `ENVIRONMENT-BASELINE.md` 用户验收步骤 | 待验证 | 用户设备、样本和挂载 |
 

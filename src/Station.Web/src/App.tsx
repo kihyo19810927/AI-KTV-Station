@@ -1,14 +1,9 @@
-import { Heart, Home, ListMusic, Music2, Search, UserRound } from 'lucide-react'
+import { Heart, Home, ListMusic, Music2, UserRound } from 'lucide-react'
 import { type FormEvent, useState } from 'react'
 import { Navigate, NavLink, Route, Routes, useNavigate, useSearchParams } from 'react-router-dom'
 import { ApiError } from './api/client'
+import { DiscoverPage } from './features/catalog/DiscoverPage'
 import { useSession, type RoomRole } from './state/session'
-
-const suggestions = [['告白气球','周杰伦','国语 · 03:35'],['突然好想你','五月天','国语 · 04:26'],['泡沫','邓紫棋','国语 · 04:18'],['喜欢你','Beyond','粤语 · 04:36']]
-
-function DiscoverPage() {
-  return <><label className="search-box"><Search aria-hidden="true" /><span className="sr-only">搜索歌曲</span><input placeholder="搜索歌名、歌手或拼音" /></label><section className="now-playing" aria-label="正在播放"><span className="album"><Music2 aria-hidden="true" /></span><div><small>正在播放</small><strong>夜曲 · 周杰伦</strong></div><span>伴奏</span></section><div className="section-tabs"><button className="active">推荐</button><button>热门</button><button>最近新增</button></div><section className="song-list" aria-label="推荐歌曲">{suggestions.map(([title,artist,meta]) => <article className="song-row" key={title}><div><strong>{title}</strong><small>{artist} · {meta}</small></div><button aria-label={`点播 ${title}`}>＋</button></article>)}</section></>
-}
 function Placeholder({ title }: { title: string }) { return <section className="empty-state"><Music2 aria-hidden="true" /><h2>{title}</h2><p>功能将在当前开发阶段接入真实房间数据。</p></section> }
 function RoomShell() { const { session, setSession } = useSession(); if (!session) return <Navigate to="/join" replace />; return <main className="phone-shell"><header className="room-header"><div><h1>{session.roomName}</h1><p>{session.nickname} · {session.role === 'Host' ? '主持人' : '访客'}</p></div><button className="connection-button" onClick={() => setSession(null)}>退出</button></header><div className="page-content"><Routes><Route path="discover" element={<DiscoverPage />} /><Route path="queue" element={<Placeholder title="我的点歌" />} /><Route path="favorites" element={<Placeholder title="我的收藏" />} /><Route path="*" element={<Navigate to="discover" replace />} /></Routes></div><nav className="bottom-nav" aria-label="主导航"><NavLink to="/room/discover"><Home aria-hidden="true" />点歌</NavLink><NavLink to="/room/queue"><ListMusic aria-hidden="true" />已点</NavLink><NavLink to="/room/favorites"><Heart aria-hidden="true" />收藏</NavLink><NavLink to="/join"><UserRound aria-hidden="true" />我的</NavLink></nav></main> }
 interface JoinResponse { token: string; roomId: string; guestId: string; nickname: string; role: RoomRole; expiresAt: string }
