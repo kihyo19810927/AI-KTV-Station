@@ -6,3 +6,4 @@ tests/**/obj/
 TestResults/
 coverage/
 **/data/
+.tmp/

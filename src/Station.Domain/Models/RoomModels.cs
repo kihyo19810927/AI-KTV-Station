@@ -21,6 +21,8 @@ public sealed class Guest
     public string Nickname { get; set; } = string.Empty;
     public string TokenHash { get; set; } = string.Empty;
     public DateTimeOffset JoinedAt { get; set; }
+    public DateTimeOffset ExpiresAt { get; set; }
+    public DateTimeOffset? RevokedAt { get; set; }
     public bool IsHost { get; set; }
 }
 
