@@ -59,6 +59,7 @@
 | WPF 房间与二维码 | SQLite + QRCoder PNG + ViewModel | 通过（房间、规则、访客公开投影、无令牌 URL/二维码） | 手机扫码、网卡选择和 Wi-Fi 连通待验收 |
 | 设置、日志与诊断 | 临时 JSON 设置、JSONL 日志、健康替身、WPF ViewModel | 通过（配置验证/往返、最近事件、换行净化、路径脱敏、恢复建议、重启提示） | 实际导出目录可用性随 Windows 验收 |
 | 关键业务端到端 | Unicode MPG/KSC 临时目录 + SQLite + TestServer + 可控播放器端口 | 通过（扫描、FTS、建房、加入、点歌、媒体加载、完成队列与历史） | 真实 115/mpv/电视/功放/手机不由替身结论覆盖 |
+| 100k/300k 大曲库性能 | 合成 SQLite FTS 文档 + 流式扫描条目 | 通过（搜索 P95 4.18/12.54 ms；扫描 0.51/1.99 s） | 扫描数字不含文件系统、ffprobe 和 EF 写盘；低规格机/真实挂载待验收 |
 | 环境与生成 MKV | `scripts/verify-environment.ps1` | 通过（10.023s、4 轨、中文标题） | 无 |
 | 真实 MKV/设备 | `ENVIRONMENT-BASELINE.md` 用户验收步骤 | 待验证 | 用户设备、样本和挂载 |
 
