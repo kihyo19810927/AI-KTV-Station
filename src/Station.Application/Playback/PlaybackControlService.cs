@@ -11,6 +11,24 @@ public sealed record PlaybackProgress(
 
 public sealed class PlaybackControlService(IPlayerAdapter player)
 {
+    public async Task<Result<PlayerSnapshot>> PlayAsync(CancellationToken cancellationToken = default)
+    {
+        var state = await player.GetStateAsync(cancellationToken).ConfigureAwait(false);
+        if (state.IsFailure) return state;
+        return state.Value.State == PlayerLifecycleState.Paused
+            ? await player.PlayAsync(cancellationToken).ConfigureAwait(false)
+            : Result<PlayerSnapshot>.Failure(new Error("player.not_paused", "Playback is not paused."));
+    }
+
+    public async Task<Result<PlayerSnapshot>> PauseAsync(CancellationToken cancellationToken = default)
+    {
+        var state = await player.GetStateAsync(cancellationToken).ConfigureAwait(false);
+        if (state.IsFailure) return state;
+        return state.Value.State == PlayerLifecycleState.Playing
+            ? await player.PauseAsync(cancellationToken).ConfigureAwait(false)
+            : Result<PlayerSnapshot>.Failure(new Error("player.not_playing", "Playback is not playing."));
+    }
+
     public async Task<Result<PlayerSnapshot>> SetVolumeAsync(double volume, CancellationToken cancellationToken = default)
     {
         var validation = PlayerCommandValidation.ValidateVolume(volume);
@@ -47,6 +65,17 @@ public sealed class PlaybackControlService(IPlayerAdapter player)
         if (streamId is { } selectedId && !state.Value.Tracks.Any(x => x.StreamId == selectedId && x.Type == MediaTrackType.Subtitle))
             return Result<PlayerSnapshot>.Failure(new Error("player.subtitle_track_not_found", "The requested subtitle track is unavailable."));
         return await player.SelectSubtitleTrackAsync(streamId, cancellationToken).ConfigureAwait(false);
+    }
+
+    public async Task<Result<PlayerSnapshot>> SelectAudioAsync(int streamId, CancellationToken cancellationToken = default)
+    {
+        if (PlayerCommandValidation.ValidateTrack(streamId) is { } validation)
+            return Result<PlayerSnapshot>.Failure(validation);
+        var state = await RequireActivePlaybackAsync(cancellationToken).ConfigureAwait(false);
+        if (state.IsFailure) return state;
+        if (!state.Value.Tracks.Any(x => x.StreamId == streamId && x.Type == MediaTrackType.Audio))
+            return Result<PlayerSnapshot>.Failure(new Error("player.audio_track_not_found", "The requested audio track is unavailable."));
+        return await player.SelectAudioTrackAsync(streamId, cancellationToken).ConfigureAwait(false);
     }
 
     private async Task<Result<PlayerSnapshot>> RequireActivePlaybackAsync(CancellationToken cancellationToken)

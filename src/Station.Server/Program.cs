@@ -3,14 +3,21 @@ using Microsoft.EntityFrameworkCore;
 using Station.Application.Configuration;
 using Station.Application.Media;
 using Station.Application.Metadata;
+using Station.Application.Playback;
+using Station.Application.Queue;
+using Station.Application.Rooms;
 using Station.Application.Scanning;
 using Station.Application.Search;
 using Station.Infrastructure.Media;
 using Station.Infrastructure.Metadata;
+using Station.Infrastructure.Playback;
 using Station.Infrastructure.Persistence;
+using Station.Infrastructure.Queue;
+using Station.Infrastructure.Rooms;
 using Station.Infrastructure.Scanning;
 using Station.Infrastructure.Search;
 using Station.Server.Scanning;
+using Station.Server.Api;
 
 var builder = WebApplication.CreateBuilder(args);
 builder.Logging.ClearProviders();
@@ -20,6 +27,7 @@ builder.Services.AddOptions<StationOptions>()
     .Validate(options => StationOptionsValidator.Validate(options).IsSuccess, "Station configuration is invalid.")
     .ValidateOnStart();
 builder.Services.ConfigureHttpJsonOptions(options => options.SerializerOptions.Converters.Add(new JsonStringEnumConverter()));
+builder.Services.AddOpenApi();
 
 var stationOptions = builder.Configuration.GetSection(StationOptions.SectionName).Get<StationOptions>() ?? new StationOptions();
 var dataDirectory = Path.GetFullPath(stationOptions.Storage.DataDirectory, builder.Environment.ContentRootPath);
@@ -36,12 +44,32 @@ builder.Services.AddScoped<IMediaProbe>(_ => new FfprobeMediaProbe(FindExecutabl
 builder.Services.AddScoped<IMediaScanRunner, MediaScanService>();
 builder.Services.AddScoped<ISongSearchIndex, SqliteSongSearchIndex>();
 builder.Services.AddSingleton<IScanCoordinator, ScanCoordinator>();
+builder.Services.AddSingleton(TimeProvider.System);
+builder.Services.AddScoped<IRoomRepository, EfRoomRepository>();
+builder.Services.AddSingleton<IRoomJoinCodeGenerator, SecureRoomJoinCodeGenerator>();
+builder.Services.AddScoped<RoomLifecycleService>();
+builder.Services.AddScoped<IRoomIdentityRepository, EfRoomIdentityRepository>();
+builder.Services.AddSingleton<IRoomTokenProtector, Sha256RoomTokenProtector>();
+builder.Services.AddScoped<RoomAuthenticationService>();
+builder.Services.AddScoped<IRoomQueueRepository, EfRoomQueueRepository>();
+builder.Services.AddSingleton<IRoomQueueLock, InProcessRoomQueueLock>();
+builder.Services.AddScoped<RoomQueueService>();
+builder.Services.AddSingleton<IPlayerAdapter>(_ => new MpvPlayerAdapter(new PlayerOptions
+{
+    ExecutablePath = string.IsNullOrWhiteSpace(stationOptions.Player.ExecutablePath)
+        ? FindMpvExecutable() ?? "mpv.exe"
+        : stationOptions.Player.ExecutablePath,
+    CommandTimeoutSeconds = stationOptions.Player.CommandTimeoutSeconds,
+}));
+builder.Services.AddScoped<PlaybackControlService>();
 var app = builder.Build();
 
 await using (var scope = app.Services.CreateAsyncScope())
     await scope.ServiceProvider.GetRequiredService<StationDbContext>().Database.MigrateAsync();
 
 app.MapGet("/health", () => Results.Ok(new { status = "ok" }));
+app.MapOpenApi();
+app.MapStationApi();
 app.MapPost("/api/scans", (StartScanRequest request, IScanCoordinator coordinator) =>
 {
     var result = coordinator.Start(request.MediaSourceId);
@@ -70,15 +98,7 @@ app.MapPost("/api/scans/{scanRunId:guid}/cancel", (Guid scanRunId, IScanCoordina
 app.Run();
 
 static IResult ScanError(Station.Application.Common.Error error)
-{
-    var status = error.Code switch
-    {
-        "scan.operation_not_found" => StatusCodes.Status404NotFound,
-        "scan.already_running" or "scan.operation_finished" => StatusCodes.Status409Conflict,
-        _ => StatusCodes.Status400BadRequest,
-    };
-    return Results.Problem(statusCode: status, title: error.Message, extensions: new Dictionary<string, object?> { ["code"] = error.Code });
-}
+    => StationApiEndpoints.Problem(error);
 
 static async Task<Station.Application.Common.Result<ScanOperationStatus>> GetScanAsync(
     Guid scanRunId,
@@ -110,6 +130,16 @@ static string? FindExecutable(string name)
         if (File.Exists(candidate)) return candidate;
     }
     return null;
+}
+
+static string? FindMpvExecutable()
+{
+    var pathExecutable = FindExecutable("mpv.exe");
+    if (pathExecutable is not null) return pathExecutable;
+    var packageRoot = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Microsoft", "WinGet", "Packages");
+    return Directory.Exists(packageRoot)
+        ? Directory.EnumerateFiles(packageRoot, "mpv.exe", SearchOption.AllDirectories).FirstOrDefault()
+        : null;
 }
 
 public partial class Program;
