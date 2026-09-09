@@ -28,6 +28,7 @@ using Station.Infrastructure.Scanning;
 using Station.Infrastructure.Search;
 using Station.Application.Rooms;
 using Station.Infrastructure.Rooms;
+using Station.Infrastructure.Configuration;
 
 namespace Station.Desktop;
 
@@ -39,9 +40,13 @@ public partial class App : System.Windows.Application
     {
         base.OnStartup(e);
         var collection = new ServiceCollection();
-        var options = new StationOptions();
+        var settingsRoot = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "AI-KTV Station");
+        var settingsStore = new JsonStationSettingsStore(Path.Combine(settingsRoot, "settings.json"));
+        var loadedSettings = await settingsStore.LoadAsync();
+        var options = loadedSettings.IsSuccess ? loadedSettings.Value : new StationOptions();
         var dataDirectory = Path.Combine(AppContext.BaseDirectory, options.Storage.DataDirectory);
         collection.AddSingleton(options);
+        collection.AddSingleton<IStationSettingsStore>(settingsStore);
         collection.AddSingleton(TimeProvider.System);
         var databaseOptions = new DbContextOptionsBuilder<StationDbContext>().UseSqlite($"Data Source={Path.Combine(dataDirectory, "station.db")}").Options;
         collection.AddSingleton(new StationDbContext(databaseOptions));
@@ -82,9 +87,13 @@ public partial class App : System.Windows.Application
         collection.AddSingleton<IQrCodeRenderer, QrCodeRenderer>();
         collection.AddSingleton<ILanAddressProvider, LanAddressProvider>();
         collection.AddSingleton<RoomManagementViewModel>();
+        collection.AddSingleton<ILocalDiagnosticLog>(_ => new JsonLineDiagnosticLog(Path.Combine(settingsRoot, "logs", "station.jsonl"), TimeProvider.System));
+        collection.AddSingleton<IDiagnosticExportService>(provider => new JsonDiagnosticExportService(Path.Combine(settingsRoot, "diagnostics"), provider.GetRequiredService<IStationHealthService>(), provider.GetRequiredService<ILocalDiagnosticLog>()));
+        collection.AddSingleton<SettingsViewModel>();
         collection.AddSingleton<MainWindowViewModel>();
         collection.AddSingleton<MainWindow>();
         services = collection.BuildServiceProvider(new ServiceProviderOptions { ValidateOnBuild = true, ValidateScopes = true });
+        await services.GetRequiredService<ILocalDiagnosticLog>().WriteAsync("Information", "desktop.starting", "AI-KTV Station desktop is starting.");
         await services.GetRequiredService<StationDbContext>().Database.MigrateAsync();
         MainWindow = services.GetRequiredService<MainWindow>();
         MainWindow.Show();

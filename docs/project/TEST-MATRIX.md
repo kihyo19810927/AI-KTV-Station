@@ -57,6 +57,7 @@
 | 保留式数据库升级 | 上一迁移预置数据 → 最新迁移 | 通过（歌曲、收藏、历史、人工音轨映射保留） | 正式库升级前仍需备份演练 |
 | WPF 曲库管理 | xUnit 服务替身 + Release XAML 编译 | 通过（搜索、来源列表、添加目录不自动扫描） | 真实曲库 UI/扫描验收待执行 |
 | WPF 房间与二维码 | SQLite + QRCoder PNG + ViewModel | 通过（房间、规则、访客公开投影、无令牌 URL/二维码） | 手机扫码、网卡选择和 Wi-Fi 连通待验收 |
+| 设置、日志与诊断 | 临时 JSON 设置、JSONL 日志、健康替身、WPF ViewModel | 通过（配置验证/往返、最近事件、换行净化、路径脱敏、恢复建议、重启提示） | 实际导出目录可用性随 Windows 验收 |
 | 环境与生成 MKV | `scripts/verify-environment.ps1` | 通过（10.023s、4 轨、中文标题） | 无 |
 | 真实 MKV/设备 | `ENVIRONMENT-BASELINE.md` 用户验收步骤 | 待验证 | 用户设备、样本和挂载 |
 
