@@ -4,5 +4,6 @@ import { BrowserRouter } from 'react-router-dom'
 import { App } from './App'
 import { SessionProvider } from './state/session'
 import './styles.css'
+import './session.css'
 
 createRoot(document.getElementById('root')!).render(<StrictMode><BrowserRouter><SessionProvider><App /></SessionProvider></BrowserRouter></StrictMode>)
