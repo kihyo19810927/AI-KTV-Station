@@ -1,4 +1,6 @@
 using System.Text.Json.Serialization;
+using System.Net;
+using System.Net.Sockets;
 using Microsoft.EntityFrameworkCore;
 using Station.Application.Configuration;
 using Station.Application.Media;
@@ -21,6 +23,7 @@ using Station.Infrastructure.Search;
 using Station.Server.Scanning;
 using Station.Server.Api;
 using Station.Server.Realtime;
+using Station.Server.Security;
 
 var builder = WebApplication.CreateBuilder(args);
 builder.Logging.ClearProviders();
@@ -34,6 +37,9 @@ builder.Services.AddOpenApi();
 builder.Services.AddSignalR();
 
 var stationOptions = builder.Configuration.GetSection(StationOptions.SectionName).Get<StationOptions>() ?? new StationOptions();
+var bindAddress = IPAddress.Parse(stationOptions.Server.BindAddress);
+var bindHost = bindAddress.AddressFamily == AddressFamily.InterNetworkV6 ? $"[{bindAddress}]" : bindAddress.ToString();
+builder.WebHost.UseUrls($"http://{bindHost}:{stationOptions.Server.Port}");
 var dataDirectory = Path.GetFullPath(stationOptions.Storage.DataDirectory, builder.Environment.ContentRootPath);
 Directory.CreateDirectory(dataDirectory);
 var databasePath = Path.Combine(dataDirectory, "station.db");
@@ -81,33 +87,45 @@ await using (var scope = app.Services.CreateAsyncScope())
 }
 
 app.UseDefaultFiles();
+app.Use(async (context, next) =>
+{
+    context.Response.Headers.XContentTypeOptions = "nosniff";
+    context.Response.Headers.XFrameOptions = "DENY";
+    context.Response.Headers["Referrer-Policy"] = "no-referrer";
+    if (context.Request.Path.StartsWithSegments("/api")) context.Response.Headers.CacheControl = "no-store";
+    await next();
+});
 app.UseStaticFiles();
 app.MapGet("/health", () => Results.Ok(new { status = "ok" }));
 app.MapOpenApi();
 app.MapStationApi();
 app.MapHub<RoomHub>("/hubs/room");
-app.MapPost("/api/scans", (StartScanRequest request, IScanCoordinator coordinator) =>
+app.MapPost("/api/scans", (HttpContext context, StartScanRequest request, IScanCoordinator coordinator) =>
 {
+    if (!LocalRequestPolicy.IsLocal(context.Connection.RemoteIpAddress)) return StationApiEndpoints.Problem(new Station.Application.Common.Error("auth.local_only", "Scan administration is available only on the host."));
     var result = coordinator.Start(request.MediaSourceId);
     return result.IsSuccess
         ? Results.Accepted($"/api/scans/{result.Value.ScanRunId}", result.Value)
         : ScanError(result.Error);
 });
-app.MapGet("/api/scans/{scanRunId:guid}", async (Guid scanRunId, IScanCoordinator coordinator, IScanRunReader reader, CancellationToken cancellationToken) =>
+app.MapGet("/api/scans/{scanRunId:guid}", async (HttpContext context, Guid scanRunId, IScanCoordinator coordinator, IScanRunReader reader, CancellationToken cancellationToken) =>
 {
+    if (!LocalRequestPolicy.IsLocal(context.Connection.RemoteIpAddress)) return StationApiEndpoints.Problem(new Station.Application.Common.Error("auth.local_only", "Scan administration is available only on the host."));
     var result = await GetScanAsync(scanRunId, coordinator, reader, cancellationToken);
     return result.IsSuccess ? Results.Ok(result.Value) : ScanError(result.Error);
 });
-app.MapGet("/api/scans/{scanRunId:guid}/result", async (Guid scanRunId, IScanCoordinator coordinator, IScanRunReader reader, CancellationToken cancellationToken) =>
+app.MapGet("/api/scans/{scanRunId:guid}/result", async (HttpContext context, Guid scanRunId, IScanCoordinator coordinator, IScanRunReader reader, CancellationToken cancellationToken) =>
 {
+    if (!LocalRequestPolicy.IsLocal(context.Connection.RemoteIpAddress)) return StationApiEndpoints.Problem(new Station.Application.Common.Error("auth.local_only", "Scan administration is available only on the host."));
     var result = await GetScanAsync(scanRunId, coordinator, reader, cancellationToken);
     if (!result.IsSuccess) return ScanError(result.Error);
     return result.Value.Status is Station.Domain.Models.ScanStatus.Pending or Station.Domain.Models.ScanStatus.Running
         ? Results.Accepted($"/api/scans/{scanRunId}/result", result.Value)
         : Results.Ok(result.Value);
 });
-app.MapPost("/api/scans/{scanRunId:guid}/cancel", (Guid scanRunId, IScanCoordinator coordinator) =>
+app.MapPost("/api/scans/{scanRunId:guid}/cancel", (HttpContext context, Guid scanRunId, IScanCoordinator coordinator) =>
 {
+    if (!LocalRequestPolicy.IsLocal(context.Connection.RemoteIpAddress)) return StationApiEndpoints.Problem(new Station.Application.Common.Error("auth.local_only", "Scan administration is available only on the host."));
     var result = coordinator.Cancel(scanRunId);
     return result.IsSuccess ? Results.Accepted($"/api/scans/{scanRunId}", result.Value) : ScanError(result.Error);
 });

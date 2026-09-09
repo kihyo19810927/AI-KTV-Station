@@ -6,6 +6,7 @@ using Station.Application.Queue;
 using Station.Application.Rooms;
 using Station.Application.Search;
 using Station.Server.Realtime;
+using Station.Server.Security;
 
 namespace Station.Server.Api;
 
@@ -49,7 +50,7 @@ public static class StationApiEndpoints
         RoomAuthenticationService authentication,
         CancellationToken cancellationToken)
     {
-        if (!IsLocal(context)) return Problem(new Error("auth.local_only", "Room administration is available only on the host."));
+        if (!LocalRequestPolicy.IsLocal(context.Connection.RemoteIpAddress)) return Problem(new Error("auth.local_only", "Room administration is available only on the host."));
         var created = await rooms.CreateAsync(request.MaxQueuedSongsPerGuest ?? 10, cancellationToken);
         if (created.IsFailure) return Problem(created.Error);
         var host = await authentication.IssueHostAsync(created.Value.Id, request.HostNickname ?? "主持人", cancellationToken);
@@ -63,7 +64,7 @@ public static class StationApiEndpoints
         RoomLifecycleService rooms,
         CancellationToken cancellationToken)
     {
-        if (!IsLocal(context)) return Problem(new Error("auth.local_only", "Room administration is available only on the host."));
+        if (!LocalRequestPolicy.IsLocal(context.Connection.RemoteIpAddress)) return Problem(new Error("auth.local_only", "Room administration is available only on the host."));
         var current = await rooms.GetCurrentAsync(cancellationToken);
         return current.IsSuccess ? Results.Ok(current.Value) : Problem(current.Error);
     }
@@ -308,9 +309,6 @@ public static class StationApiEndpoints
             : string.Empty;
         return authentication.ValidateAsync(token, cancellationToken);
     }
-
-    private static bool IsLocal(HttpContext context) =>
-        context.Connection.RemoteIpAddress is null || IPAddress.IsLoopback(context.Connection.RemoteIpAddress);
 
     private static Task<RoomRealtimeEvent> PublishAsync(
         HttpContext context,
