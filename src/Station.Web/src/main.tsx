@@ -9,5 +9,6 @@ import './features/catalog/catalog.css'
 import './features/queue/queue.css'
 import './features/queue/actions.css'
 import './features/library/library.css'
+import './accessibility.css'
 
 createRoot(document.getElementById('root')!).render(<StrictMode><BrowserRouter><SessionProvider><App /></SessionProvider></BrowserRouter></StrictMode>)

@@ -1,0 +1,7 @@
+:where(button, a, input, select) { touch-action: manipulation; }
+:where(button, a, input, select):focus-visible { outline: 3px solid #a78bfa; outline-offset: 2px; }
+.song-row button,.queue-row button,.library-row button,.connection-button { min-width: 44px; min-height: 44px; }
+.page-content { overflow-wrap: anywhere; }
+.bottom-nav { padding-bottom: max(env(safe-area-inset-bottom), 4px); }
+@media (prefers-reduced-motion: reduce) { *,*::before,*::after { scroll-behavior: auto !important; transition-duration: .01ms !important; animation-duration: .01ms !important; animation-iteration-count: 1 !important; } }
+@media (forced-colors: active) { .active,.connected { forced-color-adjust: none; } }
