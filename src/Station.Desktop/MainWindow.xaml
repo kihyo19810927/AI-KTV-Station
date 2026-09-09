@@ -1,8 +1,20 @@
 <Window x:Class="Station.Desktop.MainWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Title="AI-KTV Station" Width="960" Height="640">
+        Title="AI-KTV Station" Width="1180" Height="760" MinWidth="900" MinHeight="600"
+        WindowStartupLocation="CenterScreen" Background="{StaticResource WindowBackgroundBrush}">
     <Grid>
-        <TextBlock Text="AI-KTV Station" HorizontalAlignment="Center" VerticalAlignment="Center" FontSize="32" />
+        <Grid.ColumnDefinitions><ColumnDefinition Width="230" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
+        <Border Grid.Column="0" Background="#171327" Padding="20">
+            <DockPanel>
+                <StackPanel DockPanel.Dock="Top" Margin="4,8,4,28"><TextBlock Text="AI-KTV" Foreground="White" FontSize="25" FontWeight="SemiBold" /><TextBlock Text="Station 主控" Foreground="#B9B3C9" Margin="0,4,0,0" /></StackPanel>
+                <ItemsControl ItemsSource="{Binding NavigationItems}"><ItemsControl.ItemTemplate><DataTemplate><Button Content="{Binding Title}" Command="{Binding DataContext.NavigateCommand, RelativeSource={RelativeSource AncestorType=Window}}" CommandParameter="{Binding Page}" HorizontalContentAlignment="Left" Margin="0,0,0,8" Foreground="White" Background="#2A2340" BorderThickness="0" /></DataTemplate></ItemsControl.ItemTemplate></ItemsControl>
+            </DockPanel>
+        </Border>
+        <Grid Grid.Column="1" Margin="32,26">
+            <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="18" /><RowDefinition Height="*" /></Grid.RowDefinitions>
+            <DockPanel><StackPanel><TextBlock Text="{Binding CurrentTitle}" FontSize="28" FontWeight="SemiBold" Foreground="{StaticResource PrimaryTextBrush}" /><TextBlock Text="{Binding CurrentDescription}" Margin="0,5,0,0" Foreground="{StaticResource SecondaryTextBrush}" /></StackPanel><Border DockPanel.Dock="Right" Background="#E9F8EF" CornerRadius="14" Padding="12,7" VerticalAlignment="Center"><TextBlock Text="● 本机服务" Foreground="#137A46" /></Border></DockPanel>
+            <Border Grid.Row="2" Background="{StaticResource PanelBrush}" CornerRadius="18" Padding="30"><StackPanel HorizontalAlignment="Center" VerticalAlignment="Center"><TextBlock Text="♫" FontSize="54" Foreground="{StaticResource AccentBrush}" HorizontalAlignment="Center" /><TextBlock Text="{Binding CurrentTitle}" FontSize="24" FontWeight="SemiBold" Margin="0,16,0,6" HorizontalAlignment="Center" /><TextBlock Text="此页面将在后续任务接入真实服务。" Foreground="{StaticResource SecondaryTextBrush}" /></StackPanel></Border>
+        </Grid>
     </Grid>
 </Window>

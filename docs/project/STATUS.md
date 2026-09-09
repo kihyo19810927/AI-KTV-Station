@@ -7,8 +7,8 @@
 - 分支：`task-KTVS-001-002-phase0`
 - 版本：`0.1.0-dev`
 - 阶段：Phase 5：手机点歌 Web
-- 已完成：KTVS-001 至 KTVS-040
-- 当前任务：KTVS-041 WPF 外壳与导航
+- 已完成：KTVS-001 至 KTVS-041
+- 当前任务：KTVS-042 仪表盘与健康状态
 
 ## 调查结果
 
@@ -92,6 +92,8 @@ KTVS-039：发现页接入房间热门榜、最近新增排序和访客收藏状
 
 KTVS-040：手机页补齐中文/viewport/theme 元数据、Chrome 120/Edge 120/Safari 16.4 构建目标、44px 触摸目标、键盘焦点、safe-area、窄屏筛选和减少动态效果规则；兼容静态门禁纳入 Vitest。真实 Android/iPhone 验收保持待验证。
 
+KTVS-041：WPF 占位工程升级为 MVVM 主控壳，App 作为 DI 组合根，窗口 code-behind 仅接收 ViewModel；左侧导航覆盖仪表盘、播放、队列、曲库、房间和诊断六个 V1 页面，主题沿用紫色 Demo。新增 Windows 测试工程，导航/通知 2/2 通过；视觉待实机验收。
+
 ## 外部阻塞
 
 1. 真实 MKV、挂载目录和电视/功放/手机验收需用户后续执行，不阻塞软件开发。
@@ -102,4 +104,4 @@ KTVS-040：手机页补齐中文/viewport/theme 元数据、Chrome 120/Edge 120/
 
 ## 下一推荐任务
 
-执行 `KTVS-041`：建立 Windows 11 WPF + MVVM 主控工程和应用壳。
+执行 `KTVS-042`：接入服务、挂载、mpv 和数据库健康状态仪表盘。
