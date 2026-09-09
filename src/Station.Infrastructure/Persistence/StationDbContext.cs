@@ -50,7 +50,7 @@ public sealed class StationDbContext(DbContextOptions<StationDbContext> options)
         model.Entity<MediaFile>(e => { e.Property(x => x.RelativePath).HasMaxLength(1024); e.Property(x => x.Availability).HasConversion<string>(); e.HasIndex(x => new { x.MediaSourceId, x.RelativePath }).IsUnique(); });
         model.Entity<MediaTrack>(e => { e.Property(x => x.Type).HasConversion<string>(); e.HasIndex(x => new { x.MediaFileId, x.StreamId, x.Type }).IsUnique(); });
         model.Entity<TrackMapping>().HasKey(x => x.MediaFileId);
-        model.Entity<RoomSession>(e => { e.Property(x => x.Status).HasConversion<string>(); e.HasIndex(x => x.JoinCode).IsUnique(); });
+        model.Entity<RoomSession>(e => { e.Property(x => x.Status).HasConversion<string>(); e.HasIndex(x => x.JoinCode).IsUnique(); e.HasIndex(x => x.OpenSlot).IsUnique(); });
         model.Entity<Guest>(e => { e.Property(x => x.TokenHash).HasMaxLength(128); e.HasIndex(x => x.TokenHash).IsUnique(); });
         model.Entity<QueueItem>(e => { e.Property(x => x.Status).HasConversion<string>(); e.HasIndex(x => new { x.RoomSessionId, x.Position }).IsUnique(); });
         model.Entity<Favorite>().HasKey(x => new { x.GuestId, x.SongId });
