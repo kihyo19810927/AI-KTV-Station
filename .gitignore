@@ -7,3 +7,8 @@ TestResults/
 coverage/
 **/data/
 .tmp/
+src/Station.Web/node_modules/
+src/Station.Server/wwwroot/
+src/Station.Web/*.tsbuildinfo
+src/Station.Web/vite.config.js
+src/Station.Web/vite.config.d.ts

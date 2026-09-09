@@ -41,7 +41,7 @@
 | REST API/OpenAPI | 房间创建/加入、Bearer 认证、搜索、队列、主持人权限、播放控制、RFC 7807、Schema 路径隔离 | 通过（2 个端到端场景） | 局域网手机待实机验收 |
 | SignalR 房间同步 | 在线增量、断线补发、256 事件窗口缺口、完整快照、无效令牌拒绝 | 通过（3 个场景，真实客户端 Long Polling） | WebSocket/手机网络切换待实机验收 |
 | 收藏/历史/热门 | 幂等收藏、访客隔离、历史房间分页、成功播放聚合、参数验证、REST 契约 | 通过（4 个服务场景 + API 端到端） | 无 |
-| React Web | npm build/test | 未开始 | Web 工程尚未建立 |
+| React Web 基线 | TypeScript、Vitest、Vite 生产构建、ASP.NET 静态根页/SPA 深链 | 通过（4 个前端场景 + 2 个托管路径） | Android/iPhone 后验收 |
 | 环境与生成 MKV | `scripts/verify-environment.ps1` | 通过（10.023s、4 轨、中文标题） | 无 |
 | 真实 MKV/设备 | `ENVIRONMENT-BASELINE.md` 用户验收步骤 | 待验证 | 用户设备、样本和挂载 |
 

@@ -75,6 +75,8 @@ var app = builder.Build();
 await using (var scope = app.Services.CreateAsyncScope())
     await scope.ServiceProvider.GetRequiredService<StationDbContext>().Database.MigrateAsync();
 
+app.UseDefaultFiles();
+app.UseStaticFiles();
 app.MapGet("/health", () => Results.Ok(new { status = "ok" }));
 app.MapOpenApi();
 app.MapStationApi();
@@ -104,6 +106,7 @@ app.MapPost("/api/scans/{scanRunId:guid}/cancel", (Guid scanRunId, IScanCoordina
     var result = coordinator.Cancel(scanRunId);
     return result.IsSuccess ? Results.Accepted($"/api/scans/{scanRunId}", result.Value) : ScanError(result.Error);
 });
+app.MapFallbackToFile("index.html");
 app.Run();
 
 static IResult ScanError(Station.Application.Common.Error error)

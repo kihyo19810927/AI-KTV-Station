@@ -11,3 +11,8 @@ foreach ($project in $projects) {
     & $dotnet @arguments
     if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 }
+$web = Join-Path $root 'src\Station.Web'
+if (Test-Path -LiteralPath (Join-Path $web 'package-lock.json')) {
+    & npm.cmd test --prefix $web
+    if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+}

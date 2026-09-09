@@ -9,4 +9,12 @@ if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 & $dotnet build (Join-Path $root 'AI-KTV-Station.slnx') --configuration Release -m:1 -p:UseSharedCompilation=false --no-restore --verbosity minimal
 if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 & (Join-Path $PSScriptRoot 'verify-project-dependencies.ps1')
+if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+$web = Join-Path $root 'src\Station.Web'
+if (Test-Path -LiteralPath (Join-Path $web 'package-lock.json')) {
+    & npm.cmd run typecheck --prefix $web
+    if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+    & npm.cmd run build --prefix $web
+    if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+}
 Write-Output 'BUILD=passed'

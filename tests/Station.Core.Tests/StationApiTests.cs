@@ -110,6 +110,22 @@ public sealed class StationApiTests
         Assert.DoesNotContain("TokenHash", document, StringComparison.OrdinalIgnoreCase);
     }
 
+    [Fact]
+    public async Task Built_mobile_spa_is_served_for_root_and_client_routes()
+    {
+        await using var factory = new ApiFactory();
+        using var client = factory.CreateClient();
+
+        var root = await client.GetAsync("/");
+        var route = await client.GetAsync("/room/discover");
+        var markup = await root.Content.ReadAsStringAsync();
+
+        Assert.Equal(HttpStatusCode.OK, root.StatusCode);
+        Assert.Equal(HttpStatusCode.OK, route.StatusCode);
+        Assert.Contains("/assets/", markup);
+        Assert.Contains("id=\"root\"", markup);
+    }
+
     private static void SetBearer(HttpClient client, string token) =>
         client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
 

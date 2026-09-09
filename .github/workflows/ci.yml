@@ -27,25 +27,24 @@ jobs:
       - name: Restore locked dependencies
         run: dotnet restore AI-KTV-Station.slnx --locked-mode
 
+      - name: Restore Web dependencies
+        run: npm.cmd ci --prefix ./src/Station.Web
+
       - name: Verify formatting
         run: dotnet format AI-KTV-Station.slnx --verify-no-changes --no-restore
 
       - name: Build
         run: dotnet build AI-KTV-Station.slnx --configuration Release --no-restore
 
-      - name: Test with coverage
-        shell: pwsh
-        run: ./scripts/test.ps1 -NoRestore
-
       - name: Build Web
         shell: pwsh
         run: |
-          if (Test-Path ./src/Station.Web/package-lock.json) {
-            npm.cmd ci --prefix ./src/Station.Web
-            npm.cmd run build --prefix ./src/Station.Web
-          } else {
-            Write-Output 'Station.Web package is deferred to KTVS-034.'
-          }
+          npm.cmd run typecheck --prefix ./src/Station.Web
+          npm.cmd run build --prefix ./src/Station.Web
+
+      - name: Test with coverage
+        shell: pwsh
+        run: ./scripts/test.ps1 -NoRestore
 
       - name: Upload coverage
         uses: actions/upload-artifact@v4
