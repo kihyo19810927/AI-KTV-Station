@@ -126,7 +126,7 @@ public sealed class StationApiTests
         Availability = AvailabilityStatus.Available,
     };
 
-    private sealed class ApiFactory : WebApplicationFactory<Program>
+    internal sealed class ApiFactory : WebApplicationFactory<Program>
     {
         private readonly string dataDirectory = Path.Combine(Path.GetTempPath(), $"ai-ktv-full-api-{Guid.NewGuid():N}");
         protected override void ConfigureWebHost(IWebHostBuilder builder)

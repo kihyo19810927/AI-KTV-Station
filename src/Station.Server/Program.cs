@@ -18,6 +18,7 @@ using Station.Infrastructure.Scanning;
 using Station.Infrastructure.Search;
 using Station.Server.Scanning;
 using Station.Server.Api;
+using Station.Server.Realtime;
 
 var builder = WebApplication.CreateBuilder(args);
 builder.Logging.ClearProviders();
@@ -28,6 +29,7 @@ builder.Services.AddOptions<StationOptions>()
     .ValidateOnStart();
 builder.Services.ConfigureHttpJsonOptions(options => options.SerializerOptions.Converters.Add(new JsonStringEnumConverter()));
 builder.Services.AddOpenApi();
+builder.Services.AddSignalR();
 
 var stationOptions = builder.Configuration.GetSection(StationOptions.SectionName).Get<StationOptions>() ?? new StationOptions();
 var dataDirectory = Path.GetFullPath(stationOptions.Storage.DataDirectory, builder.Environment.ContentRootPath);
@@ -62,6 +64,8 @@ builder.Services.AddSingleton<IPlayerAdapter>(_ => new MpvPlayerAdapter(new Play
     CommandTimeoutSeconds = stationOptions.Player.CommandTimeoutSeconds,
 }));
 builder.Services.AddScoped<PlaybackControlService>();
+builder.Services.AddSingleton<RoomRealtimeJournal>();
+builder.Services.AddSingleton<IRoomRealtimePublisher, SignalRRoomRealtimePublisher>();
 var app = builder.Build();
 
 await using (var scope = app.Services.CreateAsyncScope())
@@ -70,6 +74,7 @@ await using (var scope = app.Services.CreateAsyncScope())
 app.MapGet("/health", () => Results.Ok(new { status = "ok" }));
 app.MapOpenApi();
 app.MapStationApi();
+app.MapHub<RoomHub>("/hubs/room");
 app.MapPost("/api/scans", (StartScanRequest request, IScanCoordinator coordinator) =>
 {
     var result = coordinator.Start(request.MediaSourceId);

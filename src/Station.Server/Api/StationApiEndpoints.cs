@@ -4,6 +4,7 @@ using Station.Application.Playback;
 using Station.Application.Queue;
 using Station.Application.Rooms;
 using Station.Application.Search;
+using Station.Server.Realtime;
 
 namespace Station.Server.Api;
 
@@ -46,7 +47,9 @@ public static class StationApiEndpoints
         var created = await rooms.CreateAsync(request.MaxQueuedSongsPerGuest ?? 10, cancellationToken);
         if (created.IsFailure) return Problem(created.Error);
         var host = await authentication.IssueHostAsync(created.Value.Id, request.HostNickname ?? "主持人", cancellationToken);
-        return host.IsSuccess ? Results.Created($"/api/rooms/{created.Value.Id}", new RoomCreatedResponse(created.Value, host.Value)) : Problem(host.Error);
+        if (host.IsFailure) return Problem(host.Error);
+        await PublishAsync(context, created.Value.Id, "room.created", created.Value, cancellationToken);
+        return Results.Created($"/api/rooms/{created.Value.Id}", new RoomCreatedResponse(created.Value, host.Value));
     }
 
     private static async Task<IResult> GetCurrentRoomAsync(
@@ -60,12 +63,15 @@ public static class StationApiEndpoints
     }
 
     private static async Task<IResult> JoinRoomAsync(
+        HttpContext context,
         JoinRoomRequest request,
         RoomAuthenticationService authentication,
         CancellationToken cancellationToken)
     {
         var result = await authentication.JoinAsync(request.JoinCode ?? string.Empty, request.Nickname ?? string.Empty, cancellationToken);
-        return result.IsSuccess ? Results.Ok(result.Value) : Problem(result.Error);
+        if (result.IsFailure) return Problem(result.Error);
+        await PublishAsync(context, result.Value.RoomId, "guest.joined", new { result.Value.GuestId, result.Value.Nickname, result.Value.Role }, cancellationToken);
+        return Results.Ok(result.Value);
     }
 
     private static async Task<IResult> CloseRoomAsync(
@@ -79,7 +85,9 @@ public static class StationApiEndpoints
         if (identity.IsFailure) return Problem(identity.Error);
         if (identity.Value.RoomId != roomId) return Problem(new Error("auth.room_mismatch", "Token is scoped to another room."));
         var result = await rooms.CloseAsync(roomId, cancellationToken);
-        return result.IsSuccess ? Results.Ok(result.Value) : Problem(result.Error);
+        if (result.IsFailure) return Problem(result.Error);
+        await PublishAsync(context, roomId, "room.closed", result.Value, cancellationToken);
+        return Results.Ok(result.Value);
     }
 
     private static async Task<IResult> RevokeGuestAsync(
@@ -93,7 +101,9 @@ public static class StationApiEndpoints
         if (identity.IsFailure) return Problem(identity.Error);
         if (identity.Value.RoomId != roomId) return Problem(new Error("auth.room_mismatch", "Token is scoped to another room."));
         var result = await authentication.RevokeAsync(guestId, cancellationToken);
-        return result.IsSuccess ? Results.NoContent() : Problem(result.Error);
+        if (result.IsFailure) return Problem(result.Error);
+        await PublishAsync(context, roomId, "guest.revoked", new { GuestId = guestId }, cancellationToken);
+        return Results.NoContent();
     }
 
     private static async Task<IResult> SearchAsync(
@@ -139,7 +149,9 @@ public static class StationApiEndpoints
         var identity = await AuthorizeAsync(context, authentication, RoomPermission.RequestSong, cancellationToken);
         if (identity.IsFailure) return Problem(identity.Error);
         var result = await queue.RequestAsync(identity.Value, request.SongId, cancellationToken);
-        return result.IsSuccess ? Results.Created($"/api/queue/{result.Value.Id}", result.Value) : Problem(result.Error);
+        if (result.IsFailure) return Problem(result.Error);
+        await PublishAsync(context, identity.Value.RoomId, "queue.added", result.Value, cancellationToken);
+        return Results.Created($"/api/queue/{result.Value.Id}", result.Value);
     }
 
     private static async Task<IResult> RemoveQueueItemAsync(
@@ -152,7 +164,9 @@ public static class StationApiEndpoints
         var identity = await AuthenticateAsync(context, authentication, cancellationToken);
         if (identity.IsFailure) return Problem(identity.Error);
         var result = await queue.RemoveAsync(identity.Value, itemId, cancellationToken);
-        return result.IsSuccess ? Results.NoContent() : Problem(result.Error);
+        if (result.IsFailure) return Problem(result.Error);
+        await PublishAsync(context, identity.Value.RoomId, "queue.removed", new { ItemId = itemId }, cancellationToken);
+        return Results.NoContent();
     }
 
     private static async Task<IResult> MoveQueueItemToTopAsync(
@@ -165,7 +179,9 @@ public static class StationApiEndpoints
         var identity = await AuthorizeAsync(context, authentication, RoomPermission.ReorderQueue, cancellationToken);
         if (identity.IsFailure) return Problem(identity.Error);
         var result = await queue.MoveToTopAsync(identity.Value, itemId, cancellationToken);
-        return result.IsSuccess ? Results.Ok(result.Value) : Problem(result.Error);
+        if (result.IsFailure) return Problem(result.Error);
+        await PublishAsync(context, identity.Value.RoomId, "queue.reordered", result.Value, cancellationToken);
+        return Results.Ok(result.Value);
     }
 
     private static async Task<IResult> GetPlaybackAsync(
@@ -202,7 +218,9 @@ public static class StationApiEndpoints
         var identity = await AuthorizeAsync(context, authentication, RoomPermission.ControlPlayback, cancellationToken);
         if (identity.IsFailure) return Problem(identity.Error);
         var result = await action(cancellationToken);
-        return result.IsSuccess ? Results.Ok(result.Value) : Problem(result.Error);
+        if (result.IsFailure) return Problem(result.Error);
+        await PublishAsync(context, identity.Value.RoomId, "playback.changed", result.Value, cancellationToken);
+        return Results.Ok(result.Value);
     }
 
     private static async Task<Result<RoomIdentity>> AuthorizeAsync(
@@ -232,6 +250,15 @@ public static class StationApiEndpoints
 
     private static bool IsLocal(HttpContext context) =>
         context.Connection.RemoteIpAddress is null || IPAddress.IsLoopback(context.Connection.RemoteIpAddress);
+
+    private static Task<RoomRealtimeEvent> PublishAsync(
+        HttpContext context,
+        Guid roomId,
+        string type,
+        object payload,
+        CancellationToken cancellationToken) =>
+        context.RequestServices.GetRequiredService<IRoomRealtimePublisher>()
+            .PublishAsync(roomId, type, payload, cancellationToken);
 
     public static IResult Problem(Error error)
     {
