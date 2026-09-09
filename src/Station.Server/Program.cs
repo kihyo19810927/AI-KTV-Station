@@ -3,6 +3,7 @@ using Microsoft.EntityFrameworkCore;
 using Station.Application.Configuration;
 using Station.Application.Media;
 using Station.Application.Metadata;
+using Station.Application.Library;
 using Station.Application.Playback;
 using Station.Application.Queue;
 using Station.Application.Rooms;
@@ -10,6 +11,7 @@ using Station.Application.Scanning;
 using Station.Application.Search;
 using Station.Infrastructure.Media;
 using Station.Infrastructure.Metadata;
+using Station.Infrastructure.Library;
 using Station.Infrastructure.Playback;
 using Station.Infrastructure.Persistence;
 using Station.Infrastructure.Queue;
@@ -64,6 +66,8 @@ builder.Services.AddSingleton<IPlayerAdapter>(_ => new MpvPlayerAdapter(new Play
     CommandTimeoutSeconds = stationOptions.Player.CommandTimeoutSeconds,
 }));
 builder.Services.AddScoped<PlaybackControlService>();
+builder.Services.AddScoped<IRoomLibraryRepository, EfRoomLibraryRepository>();
+builder.Services.AddScoped<RoomLibraryService>();
 builder.Services.AddSingleton<RoomRealtimeJournal>();
 builder.Services.AddSingleton<IRoomRealtimePublisher, SignalRRoomRealtimePublisher>();
 var app = builder.Build();

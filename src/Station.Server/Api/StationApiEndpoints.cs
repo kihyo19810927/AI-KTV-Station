@@ -1,5 +1,6 @@
 using System.Net;
 using Station.Application.Common;
+using Station.Application.Library;
 using Station.Application.Playback;
 using Station.Application.Queue;
 using Station.Application.Rooms;
@@ -25,6 +26,11 @@ public static class StationApiEndpoints
         api.MapPost("/queue", RequestSongAsync).WithName("RequestSong");
         api.MapDelete("/queue/{itemId:guid}", RemoveQueueItemAsync).WithName("RemoveQueueItem");
         api.MapPost("/queue/{itemId:guid}/top", MoveQueueItemToTopAsync).WithName("MoveQueueItemToTop");
+
+        api.MapGet("/library/favorites", GetFavoritesAsync).WithName("GetFavorites");
+        api.MapPut("/library/favorites/{songId:guid}", SetFavoriteAsync).WithName("SetFavorite");
+        api.MapGet("/library/history", GetHistoryAsync).WithName("GetPlaybackHistory");
+        api.MapGet("/library/popular", GetPopularAsync).WithName("GetPopularSongs");
 
         api.MapGet("/playback", GetPlaybackAsync).WithName("GetPlayback");
         api.MapPost("/playback/play", PlayAsync).WithName("ResumePlayback");
@@ -196,6 +202,61 @@ public static class StationApiEndpoints
         return result.IsSuccess ? Results.Ok(result.Value) : Problem(result.Error);
     }
 
+    private static async Task<IResult> GetFavoritesAsync(
+        HttpContext context,
+        RoomAuthenticationService authentication,
+        RoomLibraryService library,
+        CancellationToken cancellationToken)
+    {
+        var identity = await AuthorizeAsync(context, authentication, RoomPermission.ViewCatalog, cancellationToken);
+        if (identity.IsFailure) return Problem(identity.Error);
+        var result = await library.ListFavoritesAsync(identity.Value, cancellationToken);
+        return result.IsSuccess ? Results.Ok(result.Value) : Problem(result.Error);
+    }
+
+    private static async Task<IResult> SetFavoriteAsync(
+        Guid songId,
+        FavoriteRequest request,
+        HttpContext context,
+        RoomAuthenticationService authentication,
+        RoomLibraryService library,
+        CancellationToken cancellationToken)
+    {
+        var identity = await AuthorizeAsync(context, authentication, RoomPermission.ViewCatalog, cancellationToken);
+        if (identity.IsFailure) return Problem(identity.Error);
+        var result = await library.SetFavoriteAsync(identity.Value, songId, request.Favorite, cancellationToken);
+        if (result.IsFailure) return Problem(result.Error);
+        await PublishAsync(context, identity.Value.RoomId, "favorite.changed", new { SongId = songId, request.Favorite, identity.Value.GuestId }, cancellationToken);
+        return Results.Ok(new { SongId = songId, Favorite = result.Value });
+    }
+
+    private static async Task<IResult> GetHistoryAsync(
+        HttpContext context,
+        RoomAuthenticationService authentication,
+        RoomLibraryService library,
+        int page = 1,
+        int pageSize = 20,
+        CancellationToken cancellationToken = default)
+    {
+        var identity = await AuthorizeAsync(context, authentication, RoomPermission.ViewCatalog, cancellationToken);
+        if (identity.IsFailure) return Problem(identity.Error);
+        var result = await library.ListHistoryAsync(identity.Value, page, pageSize, cancellationToken);
+        return result.IsSuccess ? Results.Ok(result.Value) : Problem(result.Error);
+    }
+
+    private static async Task<IResult> GetPopularAsync(
+        HttpContext context,
+        RoomAuthenticationService authentication,
+        RoomLibraryService library,
+        int take = 20,
+        CancellationToken cancellationToken = default)
+    {
+        var identity = await AuthorizeAsync(context, authentication, RoomPermission.ViewCatalog, cancellationToken);
+        if (identity.IsFailure) return Problem(identity.Error);
+        var result = await library.ListPopularAsync(identity.Value, take, cancellationToken);
+        return result.IsSuccess ? Results.Ok(result.Value) : Problem(result.Error);
+    }
+
     private static Task<IResult> PlayAsync(HttpContext context, RoomAuthenticationService auth, PlaybackControlService playback, CancellationToken token) =>
         HostControlAsync(context, auth, token, playback.PlayAsync);
     private static Task<IResult> PauseAsync(HttpContext context, RoomAuthenticationService auth, PlaybackControlService playback, CancellationToken token) =>
@@ -283,3 +344,4 @@ public sealed record VolumeRequest(double Volume);
 public sealed record SeekRequest(double PositionSeconds);
 public sealed record AudioTrackRequest(int StreamId);
 public sealed record SubtitleTrackRequest(int? StreamId);
+public sealed record FavoriteRequest(bool Favorite);

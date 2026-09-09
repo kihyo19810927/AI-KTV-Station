@@ -11,6 +11,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Station.Application.Common;
+using Station.Application.Library;
 using Station.Application.Playback;
 using Station.Application.Queue;
 using Station.Application.Rooms;
@@ -71,6 +72,19 @@ public sealed class StationApiTests
         Assert.Equal(HttpStatusCode.NoContent, (await client.DeleteAsync($"/api/queue/{first.Id}")).StatusCode);
         Assert.Equal(HttpStatusCode.OK, (await client.GetAsync("/api/playback")).StatusCode);
         Assert.Equal(HttpStatusCode.OK, (await client.PostAsJsonAsync("/api/playback/volume", new { volume = 65 })).StatusCode);
+
+        SetBearer(client, guest.Token);
+        Assert.Equal(HttpStatusCode.OK, (await client.PutAsJsonAsync($"/api/library/favorites/{songs[0]}", new { favorite = true })).StatusCode);
+        var favoritesJson = await client.GetStringAsync("/api/library/favorites");
+        Assert.Contains("夜曲", favoritesJson);
+        Assert.DoesNotContain("Path", favoritesJson, StringComparison.OrdinalIgnoreCase);
+        await SeedHistoryAsync(factory, created.Room.Id, songs);
+        var history = await client.GetFromJsonAsync<PagedResult<PlaybackHistoryEntry>>("/api/library/history?page=1&pageSize=10", JsonOptions);
+        var popular = await client.GetFromJsonAsync<PopularSong[]>("/api/library/popular?take=10", JsonOptions);
+        Assert.Equal(3, history!.Total);
+        Assert.Equal(songs[0], popular![0].SongId);
+
+        SetBearer(client, created.Host.Token);
         Assert.Equal(HttpStatusCode.OK, (await client.PostAsync($"/api/rooms/{created.Room.Id}/close", null)).StatusCode);
 
         client.DefaultRequestHeaders.Authorization = null;
@@ -125,6 +139,17 @@ public sealed class StationApiTests
         CompactTitle = title,
         Availability = AvailabilityStatus.Available,
     };
+
+    private static async Task SeedHistoryAsync(ApiFactory factory, Guid roomId, Guid[] songs)
+    {
+        await using var scope = factory.Services.CreateAsyncScope();
+        var database = scope.ServiceProvider.GetRequiredService<StationDbContext>();
+        database.PlayHistory.AddRange(
+            new PlayHistory { RoomSessionId = roomId, SongId = songs[0], Outcome = PlaybackOutcome.Completed, StartedAt = DateTimeOffset.UtcNow.AddMinutes(-2), EndedAt = DateTimeOffset.UtcNow.AddMinutes(-1) },
+            new PlayHistory { RoomSessionId = roomId, SongId = songs[1], Outcome = PlaybackOutcome.Completed, StartedAt = DateTimeOffset.UtcNow.AddMinutes(-3), EndedAt = DateTimeOffset.UtcNow.AddMinutes(-2) },
+            new PlayHistory { RoomSessionId = roomId, SongId = songs[0], Outcome = PlaybackOutcome.Completed, StartedAt = DateTimeOffset.UtcNow.AddMinutes(-4), EndedAt = DateTimeOffset.UtcNow.AddMinutes(-3) });
+        await database.SaveChangesAsync();
+    }
 
     internal sealed class ApiFactory : WebApplicationFactory<Program>
     {
