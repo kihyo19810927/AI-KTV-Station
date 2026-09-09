@@ -66,6 +66,8 @@ builder.Services.AddSingleton<IPlayerAdapter>(_ => new MpvPlayerAdapter(new Play
     CommandTimeoutSeconds = stationOptions.Player.CommandTimeoutSeconds,
 }));
 builder.Services.AddScoped<PlaybackControlService>();
+builder.Services.AddScoped<IPlaybackStartupRecoveryStore, EfPlaybackStartupRecoveryStore>();
+builder.Services.AddScoped<PlaybackStartupRecoveryService>();
 builder.Services.AddScoped<IRoomLibraryRepository, EfRoomLibraryRepository>();
 builder.Services.AddScoped<RoomLibraryService>();
 builder.Services.AddSingleton<RoomRealtimeJournal>();
@@ -73,7 +75,10 @@ builder.Services.AddSingleton<IRoomRealtimePublisher, SignalRRoomRealtimePublish
 var app = builder.Build();
 
 await using (var scope = app.Services.CreateAsyncScope())
+{
     await scope.ServiceProvider.GetRequiredService<StationDbContext>().Database.MigrateAsync();
+    await scope.ServiceProvider.GetRequiredService<PlaybackStartupRecoveryService>().RecoverAsync();
+}
 
 app.UseDefaultFiles();
 app.UseStaticFiles();

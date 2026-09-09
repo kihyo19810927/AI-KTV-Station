@@ -57,6 +57,8 @@ public partial class App : System.Windows.Application
             CommandTimeoutSeconds = options.Player.CommandTimeoutSeconds,
         }));
         collection.AddSingleton<PlaybackControlService>();
+        collection.AddSingleton<IPlaybackStartupRecoveryStore, EfPlaybackStartupRecoveryStore>();
+        collection.AddSingleton<PlaybackStartupRecoveryService>();
         collection.AddSingleton<PlaybackConsoleViewModel>();
         collection.AddSingleton<IRoomQueueRepository, EfRoomQueueRepository>();
         collection.AddSingleton<IRoomQueueLock, InProcessRoomQueueLock>();
@@ -95,6 +97,7 @@ public partial class App : System.Windows.Application
         services = collection.BuildServiceProvider(new ServiceProviderOptions { ValidateOnBuild = true, ValidateScopes = true });
         await services.GetRequiredService<ILocalDiagnosticLog>().WriteAsync("Information", "desktop.starting", "AI-KTV Station desktop is starting.");
         await services.GetRequiredService<StationDbContext>().Database.MigrateAsync();
+        await services.GetRequiredService<PlaybackStartupRecoveryService>().RecoverAsync();
         MainWindow = services.GetRequiredService<MainWindow>();
         MainWindow.Show();
         await services.GetRequiredService<MainWindowViewModel>().RefreshHealthAsync();
