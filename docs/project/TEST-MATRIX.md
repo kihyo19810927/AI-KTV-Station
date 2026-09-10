@@ -71,7 +71,7 @@
 | 运维文档完整性 | `scripts/verify-operations-docs.ps1` | 通过（6 份文档、7 章节、3 条安全警告） | 操作可用性随 KTVS-058 实机验收 |
 | RC3 候选版软件验证 | UAT 就绪链 + 发布包验证 + 随机临时目录启动 | 通过（Core 153、Desktop 12、Web 24、566 项 ZIP、SQLite/内嵌服务健康） | 干净 Windows 与真实设备仍待验收 |
 | 1.0.0 发布材料 | `scripts/verify-release-readiness.ps1` | 通过（Release Notes 五章节、候选 ZIP/sidecar SHA-256 一致、Tag 明确待创建） | 正式 Tag/Release 受实机、许可和所有者授权阻塞 |
-| GitHub Actions 发布前兼容 | Windows runner push workflow | #6 构建测试通过；Action Node 20 弃用警告已升级处理 | 等待升级后 workflow 复验 |
+| GitHub Actions 发布前兼容 | Windows runner push workflow | #6 通过；#7 Action/构建通过但聚合测试失败，本机相同测试 153+12+24 全绿；改用 Node 24 的 v5/v7 Action 组合 | 等待下一次 workflow 复验，不掩盖偶发失败 |
 | 环境与生成 MKV | `scripts/verify-environment.ps1` | 通过（10.023s、4 轨、中文标题） | 无 |
 | 真实 MKV/设备 | `ENVIRONMENT-BASELINE.md` 用户验收步骤 | 待验证 | 用户设备、样本和挂载 |
 
