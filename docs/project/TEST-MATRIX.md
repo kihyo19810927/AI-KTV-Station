@@ -64,6 +64,8 @@
 | 进程与启动恢复 | SQLite 文件重开 + 三种活动队列状态 + 真实 mpv 进程终止 | 通过（重入队、旧历史闭合、幂等恢复、mpv 可重试崩溃事件） | 突然断电与磁盘写缓存待实机验收 |
 | 安全边界 | 配置验证、loopback 策略、TestServer、OpenAPI、脱敏和 Web 存储测试 | 通过（显式 IP、仅本机管理、无路径/哈希契约、安全头、令牌不进 URL/localStorage） | LAN HTTP 被动监听风险；严禁公网暴露 |
 | 依赖与许可证 | NuGet/NPM 锁文件、已还原包元数据、ffmpeg buildconf、mpv version | 通过（清单已生成；V1 禁止捆绑 mpv/FFmpeg） | 项目自身许可、未来二进制分发需用户批准 |
+| Desktop 内嵌服务与后台播放 | 真实 Kestrel 临时端口、共享播放器 DI、空队列后追加歌曲 | 通过（主机健康、单播放器、延迟点歌自动加载） | LAN 手机与真实媒体待实机验收 |
+| UAT 软件就绪包 | `scripts/run-uat-readiness.ps1` | 通过（Core 150/150、Desktop 12/12、Web 24/24、生成 MKV/mpv） | 用户执行设备与小批真实库步骤 |
 | 环境与生成 MKV | `scripts/verify-environment.ps1` | 通过（10.023s、4 轨、中文标题） | 无 |
 | 真实 MKV/设备 | `ENVIRONMENT-BASELINE.md` 用户验收步骤 | 待验证 | 用户设备、样本和挂载 |
 

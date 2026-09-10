@@ -81,6 +81,29 @@ public sealed class QueuePlaybackOrchestrator(
     {
         var started = await StartAsync(targetRoomId, cancellationToken).ConfigureAwait(false);
         if (started.IsFailure) return;
+
+        var eventTask = ReadEventsAsync(cancellationToken);
+        try
+        {
+            while (!cancellationToken.IsCancellationRequested)
+            {
+                if (Current.QueueItemId is null)
+                    await StartAsync(targetRoomId, cancellationToken).ConfigureAwait(false);
+                await Task.Delay(TimeSpan.FromMilliseconds(250), clock, cancellationToken).ConfigureAwait(false);
+            }
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+        }
+        finally
+        {
+            try { await eventTask.ConfigureAwait(false); }
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) { }
+        }
+    }
+
+    private async Task ReadEventsAsync(CancellationToken cancellationToken)
+    {
         await foreach (var playerEvent in player.WatchEventsAsync(cancellationToken).ConfigureAwait(false))
             await HandleAsync(playerEvent, cancellationToken).ConfigureAwait(false);
     }

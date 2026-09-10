@@ -3,6 +3,8 @@ using Station.Application.Configuration;
 using Station.Application.Health;
 using Station.Domain.Models;
 using Station.Infrastructure.Persistence;
+using System.Net;
+using System.Net.Sockets;
 
 namespace Station.Infrastructure.Health;
 
@@ -12,12 +14,27 @@ public sealed class StationHealthService(StationDbContext database, StationOptio
     {
         var components = new List<HealthComponent>
         {
-            new("点歌服务", HealthLevel.Warning, "内嵌服务将在 KTVS-048 启动"),
+            await CheckServiceAsync(cancellationToken),
             await CheckDatabaseAsync(cancellationToken),
             await CheckSourcesAsync(cancellationToken),
             CheckPlayer(),
         };
         return new(timeProvider.GetUtcNow(), components);
+    }
+
+    private async Task<HealthComponent> CheckServiceAsync(CancellationToken token)
+    {
+        try
+        {
+            var configured = IPAddress.Parse(options.Server.BindAddress);
+            var target = configured.Equals(IPAddress.Any) ? IPAddress.Loopback : configured.Equals(IPAddress.IPv6Any) ? IPAddress.IPv6Loopback : configured;
+            using var timeout = CancellationTokenSource.CreateLinkedTokenSource(token);
+            timeout.CancelAfter(TimeSpan.FromSeconds(1));
+            using var client = new TcpClient(target.AddressFamily);
+            await client.ConnectAsync(target, options.Server.Port, timeout.Token);
+            return new("点歌服务", HealthLevel.Healthy, "内嵌服务可连接");
+        }
+        catch { return new("点歌服务", HealthLevel.Unavailable, "内嵌服务暂不可连接"); }
     }
 
     private async Task<HealthComponent> CheckDatabaseAsync(CancellationToken token)

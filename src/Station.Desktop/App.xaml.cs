@@ -29,12 +29,17 @@ using Station.Infrastructure.Search;
 using Station.Application.Rooms;
 using Station.Infrastructure.Rooms;
 using Station.Infrastructure.Configuration;
+using Microsoft.AspNetCore.Builder;
+using Microsoft.Extensions.Configuration;
+using Microsoft.AspNetCore.Hosting;
+using Station.Server.Hosting;
 
 namespace Station.Desktop;
 
 public partial class App : System.Windows.Application
 {
     private ServiceProvider? services;
+    private WebApplication? embeddedServer;
 
     protected override async void OnStartup(System.Windows.StartupEventArgs e)
     {
@@ -98,6 +103,27 @@ public partial class App : System.Windows.Application
         await services.GetRequiredService<ILocalDiagnosticLog>().WriteAsync("Information", "desktop.starting", "AI-KTV Station desktop is starting.");
         await services.GetRequiredService<StationDbContext>().Database.MigrateAsync();
         await services.GetRequiredService<PlaybackStartupRecoveryService>().RecoverAsync();
+        var serverOptions = new StationOptions
+        {
+            Server = options.Server,
+            Storage = new StorageOptions { DataDirectory = dataDirectory },
+            Player = options.Player,
+        };
+        embeddedServer = StationServerHost.Build([], builder =>
+        {
+            builder.Configuration.AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                [$"{StationOptions.SectionName}:Server:BindAddress"] = serverOptions.Server.BindAddress,
+                [$"{StationOptions.SectionName}:Server:Port"] = serverOptions.Server.Port.ToString(System.Globalization.CultureInfo.InvariantCulture),
+                [$"{StationOptions.SectionName}:Storage:DataDirectory"] = serverOptions.Storage.DataDirectory,
+                [$"{StationOptions.SectionName}:Player:ExecutablePath"] = serverOptions.Player.ExecutablePath,
+                [$"{StationOptions.SectionName}:Player:CommandTimeoutSeconds"] = serverOptions.Player.CommandTimeoutSeconds.ToString(System.Globalization.CultureInfo.InvariantCulture),
+            });
+            builder.WebHost.UseWebRoot(Path.Combine(AppContext.BaseDirectory, "wwwroot"));
+        }, services.GetRequiredService<IPlayerAdapter>());
+        await StationServerHost.InitializeAsync(embeddedServer.Services);
+        await embeddedServer.StartAsync();
+        await services.GetRequiredService<ILocalDiagnosticLog>().WriteAsync("Information", "server.started", "The embedded room service started.");
         MainWindow = services.GetRequiredService<MainWindow>();
         MainWindow.Show();
         await services.GetRequiredService<MainWindowViewModel>().RefreshHealthAsync();
@@ -107,6 +133,11 @@ public partial class App : System.Windows.Application
 
     protected override void OnExit(System.Windows.ExitEventArgs e)
     {
+        if (embeddedServer is not null)
+        {
+            embeddedServer.StopAsync().GetAwaiter().GetResult();
+            embeddedServer.DisposeAsync().AsTask().GetAwaiter().GetResult();
+        }
         services?.DisposeAsync().AsTask().GetAwaiter().GetResult();
         base.OnExit(e);
     }

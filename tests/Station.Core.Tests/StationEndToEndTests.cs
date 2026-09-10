@@ -10,6 +10,7 @@ using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Hosting;
 using Station.Application.Common;
 using Station.Application.Media;
 using Station.Application.Playback;
@@ -124,6 +125,7 @@ public sealed class StationEndToEndTests
             builder.UseSetting("Station:Storage:DataDirectory", Path.Combine(root, "data"));
             builder.ConfigureTestServices(services =>
             {
+                services.RemoveAll<IHostedService>();
                 services.RemoveAll<IMediaProbe>();
                 services.AddScoped<IMediaProbe, FixtureMediaProbe>();
                 services.RemoveAll<IPlayerAdapter>();

@@ -164,6 +164,11 @@
         "resolved": "10.0.11",
         "contentHash": "SXcz+kF+4Oo9b1+55zntpJFYfwb1jw66ioxptyNOOTDc8g2FHnBFWjZpsWfCvZIhzr0x+4e2trVTs4OKwQfBtw=="
       },
+      "Microsoft.OpenApi": {
+        "type": "Transitive",
+        "resolved": "2.7.5",
+        "contentHash": "0FA67RSnRM4tcBKqiqVu/HPdZ9+QOKbmeRjxRUGTCjPU4C0bmUhd97Dso7Yild5P7nOV6GxJ2xrK0Kv/O9xp0w=="
+      },
       "Microsoft.TestPlatform.ObjectModel": {
         "type": "Transitive",
         "resolved": "18.9.0",
@@ -269,7 +274,8 @@
           "Microsoft.Extensions.DependencyInjection": "[10.0.11, )",
           "QRCoder": "[1.8.0, )",
           "Station.Application": "[1.0.0, )",
-          "Station.Infrastructure": "[1.0.0, )"
+          "Station.Infrastructure": "[1.0.0, )",
+          "Station.Server": "[1.0.0, )"
         }
       },
       "station.domain": {
@@ -281,6 +287,23 @@
           "Microsoft.EntityFrameworkCore.Sqlite": "[10.0.11, )",
           "Station.Application": "[1.0.0, )",
           "ToolGood.Words": "[3.1.0.3, )"
+        }
+      },
+      "station.server": {
+        "type": "Project",
+        "dependencies": {
+          "Microsoft.AspNetCore.OpenApi": "[10.0.11, )",
+          "Station.Application": "[1.0.0, )",
+          "Station.Infrastructure": "[1.0.0, )"
+        }
+      },
+      "Microsoft.AspNetCore.OpenApi": {
+        "type": "CentralTransitive",
+        "requested": "[10.0.11, )",
+        "resolved": "10.0.11",
+        "contentHash": "R/1EATnPLU+gRfB6lwVkMcymmyAY5ppBBdRN/5lhNEiT3xP1sWccuSFkU/f1lQvN/WgRq5Vn8AhCdE3fqgsL/w==",
+        "dependencies": {
+          "Microsoft.OpenApi": "[2.7.5, 3.0.0)"
         }
       },
       "Microsoft.EntityFrameworkCore.Sqlite": {

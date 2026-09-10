@@ -10,6 +10,7 @@ using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Hosting;
 using Station.Application.Common;
 using Station.Application.Library;
 using Station.Application.Playback;
@@ -175,6 +176,7 @@ public sealed class StationApiTests
             builder.UseSetting("Station:Storage:DataDirectory", dataDirectory);
             builder.ConfigureTestServices(services =>
             {
+                services.RemoveAll<IHostedService>();
                 services.RemoveAll<IPlayerAdapter>();
                 services.AddSingleton<IPlayerAdapter, ApiPlayer>();
             });
