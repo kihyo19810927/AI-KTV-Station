@@ -45,11 +45,15 @@ public partial class App : System.Windows.Application
     {
         base.OnStartup(e);
         var collection = new ServiceCollection();
-        var settingsRoot = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "AI-KTV Station");
+        var settingsRoot = Environment.GetEnvironmentVariable("AI_KTV_STATION_SETTINGS_ROOT");
+        if (string.IsNullOrWhiteSpace(settingsRoot))
+            settingsRoot = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "AI-KTV Station");
+        settingsRoot = Path.GetFullPath(settingsRoot);
         var settingsStore = new JsonStationSettingsStore(Path.Combine(settingsRoot, "settings.json"));
         var loadedSettings = await settingsStore.LoadAsync();
         var options = loadedSettings.IsSuccess ? loadedSettings.Value : new StationOptions();
         var dataDirectory = Path.Combine(AppContext.BaseDirectory, options.Storage.DataDirectory);
+        Directory.CreateDirectory(dataDirectory);
         collection.AddSingleton(options);
         collection.AddSingleton<IStationSettingsStore>(settingsStore);
         collection.AddSingleton(TimeProvider.System);

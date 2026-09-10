@@ -7,8 +7,8 @@
 - 分支：`codex/KTVS-055`
 - 版本：`0.1.0-dev`
 - 阶段：Phase 7：验证与加固
-- 已完成：KTVS-001 至 KTVS-057
-- 当前任务：KTVS-058 V1.0 候选版验证
+- 已完成：KTVS-001 至 KTVS-057；KTVS-058 软件验证完成、实机门禁待验收
+- 当前任务：KTVS-059 正式发布材料准备
 
 ## 调查结果
 
@@ -122,6 +122,8 @@ KTVS-056：Server 与 Desktop 启动统一使用 `DatabaseUpgradeService`。仅�
 
 KTVS-057：形成统一运维手册，覆盖自包含 ZIP 安装、明确 LAN IP 配置、正常启停、离线一致性备份、迁移恢复、只读增量曲库、CloudDrive/mpv/端口排障、诊断脱敏和升级节奏。文档验证脚本确认 6 份必需文档、7 个运维章节和三项关键安全警告存在。
 
+KTVS-058：`0.1.0-rc.3` 完整软件候选链通过：Release 构建 0 警告/错误、Core 153/153、Desktop 12/12、Web 24/24、生成 Unicode 四轨 MKV/mpv/ffprobe 通过。自包含 ZIP 共 566 项，SHA-256 为 `6d5d3a363d1318dbce5715cf60fd295a5231f15eb45cbc86dde61e3d3e94f1df`；从随机全新解压目录启动 Desktop、创建 SQLite 并访问内嵌 `/health` 成功。该冒烟测试同时发现并修复了首次安装目录不存在时数据库初始化失败。干净 Windows、手机、真实媒体、电视和功放结论仍为待实机验收。
+
 KTVS-052：安全审查修复了配置监听地址未实际传给 Kestrel，以及扫描管理端点缺少 loopback 限制的问题。监听只接受显式 IP；开房、当前房间和扫描管理均为本机来源；API 增加禁缓存和基础浏览器安全头。令牌哈希、二维码、SignalR URL、sessionStorage、公共 DTO、日志与诊断路径边界已复核。定向安全/API 回归 18/18；完整软件测试 Core 152/152、Desktop 12/12、Web 24/24，类型检查、生产构建、.NET Release 构建、格式和依赖门禁通过。LAN HTTP 的被动监听风险已记录，严禁公网暴露。
 
 KTVS-053：基于锁文件、已还原包元数据和本机 build 信息完成 .NET/Web/媒体工具依赖清单。本机 Gyan FFmpeg 是 GPLv3 static full build；WinGet mpv CI 的精确组合许可不能仅由版本输出证明。V1 不在 Station 包中捆绑两者，只定位用户独立安装的外部进程。仓库尚无项目自身 LICENSE，任何外部发布前需所有者决定；不阻塞本地开发与 UAT 包。
@@ -136,4 +138,4 @@ KTVS-053：基于锁文件、已还原包元数据和本机 build 信息完成 .
 
 ## 下一推荐任务
 
-执行 `KTVS-058`：完成所有可自动化的候选版验证，建立干净机与真实设备待验收记录。
+继续 `KTVS-059`：完成可离线准备的 Release Notes、校验与发布前验证；不创建 Tag 或 GitHub Release，直到实机门禁、项目许可和用户授权满足。
