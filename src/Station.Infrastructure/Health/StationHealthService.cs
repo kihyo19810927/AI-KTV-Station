@@ -3,6 +3,7 @@ using Station.Application.Configuration;
 using Station.Application.Health;
 using Station.Domain.Models;
 using Station.Infrastructure.Persistence;
+using Station.Infrastructure.Runtime;
 using System.Net;
 using System.Net.Sockets;
 
@@ -58,10 +59,8 @@ public sealed class StationHealthService(StationDbContext database, StationOptio
     private HealthComponent CheckPlayer()
     {
         var path = options.Player.ExecutablePath;
-        var found = !string.IsNullOrWhiteSpace(path) ? File.Exists(path) : FindExecutable("mpv.exe") is not null || FindWingetMpv() is not null;
+        var found = !string.IsNullOrWhiteSpace(path) ? File.Exists(path) : ExternalToolLocator.Find("mpv.exe") is not null;
         return found ? new("mpv 播放器", HealthLevel.Healthy, "播放器可执行文件已就绪") : new("mpv 播放器", HealthLevel.Unavailable, "未找到 mpv.exe");
     }
 
-    private static string? FindExecutable(string name) => (Environment.GetEnvironmentVariable("PATH") ?? "").Split(Path.PathSeparator, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).Select(x => Path.Combine(x, name)).FirstOrDefault(File.Exists);
-    private static string? FindWingetMpv() { var root = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Microsoft", "WinGet", "Packages"); return Directory.Exists(root) ? Directory.EnumerateFiles(root, "mpv.exe", SearchOption.AllDirectories).FirstOrDefault() : null; }
 }

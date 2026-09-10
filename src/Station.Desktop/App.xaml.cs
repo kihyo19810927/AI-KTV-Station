@@ -23,6 +23,7 @@ using Station.Application.Search;
 using Station.Infrastructure.Catalog;
 using Station.Infrastructure.Media;
 using Station.Infrastructure.MediaSources;
+using Station.Infrastructure.Runtime;
 using Station.Infrastructure.Metadata;
 using Station.Infrastructure.Scanning;
 using Station.Infrastructure.Search;
@@ -64,7 +65,7 @@ public partial class App : System.Windows.Application
         collection.AddSingleton<IStationHealthService, StationHealthService>();
         collection.AddSingleton<IPlayerAdapter>(_ => new MpvPlayerAdapter(new PlayerOptions
         {
-            ExecutablePath = FindMpvExecutable() ?? "mpv.exe",
+            ExecutablePath = ExternalToolLocator.Find("mpv.exe") ?? "mpv.exe",
             CommandTimeoutSeconds = options.Player.CommandTimeoutSeconds,
         }));
         collection.AddSingleton<PlaybackControlService>();
@@ -87,7 +88,7 @@ public partial class App : System.Windows.Application
         collection.AddSingleton<IMediaFileEnumerator, FileSystemMediaFileEnumerator>();
         collection.AddSingleton<IMediaFilenameParser, KtvFilenameParser>();
         collection.AddSingleton<INfoMetadataReader, NfoXmlMetadataReader>();
-        collection.AddSingleton<IMediaProbe>(_ => new FfprobeMediaProbe(FindExecutable("ffprobe.exe") ?? "ffprobe.exe", TimeSpan.FromSeconds(30)));
+        collection.AddSingleton<IMediaProbe>(_ => new FfprobeMediaProbe(ExternalToolLocator.Find("ffprobe.exe") ?? "ffprobe.exe", TimeSpan.FromSeconds(30)));
         collection.AddSingleton<IMediaScanRunner, MediaScanService>();
         collection.AddSingleton<ICatalogScanService, CatalogScanService>();
         collection.AddSingleton<CatalogManagementViewModel>();
@@ -146,27 +147,6 @@ public partial class App : System.Windows.Application
         }
         services?.DisposeAsync().AsTask().GetAwaiter().GetResult();
         base.OnExit(e);
-    }
-
-    private static string? FindMpvExecutable()
-    {
-        foreach (var directory in (Environment.GetEnvironmentVariable("PATH") ?? string.Empty).Split(Path.PathSeparator, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
-        {
-            var candidate = Path.Combine(directory, "mpv.exe");
-            if (File.Exists(candidate)) return candidate;
-        }
-        var root = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Microsoft", "WinGet", "Packages");
-        return Directory.Exists(root) ? Directory.EnumerateFiles(root, "mpv.exe", SearchOption.AllDirectories).FirstOrDefault() : null;
-    }
-
-    private static string? FindExecutable(string name)
-    {
-        foreach (var directory in (Environment.GetEnvironmentVariable("PATH") ?? string.Empty).Split(Path.PathSeparator, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
-        {
-            var candidate = Path.Combine(directory, name);
-            if (File.Exists(candidate)) return candidate;
-        }
-        return null;
     }
 
     private void QueueList_PreviewMouseMove(object sender, MouseEventArgs e)
