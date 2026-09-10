@@ -5,6 +5,7 @@ tests/**/bin/
 tests/**/obj/
 TestResults/
 coverage/
+artifacts/
 **/data/
 .tmp/
 src/Station.Web/node_modules/

@@ -4,11 +4,11 @@
 
 ## 当前基线
 
-- 分支：`codex/KTVS-054`
+- 分支：`codex/KTVS-055`
 - 版本：`0.1.0-dev`
-- 阶段：Phase 7：验证与加固
-- 已完成：KTVS-001 至 KTVS-054
-- 当前任务：KTVS-055 Windows 发布与安装
+- 阶段：Phase 8：发布准备
+- 已完成：KTVS-001 至 KTVS-057；KTVS-058 软件验证完成、实机门禁待验收
+- 当前任务：无可独立继续的软件任务；KTVS-058/059 等待外部门禁
 
 ## 调查结果
 
@@ -116,13 +116,27 @@ KTVS-051：Server 与 Desktop 在迁移后执行幂等启动恢复，将遗留�
 
 KTVS-054：WPF 现在启动同进程 ASP.NET Core/SignalR 服务，共享数据目录和唯一 `IPlayerAdapter`；后台播放协调器跟踪开放房间，并在空队列启动后继续发现新点歌曲目。新增可执行 UAT 就绪脚本、样例房间流程、小批真实 115 验收和脱敏故障记录模板。完整就绪链通过：Release 构建 0 警告/错误、Core 150/150、Desktop 12/12、Web 24/24，生成 Unicode 四轨 MKV 的 mpv/ffprobe 检查通过。真实手机、电视、功放与小批 115 目录保持待实机验收。
 
+KTVS-055：新增版本化 Windows x64 自包含 ZIP 构建与验证脚本。发布包包含桌面程序、.NET 运行时、Web 静态资源、安装说明、第三方声明和逐文件清单，并生成 ZIP SHA-256；脚本拒绝 mpv、FFmpeg/ffprobe、数据库和用户设置入包。`0.1.0-rc.1` 本地候选包共 566 项、82,356,556 字节，校验值 `523b27bb609c310a47b8c0c1d02188f14447951c151e445c7c848838f17b8309`，验证通过。包位于被忽略的 `artifacts`，未外部发布；项目自身许可仍需所有者在正式发布前决定。
+
+KTVS-056：Server 与 Desktop 启动统一使用 `DatabaseUpgradeService`。仅在存在待迁移且数据库已存在时，通过 SQLite 备份 API创建带唯一时间戳的完整性验证快照；迁移失败会关闭连接、恢复快照、再次验证完整性并终止启动，不删除或重建数据库。定向测试 4/4 通过，覆盖无迁移不备份、升级前备份和注入破坏后数据恢复；正式曲库升级仍待实机演练。
+
+KTVS-057：形成统一运维手册，覆盖自包含 ZIP 安装、明确 LAN IP 配置、正常启停、离线一致性备份、迁移恢复、只读增量曲库、CloudDrive/mpv/端口排障、诊断脱敏和升级节奏。文档验证脚本确认 6 份必需文档、7 个运维章节和三项关键安全警告存在。
+
+KTVS-058：`0.1.0-rc.3` 完整软件候选链通过：Release 构建 0 警告/错误、Core 153/153、Desktop 12/12、Web 24/24、生成 Unicode 四轨 MKV/mpv/ffprobe 通过。自包含 ZIP 共 566 项，SHA-256 为 `6d5d3a363d1318dbce5715cf60fd295a5231f15eb45cbc86dde61e3d3e94f1df`；从随机全新解压目录启动 Desktop、创建 SQLite 并访问内嵌 `/health` 成功。该冒烟测试同时发现并修复了首次安装目录不存在时数据库初始化失败。干净 Windows、手机、真实媒体、电视和功放结论仍为待实机验收。
+
+KTVS-059：已准备 `1.0.0` Release Notes 和发布材料验证脚本。脚本复核候选 ZIP 内容、sidecar SHA-256、发布说明章节与候选校验值，输出 `RELEASE_MATERIALS=passed`，并明确 `v1.0.0` Tag 尚不存在。未创建 Tag、GitHub Release 或正式二进制发布；这些动作等待 KTVS-058 实机门禁、项目自身许可决定和仓库所有者明确授权。
+
+KTVS-059 CI 复核：远端 push workflow #6 成功（2 分 57 秒），同时发现三个 JavaScript Action 的 Node 20 运行时弃用警告。首次统一升级 v7 后，workflow #7 的 Action 初始化、还原、格式与构建均成功，但聚合测试步骤以 exit 1 结束；未登录公开页面不提供测试日志，公开 API 仅返回步骤级失败。本机随即以相同 `scripts/test.ps1 -NoRestore` 复验 Core 153/153、Desktop 12/12、Web 24/24 全部通过。按官方 Node 24 迁移说明改用 checkout/setup-node v5，并保留 upload-artifact 当前 v7 后，workflow #8 成功（3 分 02 秒）、生成 coverage artifact 且无 Annotation，Node 20 弃用警告消失。
+
 KTVS-052：安全审查修复了配置监听地址未实际传给 Kestrel，以及扫描管理端点缺少 loopback 限制的问题。监听只接受显式 IP；开房、当前房间和扫描管理均为本机来源；API 增加禁缓存和基础浏览器安全头。令牌哈希、二维码、SignalR URL、sessionStorage、公共 DTO、日志与诊断路径边界已复核。定向安全/API 回归 18/18；完整软件测试 Core 152/152、Desktop 12/12、Web 24/24，类型检查、生产构建、.NET Release 构建、格式和依赖门禁通过。LAN HTTP 的被动监听风险已记录，严禁公网暴露。
 
 KTVS-053：基于锁文件、已还原包元数据和本机 build 信息完成 .NET/Web/媒体工具依赖清单。本机 Gyan FFmpeg 是 GPLv3 static full build；WinGet mpv CI 的精确组合许可不能仅由版本输出证明。V1 不在 Station 包中捆绑两者，只定位用户独立安装的外部进程。仓库尚无项目自身 LICENSE，任何外部发布前需所有者决定；不阻塞本地开发与 UAT 包。
 
 ## 外部阻塞
 
-1. 真实 MKV、挂载目录和电视/功放/手机验收需用户后续执行，不阻塞软件开发。
+1. 真实 MKV、挂载目录和电视/功放/手机验收需用户后续执行；所有不依赖实机的软件任务已完成。
+2. 正式外部发布前，仓库所有者需确定项目自身许可证或保留权利声明。
+3. `v1.0.0` Tag、GitHub Release 与正式产物上传需用户明确授权；当前仅准备本地材料。
 
 ## 用户实机验收（待验证）
 
@@ -130,4 +144,4 @@ KTVS-053：基于锁文件、已还原包元数据和本机 build 信息完成 .
 
 ## 下一推荐任务
 
-执行 `KTVS-055`：制作不捆绑 mpv/FFmpeg 的版本化 Windows 自包含发布包和安装说明。
+先执行 `docs/project/CANDIDATE-VALIDATION.md` 的小批真实曲库与设备验收，并确定项目许可。门禁通过后重新构建 `1.0.0` 包、运行发布验证，再由用户确认创建最终单一 PR；合并后才能创建 `v1.0.0` Tag 与 GitHub Release。
