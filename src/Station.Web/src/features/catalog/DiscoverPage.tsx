@@ -7,17 +7,15 @@ import { NowPlaying } from '../../realtime/NowPlaying'
 
 interface SongSearchItem { songId: string; title: string; artists: string; language?: string; category?: string; quality?: string; year?: number; availability: 'Available' | 'Offline' | 'Unreadable' }
 interface SongSearchPage { items: SongSearchItem[]; total: number; page: number; pageSize: number }
-interface Filters { language: string; category: string; quality: string; sort: string }
+interface Filters { artistGroup: string; language: string; category: string; sort: string }
 interface FavoriteSong { songId: string }
-interface PopularSong { songId: string; title: string; artists: string; playCount: number }
-const initialFilters: Filters = { language: '', category: '', quality: '', sort: 'Relevance' }
+const initialFilters: Filters = { artistGroup: '', language: '', category: '', sort: 'Relevance' }
 
 function useDebouncedValue<T>(value: T, milliseconds: number) { const [debounced, setDebounced] = useState(value); useEffect(() => { const timer = window.setTimeout(() => setDebounced(value), milliseconds); return () => window.clearTimeout(timer) }, [value, milliseconds]); return debounced }
 
 export function DiscoverPage() {
   const { api, session } = useSession()
   const [text, setText] = useState('')
-  const [mode, setMode] = useState<'catalog' | 'popular' | 'recent'>('catalog')
   const debouncedText = useDebouncedValue(text.trim(), 300)
   const [filters, setFilters] = useState(initialFilters)
   const [page, setPage] = useState(1)
@@ -29,7 +27,7 @@ export function DiscoverPage() {
   const [notice, setNotice] = useState('')
   const [favorites, setFavorites] = useState<Set<string>>(new Set())
   const requestSequence = useRef(0)
-  const queryKey = useMemo(() => JSON.stringify([mode, debouncedText, filters]), [mode, debouncedText, filters])
+  const queryKey = useMemo(() => JSON.stringify([debouncedText, filters]), [debouncedText, filters])
 
   useEffect(() => { const controller = new AbortController(); api.get<FavoriteSong[]>('/api/library/favorites', controller.signal).then(items => setFavorites(new Set(items.map(item => item.songId)))).catch(() => undefined); return () => controller.abort() }, [api])
 
@@ -37,16 +35,16 @@ export function DiscoverPage() {
   useEffect(() => {
     const controller = new AbortController()
     const sequence = ++requestSequence.current
-    const params = new URLSearchParams({ page: String(page), pageSize: '20', sort: mode === 'recent' ? 'RecentlyAdded' : filters.sort })
+    const params = new URLSearchParams({ page: String(page), pageSize: '20', sort: filters.sort })
     if (debouncedText) params.set('text', debouncedText)
     if (filters.language) params.set('language', filters.language)
     if (filters.category) params.set('category', filters.category)
-    if (filters.quality) params.set('quality', filters.quality)
+    if (filters.artistGroup) params.set('artistGroup', filters.artistGroup)
     setLoading(true); setError('')
-    const request = mode === 'popular' ? api.get<PopularSong[]>('/api/library/popular?take=20', controller.signal).then(items => ({ items: items.map(item => ({ ...item, availability: 'Available' as const })), total: items.length, page: 1, pageSize: 20 })) : api.get<SongSearchPage>(`/api/catalog/search?${params}`, controller.signal)
+    const request = api.get<SongSearchPage>(`/api/catalog/search?${params}`, controller.signal)
     request.then(next => { if (sequence === requestSequence.current) setResult(current => page === 1 ? next : { ...next, items: [...(current?.items ?? []), ...next.items] }) }).catch(value => { if (sequence === requestSequence.current && !(value instanceof DOMException && value.name === 'AbortError')) setError(value instanceof ApiError ? value.message : '曲库暂时无法访问，请稍后重试。') }).finally(() => { if (sequence === requestSequence.current && !controller.signal.aborted) setLoading(false) })
     return () => controller.abort()
-  }, [api, mode, debouncedText, filters, page, retry])
+  }, [api, debouncedText, filters, page, retry])
 
   const updateFilter = (name: keyof Filters, value: string) => setFilters(current => ({ ...current, [name]: value }))
   async function requestSong(song: SongSearchItem) {
@@ -65,11 +63,10 @@ export function DiscoverPage() {
   return <>
     <label className="search-box"><Search aria-hidden="true" /><span className="sr-only">搜索歌曲</span><input value={text} onChange={event => setText(event.target.value)} placeholder="搜索歌名、歌手或拼音" /></label>
     <NowPlaying />
-    <div className="section-tabs"><button className={mode === 'catalog' ? 'active' : ''} onClick={() => setMode('catalog')}>推荐</button><button className={mode === 'popular' ? 'active' : ''} onClick={() => setMode('popular')}>热门</button><button className={mode === 'recent' ? 'active' : ''} onClick={() => setMode('recent')}>最近新增</button></div>
     <section className="catalog-filters" aria-label="曲库筛选">
-      <label><span className="sr-only">语言</span><select value={filters.language} onChange={event => updateFilter('language', event.target.value)}><option value="">全部语言</option><option>国语</option><option>粤语</option><option>英语</option></select></label>
-      <label><span className="sr-only">分类</span><select value={filters.category} onChange={event => updateFilter('category', event.target.value)}><option value="">全部分类</option><option>流行</option><option>经典</option><option>儿歌</option></select></label>
-      <label><span className="sr-only">画质</span><select value={filters.quality} onChange={event => updateFilter('quality', event.target.value)}><option value="">全部画质</option><option>4K</option><option>1080P</option><option>720P</option></select></label>
+      <label><span className="sr-only">歌星</span><select value={filters.artistGroup} onChange={event => updateFilter('artistGroup', event.target.value)}><option value="">全部歌星</option><option>华语男歌手</option><option>华语女歌手</option><option>华语组合</option><option>欧美歌手</option><option>日韩歌手</option><option>其他</option></select></label>
+      <label><span className="sr-only">语言</span><select value={filters.language} onChange={event => updateFilter('language', event.target.value)}><option value="">全部语种</option><option>国语</option><option>粤语</option><option>台语</option><option>闽南语</option><option>英语</option><option>日语</option><option>韩语</option><option>纯音乐</option></select></label>
+      <label><span className="sr-only">风格</span><select value={filters.category} onChange={event => updateFilter('category', event.target.value)}><option value="">全部风格</option><option>流行</option><option>经典</option><option>摇滚</option><option>民谣</option><option>儿歌</option><option>舞曲</option><option>影视原声</option><option>纯音乐</option></select></label>
       <label><span className="sr-only">排序</span><select value={filters.sort} onChange={event => updateFilter('sort', event.target.value)}><option value="Relevance">相关度</option><option value="Title">歌名</option><option value="YearDescending">年份</option></select></label>
     </section>
     {notice && <p className="catalog-notice" role="status">{notice}</p>}

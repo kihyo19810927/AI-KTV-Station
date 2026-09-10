@@ -4,6 +4,7 @@ using Station.Application.Catalog;
 using Station.Application.MediaSources;
 using Station.Application.Scanning;
 using Station.Application.Search;
+using Station.Application.Configuration;
 
 namespace Station.Desktop.ViewModels;
 
@@ -27,19 +28,22 @@ public sealed class CatalogManagementViewModel : ObservableObject
     private string sourceName = string.Empty;
     private string sourcePath = string.Empty;
 
-    public CatalogManagementViewModel(ISongSearchIndex search, ICatalogAdminService catalog, IMediaSourceService sources, ICatalogScanService scans)
+    public CatalogManagementViewModel(ISongSearchIndex search, ICatalogAdminService catalog, IMediaSourceService sources, ICatalogScanService scans, ScanOptions? options = null)
     {
+        ScanSettings = options ?? new ScanOptions();
         this.search = search; this.catalog = catalog; this.sources = sources; this.scans = scans;
         SearchCommand = new AsyncRelayCommand(SearchAsync);
         SelectSongCommand = new AsyncRelayCommand<SongSearchItem>(item => SelectSongAsync(item.SongId));
         SaveMetadataCommand = new AsyncRelayCommand(SaveMetadataAsync);
         RefreshSourcesCommand = new AsyncRelayCommand(RefreshSourcesAsync);
         AddSourceCommand = new AsyncRelayCommand(AddSourceAsync);
-        StartScanCommand = new AsyncRelayCommand(StartScanAsync);
+        StartScanCommand = new AsyncRelayCommand(StartScanAsync, () => SelectedSource is not null && !IsScanning);
         CancelScanCommand = new RelayCommand<object?>(_ => scanCancellation?.Cancel(), _ => IsScanning);
     }
 
     public ObservableCollection<SongSearchItem> Songs { get; } = [];
+    public ScanOptions ScanSettings { get; }
+    public string ScanProgressMessage { get; private set; } = "先添加并选择来源；可勾选仅建立基础索引，稍后取消勾选再扫描补全音轨。";
     public ObservableCollection<MediaSourceAdminDetails> Sources { get; } = [];
     public ICommand SearchCommand { get; }
     public ICommand SelectSongCommand { get; }
@@ -51,8 +55,8 @@ public sealed class CatalogManagementViewModel : ObservableObject
     public string SearchText { get => searchText; set => SetProperty(ref searchText, value); }
     public string StatusMessage { get => statusMessage; private set => SetProperty(ref statusMessage, value); }
     public SongAdminDetails? SelectedSong { get => selectedSong; private set => SetProperty(ref selectedSong, value); }
-    public MediaSourceAdminDetails? SelectedSource { get => selectedSource; set => SetProperty(ref selectedSource, value); }
-    public bool IsScanning { get => isScanning; private set { if (SetProperty(ref isScanning, value)) ((RelayCommand<object?>)CancelScanCommand).NotifyCanExecuteChanged(); } }
+    public MediaSourceAdminDetails? SelectedSource { get => selectedSource; set { if (SetProperty(ref selectedSource, value)) ((AsyncRelayCommand)StartScanCommand).NotifyCanExecuteChanged(); } }
+    public bool IsScanning { get => isScanning; private set { if (SetProperty(ref isScanning, value)) { ((RelayCommand<object?>)CancelScanCommand).NotifyCanExecuteChanged(); ((AsyncRelayCommand)StartScanCommand).NotifyCanExecuteChanged(); } } }
     public string EditTitle { get => editTitle; set => SetProperty(ref editTitle, value); }
     public string? EditLanguage { get => editLanguage; set => SetProperty(ref editLanguage, value); }
     public string? EditCategory { get => editCategory; set => SetProperty(ref editCategory, value); }
@@ -102,8 +106,13 @@ public sealed class CatalogManagementViewModel : ObservableObject
     private async Task StartScanAsync()
     {
         if (SelectedSource is null || IsScanning) { StatusMessage = "请选择要扫描的年度或月份目录"; return; }
+        if (ScanSettings.ProbeConcurrency is < 1 or > 4) { StatusMessage = "探测并发必须为 1 到 4"; return; }
         scanCancellation = new CancellationTokenSource(); IsScanning = true;
-        var progress = new Progress<MediaScanProgress>(x => StatusMessage = $"扫描中：发现 {x.DiscoveredFiles}，更新 {x.UpdatedFiles}，错误 {x.ErrorCount}");
+        var progress = new Progress<MediaScanProgress>(x =>
+        {
+            ScanProgressMessage = $"{(x.Phase == "Probing" ? "后台探测" : "基础索引")} · 发现 {x.DiscoveredFiles} · 已索引 {x.IndexedFiles} · ffprobe {x.ProbedFiles} · 缓存 {x.CachedFiles} · 错误 {x.ErrorCount} · 平均 {x.AverageProbeMilliseconds / 1000:F2} 秒/次";
+            RaisePropertyChanged(nameof(ScanProgressMessage));
+        });
         try
         {
             var result = await scans.ScanAsync(SelectedSource.Id, progress, scanCancellation.Token);
@@ -115,6 +124,7 @@ public sealed class CatalogManagementViewModel : ObservableObject
             await SearchAsync(); StatusMessage = completionMessage;
         }
         catch (OperationCanceledException) { StatusMessage = "扫描已取消，检查点和已有索引已保留"; }
+        catch (Exception) { StatusMessage = "扫描未完成，已有索引与检查点已保留；请检查来源连接后重试。"; }
         finally { scanCancellation.Dispose(); scanCancellation = null; IsScanning = false; }
     }
 

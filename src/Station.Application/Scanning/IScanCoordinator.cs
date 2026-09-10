@@ -19,4 +19,9 @@ public sealed record ScanOperationStatus(
     long DiscoveredFiles,
     long UpdatedFiles,
     long ErrorCount,
-    string? ErrorCode);
+    string? ErrorCode,
+    long IndexedFiles = 0,
+    long ProbedFiles = 0,
+    long CachedFiles = 0,
+    double AverageProbeMilliseconds = 0,
+    string Phase = "Indexing");

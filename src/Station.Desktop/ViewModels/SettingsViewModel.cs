@@ -34,7 +34,7 @@ public sealed class SettingsViewModel : ObservableObject
 
     public async Task SaveAsync()
     {
-        var next = new StationOptions { Server = new() { BindAddress = BindAddress, Port = Port }, Storage = new() { DataDirectory = DataDirectory }, Player = new() { ExecutablePath = PlayerExecutable, CommandTimeoutSeconds = CommandTimeoutSeconds } };
+        var next = new StationOptions { Server = new() { BindAddress = BindAddress, Port = Port }, Storage = new() { DataDirectory = DataDirectory }, Player = new() { ExecutablePath = PlayerExecutable, CommandTimeoutSeconds = CommandTimeoutSeconds }, Scanning = current.Scanning };
         var result = await store.SaveAsync(next);
         if (result.IsFailure) { StatusMessage = result.Error.Message; return; }
         current = next; await log.WriteAsync("Information", "settings.saved", "Local settings were saved; restart may be required."); StatusMessage = "设置已保存；端口、目录或播放器变更将在重启后生效";

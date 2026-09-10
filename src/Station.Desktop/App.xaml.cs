@@ -23,6 +23,7 @@ using Station.Application.Search;
 using Station.Infrastructure.Catalog;
 using Station.Infrastructure.Media;
 using Station.Infrastructure.MediaSources;
+using Station.Infrastructure.Runtime;
 using Station.Infrastructure.Metadata;
 using Station.Infrastructure.Scanning;
 using Station.Infrastructure.Search;
@@ -40,10 +41,33 @@ public partial class App : System.Windows.Application
 {
     private ServiceProvider? services;
     private WebApplication? embeddedServer;
+    private System.Windows.Threading.DispatcherTimer? refreshTimer;
+    private bool refreshing;
 
     protected override async void OnStartup(System.Windows.StartupEventArgs e)
     {
         base.OnStartup(e);
+        try { await StartDesktopAsync(); }
+        catch (Exception exception)
+        {
+            var message = exception.ToString().Contains("AddressInUse", StringComparison.OrdinalIgnoreCase)
+                ? "点歌服务端口被占用。请关闭旧版 Station 后重试，或在本机设置中更换端口。"
+                : $"启动未完成（{exception.GetType().Name}）。请保留数据库并查看本机启动错误记录。";
+            try
+            {
+                var root = Environment.GetEnvironmentVariable("AI_KTV_STATION_SETTINGS_ROOT") ?? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "AI-KTV Station");
+                Directory.CreateDirectory(root);
+                await File.WriteAllTextAsync(Path.Combine(root, "startup-error.txt"), exception.ToString());
+            }
+            catch (IOException) { }
+            MessageBox.Show(message, "AI-KTV Station 启动失败", MessageBoxButton.OK, MessageBoxImage.Error);
+            await DisposeResourcesAsync();
+            Shutdown(1);
+        }
+    }
+
+    private async Task StartDesktopAsync()
+    {
         var collection = new ServiceCollection();
         var settingsRoot = Environment.GetEnvironmentVariable("AI_KTV_STATION_SETTINGS_ROOT");
         if (string.IsNullOrWhiteSpace(settingsRoot))
@@ -52,9 +76,21 @@ public partial class App : System.Windows.Application
         var settingsStore = new JsonStationSettingsStore(Path.Combine(settingsRoot, "settings.json"));
         var loadedSettings = await settingsStore.LoadAsync();
         var options = loadedSettings.IsSuccess ? loadedSettings.Value : new StationOptions();
+        if (options.Server.BindAddress == "127.0.0.1")
+        {
+            options = new StationOptions
+            {
+                Server = new ServerOptions { BindAddress = "0.0.0.0", Port = options.Server.Port },
+                Storage = options.Storage,
+                Player = options.Player,
+                Scanning = options.Scanning,
+            };
+            await settingsStore.SaveAsync(options);
+        }
         var dataDirectory = Path.Combine(AppContext.BaseDirectory, options.Storage.DataDirectory);
         Directory.CreateDirectory(dataDirectory);
         collection.AddSingleton(options);
+        collection.AddSingleton(options.Scanning);
         collection.AddSingleton<IStationSettingsStore>(settingsStore);
         collection.AddSingleton(TimeProvider.System);
         var databaseOptions = new DbContextOptionsBuilder<StationDbContext>().UseSqlite($"Data Source={Path.Combine(dataDirectory, "station.db")}").Options;
@@ -64,7 +100,7 @@ public partial class App : System.Windows.Application
         collection.AddSingleton<IStationHealthService, StationHealthService>();
         collection.AddSingleton<IPlayerAdapter>(_ => new MpvPlayerAdapter(new PlayerOptions
         {
-            ExecutablePath = FindMpvExecutable() ?? "mpv.exe",
+            ExecutablePath = string.IsNullOrWhiteSpace(options.Player.ExecutablePath) ? ExternalToolLocator.Find("mpv.exe") ?? "mpv.exe" : options.Player.ExecutablePath,
             CommandTimeoutSeconds = options.Player.CommandTimeoutSeconds,
         }));
         collection.AddSingleton<PlaybackControlService>();
@@ -87,9 +123,9 @@ public partial class App : System.Windows.Application
         collection.AddSingleton<IMediaFileEnumerator, FileSystemMediaFileEnumerator>();
         collection.AddSingleton<IMediaFilenameParser, KtvFilenameParser>();
         collection.AddSingleton<INfoMetadataReader, NfoXmlMetadataReader>();
-        collection.AddSingleton<IMediaProbe>(_ => new FfprobeMediaProbe(FindExecutable("ffprobe.exe") ?? "ffprobe.exe", TimeSpan.FromSeconds(30)));
+        collection.AddSingleton<IMediaProbe>(_ => new FfprobeMediaProbe(ExternalToolLocator.Find("ffprobe.exe") ?? "ffprobe.exe", TimeSpan.FromSeconds(30)));
         collection.AddSingleton<IMediaScanRunner, MediaScanService>();
-        collection.AddSingleton<ICatalogScanService, CatalogScanService>();
+        collection.AddSingleton<ICatalogScanService>(_ => new BackgroundCatalogScanService(embeddedServer!.Services.GetRequiredService<IServiceScopeFactory>()));
         collection.AddSingleton<CatalogManagementViewModel>();
         collection.AddSingleton<IRoomRepository, EfRoomRepository>();
         collection.AddSingleton<IRoomJoinCodeGenerator, SecureRoomJoinCodeGenerator>();
@@ -117,6 +153,7 @@ public partial class App : System.Windows.Application
         };
         embeddedServer = StationServerHost.Build([], builder =>
         {
+            builder.Services.AddSingleton(options.Scanning);
             builder.Configuration.AddInMemoryCollection(new Dictionary<string, string?>
             {
                 [$"{StationOptions.SectionName}:Server:BindAddress"] = serverOptions.Server.BindAddress,
@@ -125,8 +162,7 @@ public partial class App : System.Windows.Application
                 [$"{StationOptions.SectionName}:Player:ExecutablePath"] = serverOptions.Player.ExecutablePath,
                 [$"{StationOptions.SectionName}:Player:CommandTimeoutSeconds"] = serverOptions.Player.CommandTimeoutSeconds.ToString(System.Globalization.CultureInfo.InvariantCulture),
             });
-            builder.WebHost.UseWebRoot(Path.Combine(AppContext.BaseDirectory, "wwwroot"));
-        }, services.GetRequiredService<IPlayerAdapter>());
+        }, services.GetRequiredService<IPlayerAdapter>(), Path.Combine(AppContext.BaseDirectory, "wwwroot"));
         await StationServerHost.InitializeAsync(embeddedServer.Services);
         await embeddedServer.StartAsync();
         await services.GetRequiredService<ILocalDiagnosticLog>().WriteAsync("Information", "server.started", "The embedded room service started.");
@@ -135,38 +171,41 @@ public partial class App : System.Windows.Application
         await services.GetRequiredService<MainWindowViewModel>().RefreshHealthAsync();
         await services.GetRequiredService<CatalogManagementViewModel>().InitializeAsync();
         await services.GetRequiredService<RoomManagementViewModel>().RefreshAsync();
+        refreshTimer = new System.Windows.Threading.DispatcherTimer { Interval = TimeSpan.FromSeconds(2) };
+        refreshTimer.Tick += async (_, _) =>
+        {
+            if (refreshing || services is null) return;
+            refreshing = true;
+            try
+            {
+                await services.GetRequiredService<PlaybackConsoleViewModel>().RefreshAsync();
+                await services.GetRequiredService<QueueManagementViewModel>().RefreshAsync();
+            }
+            finally { refreshing = false; }
+        };
+        refreshTimer.Start();
     }
 
     protected override void OnExit(System.Windows.ExitEventArgs e)
     {
-        if (embeddedServer is not null)
-        {
-            embeddedServer.StopAsync().GetAwaiter().GetResult();
-            embeddedServer.DisposeAsync().AsTask().GetAwaiter().GetResult();
-        }
-        services?.DisposeAsync().AsTask().GetAwaiter().GetResult();
+        refreshTimer?.Stop();
+        // WPF is tearing down its dispatcher here; perform async host disposal off the UI context.
+        Task.Run(DisposeResourcesAsync).GetAwaiter().GetResult();
         base.OnExit(e);
     }
 
-    private static string? FindMpvExecutable()
+    private async Task DisposeResourcesAsync()
     {
-        foreach (var directory in (Environment.GetEnvironmentVariable("PATH") ?? string.Empty).Split(Path.PathSeparator, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+        refreshTimer?.Stop(); refreshTimer = null;
+        var server = embeddedServer; embeddedServer = null;
+        if (server is not null)
         {
-            var candidate = Path.Combine(directory, "mpv.exe");
-            if (File.Exists(candidate)) return candidate;
+            using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+            try { await server.StopAsync(timeout.Token); } catch (OperationCanceledException) { }
+            await server.DisposeAsync();
         }
-        var root = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Microsoft", "WinGet", "Packages");
-        return Directory.Exists(root) ? Directory.EnumerateFiles(root, "mpv.exe", SearchOption.AllDirectories).FirstOrDefault() : null;
-    }
-
-    private static string? FindExecutable(string name)
-    {
-        foreach (var directory in (Environment.GetEnvironmentVariable("PATH") ?? string.Empty).Split(Path.PathSeparator, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
-        {
-            var candidate = Path.Combine(directory, name);
-            if (File.Exists(candidate)) return candidate;
-        }
-        return null;
+        var provider = services; services = null;
+        if (provider is not null) await provider.DisposeAsync();
     }
 
     private void QueueList_PreviewMouseMove(object sender, MouseEventArgs e)

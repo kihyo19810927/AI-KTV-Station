@@ -6,11 +6,19 @@ public sealed class StationOptions
     public ServerOptions Server { get; init; } = new();
     public StorageOptions Storage { get; init; } = new();
     public PlayerOptions Player { get; init; } = new();
+    public ScanOptions Scanning { get; init; } = new();
+}
+
+public sealed class ScanOptions
+{
+    public bool BasicIndexOnly { get; set; }
+    public bool ReadNfo { get; set; }
+    public int ProbeConcurrency { get; set; } = 1;
 }
 
 public sealed class ServerOptions
 {
-    public string BindAddress { get; init; } = "127.0.0.1";
+    public string BindAddress { get; init; } = "0.0.0.0";
     public int Port { get; init; } = 5090;
 }
 

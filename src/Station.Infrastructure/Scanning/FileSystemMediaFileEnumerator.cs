@@ -15,12 +15,12 @@ public sealed class FileSystemMediaFileEnumerator : IMediaFileEnumerator
             cancellationToken.ThrowIfCancellationRequested();
             var directory = pending.Pop();
             string[] directories;
-            string[] files;
+            FileInfo[] files;
             MediaEnumerationEntry? directoryError = null;
             try
             {
                 directories = Directory.GetDirectories(directory);
-                files = Directory.GetFiles(directory);
+                files = new DirectoryInfo(directory).GetFiles();
             }
             catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or DirectoryNotFoundException)
             {
@@ -30,15 +30,15 @@ public sealed class FileSystemMediaFileEnumerator : IMediaFileEnumerator
             }
             if (directoryError is not null) { yield return directoryError; continue; }
             foreach (var child in directories.OrderDescending()) pending.Push(child);
-            foreach (var path in files.Order())
+            foreach (var info in files.OrderBy(x => x.Name, StringComparer.OrdinalIgnoreCase))
             {
+                var path = info.FullName;
                 cancellationToken.ThrowIfCancellationRequested();
                 var kind = MediaFormatPolicy.Classify(path);
                 if (kind is null) continue;
                 MediaEnumerationEntry entry;
                 try
                 {
-                    var info = new FileInfo(path);
                     entry = MediaEnumerationEntry.File(ToRelative(source.RootPath, path), info.Length, info.LastWriteTimeUtc, kind.Value);
                 }
                 catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or FileNotFoundException)

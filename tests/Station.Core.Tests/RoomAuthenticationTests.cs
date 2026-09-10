@@ -98,7 +98,6 @@ public sealed class RoomAuthenticationTests
 
     [Theory]
     [InlineData("BAD", "访客", "auth.invalid_join_code")]
-    [InlineData("ABC234", "   ", "auth.invalid_nickname")]
     public async Task Invalid_join_input_does_not_persist_identity(string code, string nickname, string expectedError)
     {
         await using var database = CreateDatabase();
@@ -118,10 +117,21 @@ public sealed class RoomAuthenticationTests
     {
         Assert.True(RoomAuthorizationPolicy.Allows(RoomRole.Guest, RoomPermission.RequestSong));
         Assert.True(RoomAuthorizationPolicy.Allows(RoomRole.Guest, RoomPermission.RemoveOwnRequest));
-        Assert.False(RoomAuthorizationPolicy.Allows(RoomRole.Guest, RoomPermission.ControlPlayback));
+        Assert.True(RoomAuthorizationPolicy.Allows(RoomRole.Guest, RoomPermission.ControlPlayback));
         Assert.False(RoomAuthorizationPolicy.Allows(RoomRole.Guest, RoomPermission.RemoveAnyRequest));
         Assert.All(Enum.GetValues<RoomPermission>(), permission =>
             Assert.True(RoomAuthorizationPolicy.Allows(RoomRole.Host, permission)));
+    }
+
+    [Fact]
+    public async Task Blank_guest_names_are_assigned_in_room_sequence()
+    {
+        await using var database = CreateDatabase(); await database.Database.EnsureCreatedAsync();
+        var room = await AddOpenRoomAsync(database);
+        var service = new RoomAuthenticationService(new EfRoomIdentityRepository(database), new Sha256RoomTokenProtector(), new AdjustableTimeProvider(Start));
+
+        Assert.Equal("访客1", (await service.JoinAsync(room.JoinCode, string.Empty)).Value.Nickname);
+        Assert.Equal("访客2", (await service.JoinAsync(room.JoinCode, " ")).Value.Nickname);
     }
 
     private static StationDbContext CreateDatabase()

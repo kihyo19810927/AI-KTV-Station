@@ -8,5 +8,6 @@ if (-not $mpv) { $mpv = (Get-Command mpv.exe -ErrorAction Stop).Source }
 $env:KTV_STATION_MPV = $mpv
 $env:KTV_STATION_MEDIA_FIXTURE = $media
 $dotnet = 'C:\Program Files\dotnet\dotnet.exe'
-& $dotnet test (Join-Path $root 'tests\Station.Core.Tests\Station.Core.Tests.csproj') --configuration Release -p:UseSharedCompilation=false --no-restore --filter 'FullyQualifiedName~MpvPlayerAdapterTests&Category=External' --logger 'console;verbosity=normal'
+$env:MSBUILDDISABLENODEREUSE = '1'
+& $dotnet test (Join-Path $root 'tests\Station.Core.Tests\Station.Core.Tests.csproj') --configuration Release -m:1 -p:UseSharedCompilation=false --no-restore --filter 'FullyQualifiedName~MpvPlayerAdapterTests&Category=External' --logger 'console;verbosity=normal'
 exit $LASTEXITCODE

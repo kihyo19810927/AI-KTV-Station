@@ -219,6 +219,7 @@ public sealed class MediaScanServiceTests
             new EfMediaScanRepository(database),
             new SingleFileEnumerator(),
             metadataReader: new NfoReader(),
+            scanOptions: new Station.Application.Configuration.ScanOptions { ReadNfo = true },
             searchTextNormalizer: new ToolGoodSearchTextNormalizer());
 
         await scanner.ScanAsync(source.Id);

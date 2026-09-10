@@ -5,15 +5,32 @@
              ShutdownMode="OnMainWindowClose">
     <Application.Resources>
         <ResourceDictionary>
-            <Color x:Key="AccentColor">#7C3AED</Color>
+            <Color x:Key="AccentColor">#8B5CF6</Color>
             <SolidColorBrush x:Key="AccentBrush" Color="{StaticResource AccentColor}" />
-            <SolidColorBrush x:Key="WindowBackgroundBrush" Color="#F3F4F8" />
+            <SolidColorBrush x:Key="AccentSoftBrush" Color="#F1ECFF" />
+            <SolidColorBrush x:Key="WindowBackgroundBrush" Color="#F4F3F8" />
             <SolidColorBrush x:Key="PanelBrush" Color="#FFFFFF" />
-            <SolidColorBrush x:Key="PrimaryTextBrush" Color="#171923" />
-            <SolidColorBrush x:Key="SecondaryTextBrush" Color="#667085" />
+            <SolidColorBrush x:Key="PrimaryTextBrush" Color="#1B1824" />
+            <SolidColorBrush x:Key="SecondaryTextBrush" Color="#777184" />
+            <SolidColorBrush x:Key="LineBrush" Color="#E9E6EF" />
+            <SolidColorBrush x:Key="SuccessBrush" Color="#20B26B" />
+            <SolidColorBrush x:Key="DangerBrush" Color="#DC4360" />
             <converters:ByteArrayImageConverter x:Key="ByteArrayImageConverter" />
-            <Style TargetType="Button"><Setter Property="MinHeight" Value="40" /><Setter Property="Padding" Value="14,8" /><Setter Property="Cursor" Value="Hand" /></Style>
-            <Style TargetType="ListView"><Setter Property="AllowDrop" Value="True" /><EventSetter Event="PreviewMouseMove" Handler="QueueList_PreviewMouseMove" /><EventSetter Event="Drop" Handler="QueueList_Drop" /></Style>
+
+            <Style TargetType="TextBlock"><Setter Property="FontFamily" Value="Segoe UI Variable Text, Segoe UI" /><Setter Property="Foreground" Value="{StaticResource PrimaryTextBrush}" /></Style>
+            <Style TargetType="Control"><Setter Property="FontFamily" Value="Segoe UI Variable Text, Segoe UI" /><Setter Property="FontSize" Value="14" /></Style>
+            <Style TargetType="Button">
+                <Setter Property="MinHeight" Value="42" /><Setter Property="Padding" Value="17,9" /><Setter Property="Cursor" Value="Hand" /><Setter Property="Foreground" Value="{StaticResource PrimaryTextBrush}" /><Setter Property="Background" Value="#F7F5FA" /><Setter Property="BorderBrush" Value="{StaticResource LineBrush}" /><Setter Property="BorderThickness" Value="1" />
+                <Setter Property="Template"><Setter.Value><ControlTemplate TargetType="Button"><Border x:Name="Chrome" Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="{TemplateBinding BorderThickness}" CornerRadius="10" Padding="{TemplateBinding Padding}"><ContentPresenter HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}" VerticalAlignment="Center" /></Border><ControlTemplate.Triggers><Trigger Property="IsMouseOver" Value="True"><Setter TargetName="Chrome" Property="Opacity" Value="0.86" /></Trigger><Trigger Property="IsPressed" Value="True"><Setter TargetName="Chrome" Property="Opacity" Value="0.68" /></Trigger><Trigger Property="IsEnabled" Value="False"><Setter TargetName="Chrome" Property="Opacity" Value="0.45" /></Trigger></ControlTemplate.Triggers></ControlTemplate></Setter.Value></Setter>
+            </Style>
+            <Style x:Key="PrimaryButton" TargetType="Button"><Setter Property="Background" Value="{StaticResource AccentBrush}" /><Setter Property="Foreground" Value="White" /><Setter Property="BorderThickness" Value="0" /></Style>
+            <Style x:Key="DangerButton" TargetType="Button"><Setter Property="Foreground" Value="{StaticResource DangerBrush}" /><Setter Property="Background" Value="#FFF1F4" /><Setter Property="BorderBrush" Value="#FFD6DF" /></Style>
+            <Style TargetType="TextBox"><Setter Property="MinHeight" Value="42" /><Setter Property="Padding" Value="12,9" /><Setter Property="Background" Value="#FBFAFC" /><Setter Property="BorderBrush" Value="{StaticResource LineBrush}" /><Setter Property="BorderThickness" Value="1" /><Setter Property="VerticalContentAlignment" Value="Center" /></Style>
+            <Style TargetType="ComboBox"><Setter Property="MinHeight" Value="42" /><Setter Property="Padding" Value="10,7" /><Setter Property="Background" Value="#FBFAFC" /><Setter Property="BorderBrush" Value="{StaticResource LineBrush}" /></Style>
+            <Style TargetType="ListView"><Setter Property="AllowDrop" Value="True" /><Setter Property="Background" Value="Transparent" /><Setter Property="BorderThickness" Value="0" /><Setter Property="ScrollViewer.HorizontalScrollBarVisibility" Value="Disabled" /><EventSetter Event="PreviewMouseMove" Handler="QueueList_PreviewMouseMove" /><EventSetter Event="Drop" Handler="QueueList_Drop" /></Style>
+            <Style TargetType="ListViewItem"><Setter Property="HorizontalContentAlignment" Value="Stretch" /><Setter Property="Padding" Value="0" /><Setter Property="Margin" Value="0,0,0,8" /><Setter Property="Background" Value="Transparent" /><Setter Property="BorderThickness" Value="0" /></Style>
+            <Style TargetType="GroupBox"><Setter Property="Foreground" Value="{StaticResource PrimaryTextBrush}" /><Setter Property="BorderBrush" Value="{StaticResource LineBrush}" /><Setter Property="Background" Value="#FBFAFC" /></Style>
+            <Style TargetType="Slider"><Setter Property="Foreground" Value="{StaticResource AccentBrush}" /></Style>
         </ResourceDictionary>
     </Application.Resources>
 </Application>

@@ -64,7 +64,8 @@ public sealed class StationApiTests
         Assert.DoesNotContain("RelativePath", queueJson, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain("RootPath", queueJson, StringComparison.OrdinalIgnoreCase);
         Assert.Equal(HttpStatusCode.Forbidden, (await client.PostAsync($"/api/queue/{second.Id}/top", null)).StatusCode);
-        Assert.Equal(HttpStatusCode.Forbidden, (await client.PostAsync("/api/playback/pause", null)).StatusCode);
+        Assert.Equal(HttpStatusCode.OK, (await client.PostAsync("/api/playback/pause", null)).StatusCode);
+        Assert.Equal(HttpStatusCode.OK, (await client.PostAsync("/api/playback/skip", null)).StatusCode);
 
         SetBearer(client, created.Host.Token);
         Assert.Equal(HttpStatusCode.OK, (await client.PostAsync($"/api/queue/{second.Id}/top", null)).StatusCode);
@@ -106,6 +107,7 @@ public sealed class StationApiTests
         Assert.Contains("/api/catalog/search", document);
         Assert.Contains("/api/queue", document);
         Assert.Contains("/api/playback/volume", document);
+        Assert.Contains("/api/playback/skip", document);
         Assert.DoesNotContain("RootPath", document, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain("RelativePath", document, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain("TokenHash", document, StringComparison.OrdinalIgnoreCase);

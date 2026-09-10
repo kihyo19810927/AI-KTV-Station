@@ -9,6 +9,12 @@ public sealed class ScanRun
     public DateTimeOffset? CompletedAt { get; set; }
     public long DiscoveredFiles { get; set; }
     public long UpdatedFiles { get; set; }
+    public long IndexedFiles { get; set; }
+    public long ProbedFiles { get; set; }
+    public long CachedFiles { get; set; }
+    public double ProbeMilliseconds { get; set; }
+    public long ProbeAttempts { get; set; }
+    public string Phase { get; set; } = "Indexing";
     public long ErrorCount { get; set; }
     public string? ErrorSummary { get; set; }
     public string? CheckpointRelativePath { get; set; }

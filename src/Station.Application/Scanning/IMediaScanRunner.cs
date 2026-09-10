@@ -17,4 +17,9 @@ public sealed record MediaScanProgress(
     ScanStatus Status,
     long DiscoveredFiles,
     long UpdatedFiles,
-    long ErrorCount);
+    long ErrorCount,
+    long IndexedFiles = 0,
+    long ProbedFiles = 0,
+    long CachedFiles = 0,
+    double AverageProbeMilliseconds = 0,
+    string Phase = "Indexing");

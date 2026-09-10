@@ -45,6 +45,18 @@ try {
         throw "Packaged desktop did not expose a healthy embedded service.$exitDetail$logDetail"
     }
     if (-not (Test-Path -LiteralPath (Join-Path $executable.DirectoryName 'data\station.db'))) { throw 'Packaged desktop did not initialize its isolated database.' }
+    # /health may respond before XAML is instantiated; validate that the desktop really opened.
+    $windowDeadline = [DateTimeOffset]::UtcNow.AddSeconds(10)
+    do {
+        Start-Sleep -Milliseconds 200
+        $process.Refresh()
+    } while (-not $process.HasExited -and $process.MainWindowHandle -eq 0 -and [DateTimeOffset]::UtcNow -lt $windowDeadline)
+    if ($process.HasExited -or $process.MainWindowHandle -eq 0) { throw 'Desktop window did not open after service startup.' }
+    if (Test-Path -LiteralPath (Join-Path $settingsRoot 'startup-error.txt')) { throw 'Desktop reported a startup error.' }
+    if (-not $process.CloseMainWindow() -or -not $process.WaitForExit(10000)) { throw 'Desktop did not release its process after a normal window close.' }
+    if (Get-Process -Id $process.Id -ErrorAction SilentlyContinue) { throw 'Desktop process remained after normal shutdown.' }
+    Write-Output 'PACKAGE_PROCESS_CLEANUP=passed'
+    Write-Output 'PACKAGE_WINDOW=passed'
     Write-Output "PACKAGE_SMOKE_PORT=$port"
     Write-Output 'PACKAGE_SMOKE=passed'
 }

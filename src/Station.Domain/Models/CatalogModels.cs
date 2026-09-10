@@ -12,6 +12,7 @@ public sealed class Song
     public string CompactTitle { get; set; } = string.Empty;
     public string? Language { get; set; }
     public string? Category { get; set; }
+    public string ArtistGroup { get; set; } = "其他";
     public int? Year { get; set; }
     public string? Quality { get; set; }
     public AvailabilityStatus Availability { get; set; }
@@ -64,6 +65,7 @@ public sealed class MediaFile
     public long SizeBytes { get; set; }
     public DateTimeOffset LastWriteTime { get; set; }
     public double? DurationSeconds { get; set; }
+    public string? ProbeFingerprint { get; set; }
     public AvailabilityStatus Availability { get; set; }
     public string? LastErrorCode { get; set; }
     public string? LyricsRelativePath { get; set; }

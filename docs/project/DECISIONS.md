@@ -17,5 +17,8 @@
 | 2026-09-10 | 主控二维码使用 MIT QRCoder 1.8.0，仅编码局域网 URL 与房间码 | Accepted（KTVS-046） |
 | 2026-09-10 | WPF 内嵌 ASP.NET/SignalR 并共享单一播放器；后台协调唯一开放房间 | [ADR-0010](../adr/ADR-0010-embedded-station-host.md) |
 | 2026-09-10 | Windows 候选版采用自包含 ZIP，不捆绑 mpv/FFmpeg 或用户数据 | [ADR-0011](../adr/ADR-0011-windows-zip-distribution.md) |
+| 2026-09-10 | 根目录 `common` 仅存本机私有媒体工具副本，优先于 PATH；二进制保持忽略且不改变正式 ZIP 分发边界 | Accepted（KTVS-060） |
+| 2026-09-10 | WPF 主控以用户确认的 HTML Demo 为最低视觉基线，统一主题、导航、卡片和关键操作层级 | Accepted（KTVS-061） |
+| 2026-09-11 | 扫描采用基础索引与可恢复探测两阶段；CloudDrive 默认单探测，本地可配置 2–4 | [ADR-0012](../adr/ADR-0012-two-stage-scanning.md) |
 
 重大、跨模块的决定在 `docs/adr/` 单独记录；实现变更必须同步更新或 Supersede 对应 ADR。

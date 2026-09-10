@@ -62,6 +62,11 @@ public sealed class ScanCoordinator(IServiceScopeFactory scopeFactory) : IScanCo
                 DiscoveredFiles = value.DiscoveredFiles,
                 UpdatedFiles = value.UpdatedFiles,
                 ErrorCount = value.ErrorCount,
+                IndexedFiles = value.IndexedFiles,
+                ProbedFiles = value.ProbedFiles,
+                CachedFiles = value.CachedFiles,
+                AverageProbeMilliseconds = value.AverageProbeMilliseconds,
+                Phase = value.Phase,
             }));
             var result = await runner.ScanAsync(operation.Status.MediaSourceId, operation.Status.ScanRunId, progress, operation.Cancellation.Token);
             if (!result.IsSuccess)

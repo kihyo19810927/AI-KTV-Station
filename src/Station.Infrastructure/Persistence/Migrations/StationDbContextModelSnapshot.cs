@@ -138,6 +138,9 @@ namespace Station.Infrastructure.Persistence.Migrations
                     b.Property<string>("LastErrorCode")
                         .HasColumnType("TEXT");
 
+                    b.Property<DateTimeOffset>("LastWriteTime")
+                        .HasColumnType("TEXT");
+
                     b.Property<string>("LyricsFormat")
                         .HasMaxLength(20)
                         .HasColumnType("TEXT");
@@ -146,10 +149,10 @@ namespace Station.Infrastructure.Persistence.Migrations
                         .HasMaxLength(1024)
                         .HasColumnType("TEXT");
 
-                    b.Property<DateTimeOffset>("LastWriteTime")
+                    b.Property<Guid>("MediaSourceId")
                         .HasColumnType("TEXT");
 
-                    b.Property<Guid>("MediaSourceId")
+                    b.Property<string>("ProbeFingerprint")
                         .HasColumnType("TEXT");
 
                     b.Property<string>("RelativePath")
@@ -385,6 +388,9 @@ namespace Station.Infrastructure.Persistence.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("TEXT");
 
+                    b.Property<long>("CachedFiles")
+                        .HasColumnType("INTEGER");
+
                     b.Property<string>("CheckpointRelativePath")
                         .HasColumnType("TEXT");
 
@@ -403,8 +409,24 @@ namespace Station.Infrastructure.Persistence.Migrations
                     b.Property<string>("ErrorSummary")
                         .HasColumnType("TEXT");
 
+                    b.Property<long>("IndexedFiles")
+                        .HasColumnType("INTEGER");
+
                     b.Property<Guid?>("MediaSourceId")
                         .HasColumnType("TEXT");
+
+                    b.Property<string>("Phase")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<long>("ProbeAttempts")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<double>("ProbeMilliseconds")
+                        .HasColumnType("REAL");
+
+                    b.Property<long>("ProbedFiles")
+                        .HasColumnType("INTEGER");
 
                     b.Property<string>("Status")
                         .IsRequired()
@@ -423,6 +445,13 @@ namespace Station.Infrastructure.Persistence.Migrations
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("TEXT");
+
+                    b.Property<string>("ArtistGroup")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(40)
+                        .HasColumnType("TEXT")
+                        .HasDefaultValue("其他");
 
                     b.Property<string>("Availability")
                         .IsRequired()
