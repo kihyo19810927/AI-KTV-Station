@@ -55,6 +55,8 @@ public partial class App : System.Windows.Application
         collection.AddSingleton(TimeProvider.System);
         var databaseOptions = new DbContextOptionsBuilder<StationDbContext>().UseSqlite($"Data Source={Path.Combine(dataDirectory, "station.db")}").Options;
         collection.AddSingleton(new StationDbContext(databaseOptions));
+        collection.AddSingleton<IDatabaseMigrationExecutor, EfDatabaseMigrationExecutor>();
+        collection.AddSingleton<DatabaseUpgradeService>();
         collection.AddSingleton<IStationHealthService, StationHealthService>();
         collection.AddSingleton<IPlayerAdapter>(_ => new MpvPlayerAdapter(new PlayerOptions
         {
@@ -101,7 +103,7 @@ public partial class App : System.Windows.Application
         collection.AddSingleton<MainWindow>();
         services = collection.BuildServiceProvider(new ServiceProviderOptions { ValidateOnBuild = true, ValidateScopes = true });
         await services.GetRequiredService<ILocalDiagnosticLog>().WriteAsync("Information", "desktop.starting", "AI-KTV Station desktop is starting.");
-        await services.GetRequiredService<StationDbContext>().Database.MigrateAsync();
+        await services.GetRequiredService<DatabaseUpgradeService>().UpgradeAsync();
         await services.GetRequiredService<PlaybackStartupRecoveryService>().RecoverAsync();
         var serverOptions = new StationOptions
         {
