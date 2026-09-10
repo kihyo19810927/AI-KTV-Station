@@ -107,6 +107,26 @@ public sealed class QueuePlaybackOrchestratorTests
         Assert.Single(store.Completed);
     }
 
+    [Fact]
+    public async Task Run_loop_loads_item_added_after_room_started_empty()
+    {
+        var player = new FakePlayer();
+        var store = new MemoryPlaybackStore();
+        var service = Create(player, store, maximumRetries: 0);
+        using var cancellation = new CancellationTokenSource(TimeSpan.FromSeconds(3));
+
+        var run = service.RunAsync(store.RoomId, cancellation.Token);
+        await Task.Delay(100);
+        var item = Item(1);
+        store.Add(item);
+
+        await WaitUntilAsync(() => player.Loads.Count == 1, cancellation.Token);
+        cancellation.Cancel();
+        await run;
+
+        Assert.Equal(item.QueueItemId, service.Current.QueueItemId);
+    }
+
     private static QueuePlaybackOrchestrator Create(
         FakePlayer player,
         MemoryPlaybackStore store,
@@ -117,6 +137,12 @@ public sealed class QueuePlaybackOrchestratorTests
 
     private static PlayableQueueItem Item(int index) => new(
         Guid.NewGuid(), Guid.Empty, Guid.NewGuid(), Guid.NewGuid(), $"X:\\fixture-{index}.mkv");
+
+    private static async Task WaitUntilAsync(Func<bool> condition, CancellationToken cancellationToken)
+    {
+        while (!condition())
+            await Task.Delay(25, cancellationToken);
+    }
 
     private sealed class FakePlayer : IPlayerAdapter
     {
@@ -162,17 +188,18 @@ public sealed class QueuePlaybackOrchestratorTests
     {
         private int next;
         public Guid RoomId { get; } = Guid.NewGuid();
-        public PlayableQueueItem[] Items { get; } = source.Select(x => x with { RoomId = Guid.Empty }).ToArray();
+        public List<PlayableQueueItem> Items { get; } = source.Select(x => x with { RoomId = Guid.Empty }).ToList();
         public Dictionary<Guid, QueueItemStatus> Statuses { get; } = [];
         public List<(Guid HistoryId, PlaybackOutcome Outcome, string? ErrorCode)> Completed { get; } = [];
 
         public Task<PlayableQueueItem?> GetNextAsync(Guid roomId, CancellationToken cancellationToken = default)
         {
-            if (next >= Items.Length) return Task.FromResult<PlayableQueueItem?>(null);
+            if (next >= Items.Count) return Task.FromResult<PlayableQueueItem?>(null);
             var item = Items[next++] with { RoomId = roomId };
             Items[next - 1] = item;
             return Task.FromResult<PlayableQueueItem?>(item);
         }
+        public void Add(PlayableQueueItem item) => Items.Add(item with { RoomId = Guid.Empty });
         public Task SetQueueStatusAsync(Guid queueItemId, QueueItemStatus status, DateTimeOffset? completedAt, CancellationToken cancellationToken = default)
         { Statuses[queueItemId] = status; return Task.CompletedTask; }
         public Task<PlayHistory> StartHistoryAsync(PlayableQueueItem item, DateTimeOffset startedAt, CancellationToken cancellationToken = default) =>

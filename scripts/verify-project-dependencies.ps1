@@ -5,7 +5,7 @@ $allowed = @{
     'Station.Application' = @('Station.Domain')
     'Station.Infrastructure' = @('Station.Application')
     'Station.Server' = @('Station.Application', 'Station.Infrastructure')
-    'Station.Desktop' = @('Station.Application', 'Station.Infrastructure')
+    'Station.Desktop' = @('Station.Application', 'Station.Infrastructure', 'Station.Server')
 }
 foreach ($projectName in $allowed.Keys) {
     $project = Join-Path $root "src\$projectName\$projectName.csproj"

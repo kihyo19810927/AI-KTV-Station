@@ -4,11 +4,11 @@
 
 ## 当前基线
 
-- 分支：`task-KTVS-001-002-phase0`
+- 分支：`codex/KTVS-054`
 - 版本：`0.1.0-dev`
 - 阶段：Phase 7：验证与加固
-- 已完成：KTVS-001 至 KTVS-053
-- 当前任务：KTVS-054 用户验收测试包
+- 已完成：KTVS-001 至 KTVS-054
+- 当前任务：KTVS-055 Windows 发布与安装
 
 ## 调查结果
 
@@ -114,6 +114,8 @@ KTVS-050：使用临时媒体、SQLite、错误枚举器和可控播放器注入
 
 KTVS-051：Server 与 Desktop 在迁移后执行幂等启动恢复，将遗留的 Preparing/Playing/Paused 队列项原子恢复为 Waiting，并以稳定错误码闭合未结束历史；不删除任何业务记录。SQLite 文件跨 DbContext 重开和重复恢复测试通过，仓库规定的真实 mpv 适配器脚本 2/2 通过（含自有进程终止事件）。完整软件测试 Core 143/143、Desktop 12/12，Release 构建 0 警告/0 错误，格式和依赖门禁通过。突然断电仍待实机验收。
 
+KTVS-054：WPF 现在启动同进程 ASP.NET Core/SignalR 服务，共享数据目录和唯一 `IPlayerAdapter`；后台播放协调器跟踪开放房间，并在空队列启动后继续发现新点歌曲目。新增可执行 UAT 就绪脚本、样例房间流程、小批真实 115 验收和脱敏故障记录模板。完整就绪链通过：Release 构建 0 警告/错误、Core 150/150、Desktop 12/12、Web 24/24，生成 Unicode 四轨 MKV 的 mpv/ffprobe 检查通过。真实手机、电视、功放与小批 115 目录保持待实机验收。
+
 KTVS-052：安全审查修复了配置监听地址未实际传给 Kestrel，以及扫描管理端点缺少 loopback 限制的问题。监听只接受显式 IP；开房、当前房间和扫描管理均为本机来源；API 增加禁缓存和基础浏览器安全头。令牌哈希、二维码、SignalR URL、sessionStorage、公共 DTO、日志与诊断路径边界已复核。定向安全/API 回归 18/18；完整软件测试 Core 152/152、Desktop 12/12、Web 24/24，类型检查、生产构建、.NET Release 构建、格式和依赖门禁通过。LAN HTTP 的被动监听风险已记录，严禁公网暴露。
 
 KTVS-053：基于锁文件、已还原包元数据和本机 build 信息完成 .NET/Web/媒体工具依赖清单。本机 Gyan FFmpeg 是 GPLv3 static full build；WinGet mpv CI 的精确组合许可不能仅由版本输出证明。V1 不在 Station 包中捆绑两者，只定位用户独立安装的外部进程。仓库尚无项目自身 LICENSE，任何外部发布前需所有者决定；不阻塞本地开发与 UAT 包。
@@ -128,4 +130,4 @@ KTVS-053：基于锁文件、已还原包元数据和本机 build 信息完成 .
 
 ## 下一推荐任务
 
-执行 `KTVS-054`：整理可执行的用户验收包、样例房间和诊断说明。
+执行 `KTVS-055`：制作不捆绑 mpv/FFmpeg 的版本化 Windows 自包含发布包和安装说明。
