@@ -24,7 +24,7 @@ public sealed class RoomManagementViewModelTests
 
         await viewModel.CreateRoomAsync();
 
-        Assert.Equal("ABC234", viewModel.JoinCode); Assert.Equal("http://192.168.1.20:5090/?room=ABC234", viewModel.JoinUrl);
+        Assert.Equal("ABC234", viewModel.JoinCode); Assert.Equal("http://192.168.1.20:5090/join?code=ABC234", viewModel.JoinUrl);
         Assert.Equal(viewModel.JoinUrl, qr.Content); Assert.NotNull(context.Identity); Assert.Equal(RoomRole.Host, context.Identity.Role);
         Assert.DoesNotContain("token", viewModel.JoinUrl, StringComparison.OrdinalIgnoreCase);
     }

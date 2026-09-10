@@ -11,7 +11,7 @@
             <Border.Background><LinearGradientBrush StartPoint="0,0" EndPoint="1,1"><GradientStop Color="#17121F" Offset="0" /><GradientStop Color="#241734" Offset="0.62" /><GradientStop Color="#17121F" Offset="1" /></LinearGradientBrush></Border.Background>
             <DockPanel>
                 <StackPanel DockPanel.Dock="Bottom" Margin="5,20,5,2">
-                    <Border Background="#261FFFFFFF" CornerRadius="13" Padding="13"><StackPanel><TextBlock Text="●  服务在线" Foreground="#71E7AA" FontWeight="SemiBold" /><TextBlock Text="局域网点歌已就绪" Foreground="#AFA8BB" FontSize="12" Margin="0,5,0,0" /></StackPanel></Border>
+                    <Border Background="#26FFFFFF" CornerRadius="13" Padding="13"><StackPanel><TextBlock Text="●  服务在线" Foreground="#71E7AA" FontWeight="SemiBold" /><TextBlock Text="局域网点歌已就绪" Foreground="#AFA8BB" FontSize="12" Margin="0,5,0,0" /></StackPanel></Border>
                     <TextBlock Text="AI-KTV Station  ·  V1" Foreground="#746D7F" FontSize="11" Margin="4,12,0,0" />
                 </StackPanel>
                 <StackPanel DockPanel.Dock="Top" Margin="5,2,5,28">
@@ -50,7 +50,30 @@
                         <ListView ItemsSource="{Binding Songs}" BorderBrush="#E5E7EB"><ListView.ItemTemplate><DataTemplate><Button Command="{Binding DataContext.SelectSongCommand, RelativeSource={RelativeSource AncestorType=ListView}}" CommandParameter="{Binding}" HorizontalContentAlignment="Stretch" Background="Transparent" BorderThickness="0"><StackPanel Margin="4"><TextBlock Text="{Binding Title}" FontWeight="SemiBold" /><TextBlock Text="{Binding Artists}" Foreground="{StaticResource SecondaryTextBrush}" /></StackPanel></Button></DataTemplate></ListView.ItemTemplate></ListView>
                         <ScrollViewer Grid.Column="2" VerticalScrollBarVisibility="Auto"><StackPanel><TextBlock Text="人工元数据修正" FontSize="18" FontWeight="SemiBold" /><TextBlock Text="标题" Margin="0,12,0,4" /><TextBox Text="{Binding EditTitle}" Padding="8" /><TextBlock Text="语言" Margin="0,10,0,4" /><TextBox Text="{Binding EditLanguage}" Padding="8" /><TextBlock Text="分类" Margin="0,10,0,4" /><TextBox Text="{Binding EditCategory}" Padding="8" /><TextBlock Text="年份" Margin="0,10,0,4" /><TextBox Text="{Binding EditYear}" Padding="8" /><TextBlock Text="画质" Margin="0,10,0,4" /><TextBox Text="{Binding EditQuality}" Padding="8" /><Button Content="保存修正" Command="{Binding SaveMetadataCommand}" Margin="0,14,0,0" Background="{StaticResource AccentBrush}" Foreground="White" BorderThickness="0" /></StackPanel></ScrollViewer>
                     </Grid>
-                    <Border Grid.Row="2" Background="{StaticResource AccentSoftBrush}" BorderBrush="#DED2FA" BorderThickness="1" CornerRadius="14" Padding="16" Margin="0,18,0,0"><Grid><Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /></Grid.RowDefinitions><DockPanel Margin="2,0,2,12"><StackPanel><TextBlock Text="添加曲库与增量扫描" FontSize="17" FontWeight="Bold" /><TextBlock Text="建议按年度或月份逐批添加；扫描只读媒体，不会删除已有索引。" Foreground="{StaticResource SecondaryTextBrush}" FontSize="12" Margin="0,3,0,0" /></StackPanel><TextBlock DockPanel.Dock="Right" Text="支持 MKV / MPG · NFO 可选" Foreground="{StaticResource AccentBrush}" FontWeight="SemiBold" VerticalAlignment="Center" /></DockPanel><Grid Grid.Row="1"><Grid.ColumnDefinitions><ColumnDefinition Width="210" /><ColumnDefinition Width="130" /><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions><ComboBox ItemsSource="{Binding Sources}" SelectedItem="{Binding SelectedSource}" DisplayMemberPath="Name" ToolTip="已添加的曲库来源" /><TextBox Grid.Column="1" Text="{Binding SourceName}" ToolTip="媒体源名称，例如 2016年10月" Margin="10,0,0,0" /><TextBox Grid.Column="2" Text="{Binding SourcePath}" ToolTip="年度或月份目录，例如 E:\KTV_TEST\2024" Margin="10,0,0,0" /><StackPanel Grid.Column="3" Orientation="Horizontal" Margin="10,0,0,0"><Button Content="＋ 添加曲库" Command="{Binding AddSourceCommand}" Background="{StaticResource AccentBrush}" Foreground="White" BorderThickness="0" Margin="0,0,7,0" /><Button Content="扫描所选" Command="{Binding StartScanCommand}" /><Button Content="取消" Command="{Binding CancelScanCommand}" Margin="7,0,0,0" /></StackPanel></Grid></Grid></Border>
+                    <StackPanel Grid.Row="2" Margin="0,12,0,0">
+                        <TextBlock Text="{Binding ScanProgressMessage}" TextWrapping="Wrap" Foreground="{StaticResource AccentBrush}" Margin="0,4,0,10" />
+                        <WrapPanel Margin="0,0,0,8">
+                            <CheckBox Content="仅建立基础索引" IsChecked="{Binding ScanSettings.BasicIndexOnly}" Margin="0,0,18,0" />
+                            <CheckBox Content="读取 NFO（无 NFO 时关闭）" IsChecked="{Binding ScanSettings.ReadNfo}" Margin="0,0,18,0" />
+                            <TextBlock Text="探测并发（1–4）" VerticalAlignment="Center" />
+                            <TextBox Width="52" Text="{Binding ScanSettings.ProbeConcurrency, UpdateSourceTrigger=PropertyChanged, ValidatesOnExceptions=True}" Margin="8,0" />
+                        </WrapPanel>
+                        <Border Background="{StaticResource AccentSoftBrush}" CornerRadius="12" Padding="12">
+                            <StackPanel>
+                                <TextBlock Text="添加曲库 · 只读增量扫描" FontSize="17" FontWeight="SemiBold" Margin="0,0,0,8" />
+                                <Grid><Grid.ColumnDefinitions><ColumnDefinition Width="140" /><ColumnDefinition /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+                                    <TextBox Text="{Binding SourceName}" ToolTip="曲库名称" Margin="0,0,8,0" />
+                                    <TextBox Grid.Column="1" Text="{Binding SourcePath}" ToolTip="年度或月份目录" Margin="0,0,8,0" />
+                                    <Button Grid.Column="2" Content="＋ 添加曲库" Command="{Binding AddSourceCommand}" />
+                                </Grid>
+                                <Grid Margin="0,8,0,0"><Grid.ColumnDefinitions><ColumnDefinition /><ColumnDefinition Width="Auto" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+                                    <ComboBox ItemsSource="{Binding Sources}" SelectedItem="{Binding SelectedSource}" DisplayMemberPath="Name" Margin="0,0,8,0" />
+                                    <Button Grid.Column="1" Content="扫描所选" Command="{Binding StartScanCommand}" Background="{StaticResource AccentBrush}" Foreground="White" Margin="0,0,8,0" />
+                                    <Button Grid.Column="2" Content="取消扫描" Command="{Binding CancelScanCommand}" />
+                                </Grid>
+                            </StackPanel>
+                        </Border>
+                    </StackPanel>
                 </Grid>
             </Border>
             <Border Grid.Row="2" Background="{StaticResource PanelBrush}" CornerRadius="18" Padding="28" DataContext="{Binding RoomManagement}">

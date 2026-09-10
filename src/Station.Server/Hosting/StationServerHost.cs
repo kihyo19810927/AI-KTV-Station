@@ -2,6 +2,7 @@ using System.Net;
 using System.Net.Sockets;
 using System.Text.Json.Serialization;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using Station.Application.Common;
 using Station.Application.Configuration;
 using Station.Application.Library;
@@ -32,9 +33,13 @@ namespace Station.Server.Hosting;
 
 public static class StationServerHost
 {
-    public static WebApplication Build(string[] args, Action<WebApplicationBuilder>? configure = null, IPlayerAdapter? sharedPlayer = null)
+    public static WebApplication Build(string[] args, Action<WebApplicationBuilder>? configure = null, IPlayerAdapter? sharedPlayer = null, string? webRootPath = null)
     {
-        var builder = WebApplication.CreateBuilder(args);
+        var builder = WebApplication.CreateBuilder(new WebApplicationOptions
+        {
+            Args = args,
+            WebRootPath = webRootPath,
+        });
         configure?.Invoke(builder);
         builder.Logging.ClearProviders();
         builder.Logging.AddJsonConsole();
@@ -61,6 +66,7 @@ public static class StationServerHost
 
     private static void AddServices(IServiceCollection services, StationOptions options, IPlayerAdapter? sharedPlayer)
     {
+        services.TryAddSingleton(options.Scanning);
         services.AddScoped<IMediaScanRepository, EfMediaScanRepository>(); services.AddScoped<IScanRunReader, EfScanRunReader>(); services.AddScoped<IMediaFileEnumerator, FileSystemMediaFileEnumerator>(); services.AddScoped<IMediaFilenameParser, KtvFilenameParser>(); services.AddScoped<INfoMetadataReader, NfoXmlMetadataReader>(); services.AddSingleton<ISearchTextNormalizer, ToolGoodSearchTextNormalizer>(); services.AddScoped<IMediaProbe>(_ => new FfprobeMediaProbe(ExternalToolLocator.Find("ffprobe.exe") ?? "ffprobe.exe", TimeSpan.FromSeconds(30))); services.AddScoped<IMediaScanRunner, MediaScanService>(); services.AddScoped<ISongSearchIndex, SqliteSongSearchIndex>(); services.AddSingleton<IScanCoordinator, ScanCoordinator>();
         services.AddSingleton(TimeProvider.System); services.AddScoped<IDatabaseMigrationExecutor, EfDatabaseMigrationExecutor>(); services.AddScoped<DatabaseUpgradeService>(); services.AddScoped<IRoomRepository, EfRoomRepository>(); services.AddSingleton<IRoomJoinCodeGenerator, SecureRoomJoinCodeGenerator>(); services.AddScoped<RoomLifecycleService>(); services.AddScoped<IRoomIdentityRepository, EfRoomIdentityRepository>(); services.AddSingleton<IRoomTokenProtector, Sha256RoomTokenProtector>(); services.AddScoped<RoomAuthenticationService>(); services.AddScoped<IRoomQueueRepository, EfRoomQueueRepository>(); services.AddSingleton<IRoomQueueLock, InProcessRoomQueueLock>(); services.AddScoped<RoomQueueService>();
         if (sharedPlayer is null) services.AddSingleton<IPlayerAdapter>(_ => new MpvPlayerAdapter(new PlayerOptions { ExecutablePath = string.IsNullOrWhiteSpace(options.Player.ExecutablePath) ? ExternalToolLocator.Find("mpv.exe") ?? "mpv.exe" : options.Player.ExecutablePath, CommandTimeoutSeconds = options.Player.CommandTimeoutSeconds })); else services.AddSingleton(sharedPlayer);
@@ -84,6 +90,6 @@ public static class StationServerHost
     }
 
     private static IResult LocalOnly() => StationApiEndpoints.Problem(new Error("auth.local_only", "Scan administration is available only on the host."));
-    private static async Task<Result<ScanOperationStatus>> GetScanAsync(Guid id, IScanCoordinator coordinator, IScanRunReader reader, CancellationToken token) { var current = coordinator.Get(id); if (current.IsSuccess) return current; var stored = await reader.FindAsync(id, token); return stored is null ? current : Result<ScanOperationStatus>.Success(new(stored.Id, stored.MediaSourceId ?? Guid.Empty, stored.Status, stored.CreatedAt, stored.CompletedAt, stored.DiscoveredFiles, stored.UpdatedFiles, stored.ErrorCount, stored.ErrorSummary)); }
+    private static async Task<Result<ScanOperationStatus>> GetScanAsync(Guid id, IScanCoordinator coordinator, IScanRunReader reader, CancellationToken token) { var current = coordinator.Get(id); if (current.IsSuccess) return current; var stored = await reader.FindAsync(id, token); return stored is null ? current : Result<ScanOperationStatus>.Success(new(stored.Id, stored.MediaSourceId ?? Guid.Empty, stored.Status, stored.CreatedAt, stored.CompletedAt, stored.DiscoveredFiles, stored.UpdatedFiles, stored.ErrorCount, stored.ErrorSummary, stored.IndexedFiles, stored.ProbedFiles, stored.CachedFiles, stored.ProbeAttempts == 0 ? 0 : stored.ProbeMilliseconds / stored.ProbeAttempts, stored.Phase)); }
     private sealed record StartScanRequest(Guid MediaSourceId);
 }

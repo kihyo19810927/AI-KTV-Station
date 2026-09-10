@@ -1,4 +1,8 @@
 using Station.Application.Common;
+using Station.Application.Configuration;
+using System.Diagnostics;
+using System.Security.Cryptography;
+using System.Text;
 using Station.Application.Media;
 using Station.Application.Metadata;
 using Station.Application.Playback;
@@ -14,7 +18,9 @@ public sealed class MediaScanService(
     IMediaProbe? mediaProbe = null,
     INfoMetadataReader? metadataReader = null,
     ISearchTextNormalizer? searchTextNormalizer = null,
-    AudioTrackClassifier? audioTrackClassifier = null) : IMediaScanRunner
+    AudioTrackClassifier? audioTrackClassifier = null,
+    ScanOptions? scanOptions = null,
+    ISongSearchIndex? searchIndex = null) : IMediaScanRunner
 {
     private const int CheckpointBatchSize = 100;
 
@@ -46,12 +52,19 @@ public sealed class MediaScanService(
         await repository.AddRunAsync(run, cancellationToken);
         await repository.SaveChangesAsync(cancellationToken);
         Report(run, progress);
-        var existing = (await repository.ListFilesAsync(source.Id, cancellationToken)).ToDictionary(x => Normalize(x.RelativePath), StringComparer.OrdinalIgnoreCase);
+        var existing = new Dictionary<string, MediaFile>(StringComparer.OrdinalIgnoreCase);
         var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         var lyricsSidecars = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        var settings = scanOptions ?? new ScanOptions();
+        var basicOnly = settings.BasicIndexOnly;
+        var readNfo = settings.ReadNfo;
+        var concurrency = Math.Clamp(settings.ProbeConcurrency, 1, 4);
+        var pendingProbes = new List<MediaFile>();
+        var indexedSongs = new HashSet<Guid>();
 
         try
         {
+            foreach (var stored in await repository.ListFilesAsync(source.Id, cancellationToken)) existing.Add(Normalize(stored.RelativePath), stored);
             await foreach (var entry in fileEnumerator.EnumerateAsync(source, cancellationToken))
             {
                 run.DiscoveredFiles++;
@@ -65,13 +78,15 @@ public sealed class MediaScanService(
                     continue;
                 }
                 seen.Add(relativePath);
-                var requiresProbe = false;
                 var isNew = false;
+                var legacySuccess = existing.TryGetValue(relativePath, out var previous) && previous.ProbeFingerprint is null &&
+                    previous.DurationSeconds is not null && previous.LastErrorCode is null &&
+                    previous.SizeBytes == entry.SizeBytes && previous.LastWriteTime == entry.LastWriteTime;
                 if (!existing.TryGetValue(relativePath, out var file))
                 {
                     var filenameMetadata = (filenameParser ?? new KtvFilenameParser()).Parse(relativePath);
                     var mediaPath = Path.Combine(source.RootPath, relativePath.Replace('/', Path.DirectorySeparatorChar));
-                    var nfo = metadataReader is null
+                    var nfo = metadataReader is null || !readNfo
                         ? NfoReadResult.Missing
                         : await metadataReader.ReadForMediaAsync(mediaPath, cancellationToken);
                     var metadata = SongMetadataResolver.Resolve(filenameMetadata, nfo);
@@ -96,23 +111,32 @@ public sealed class MediaScanService(
                     await repository.AddFileAsync(file, cancellationToken);
                     existing.Add(relativePath, file);
                     run.UpdatedFiles++;
-                    requiresProbe = true;
                     isNew = true;
                 }
                 else if (file.SizeBytes != entry.SizeBytes || file.LastWriteTime != entry.LastWriteTime || file.Availability != AvailabilityStatus.Available)
                 {
+                    // Persist pending state before updating the observed fingerprint, including legacy rows.
+                    if (!legacySuccess && file.ProbeFingerprint is null) file.ProbeFingerprint = string.Empty;
                     file.SizeBytes = entry.SizeBytes!.Value;
                     file.LastWriteTime = entry.LastWriteTime!.Value;
                     file.Availability = AvailabilityStatus.Available;
                     file.LastErrorCode = null;
                     run.UpdatedFiles++;
-                    requiresProbe = true;
                 }
-                if (requiresProbe && mediaProbe is not null)
-                    await ProbeAsync(source, file, run, cancellationToken);
+                // Adopt successful legacy metadata only when its original size/time were unchanged.
+                if (legacySuccess) file.ProbeFingerprint = Fingerprint(source, file);
+                if (file.ProbeFingerprint != Fingerprint(source, file)) pendingProbes.Add(file);
+                else run.CachedFiles++;
+                run.IndexedFiles++;
+                indexedSongs.Add(file.Song.Id);
                 if (SongSearchKeyUpdater.Update(file.Song, searchTextNormalizer ?? new InvariantSearchTextNormalizer()) && !isNew)
                     run.UpdatedFiles++;
-                if (run.DiscoveredFiles % CheckpointBatchSize == 0) await repository.SaveChangesAsync(cancellationToken);
+                if (run.IndexedFiles % CheckpointBatchSize == 0)
+                {
+                    await repository.SaveChangesAsync(cancellationToken);
+                    if (searchIndex is not null) await searchIndex.UpsertAsync(indexedSongs, cancellationToken);
+                    indexedSongs.Clear();
+                }
                 Report(run, progress);
             }
 
@@ -138,10 +162,21 @@ public sealed class MediaScanService(
                 foreach (var file in existing.Values.Where(x => !seen.Contains(Normalize(x.RelativePath)) && x.Availability != AvailabilityStatus.Offline))
                 {
                     file.Availability = AvailabilityStatus.Offline;
+                    indexedSongs.Add(file.Song.Id);
                     file.LastErrorCode = "media_file.not_seen";
                     run.UpdatedFiles++;
                 }
             }
+            await repository.SaveChangesAsync(cancellationToken);
+            if (searchIndex is not null) await searchIndex.UpsertAsync(indexedSongs, cancellationToken);
+            indexedSongs.Clear();
+            if (!basicOnly && mediaProbe is not null)
+            {
+                run.Phase = "Probing";
+                Report(run, progress);
+                await ProbePendingAsync(source, pendingProbes, run, concurrency, progress, cancellationToken);
+            }
+            run.Phase = basicOnly ? "BasicIndexComplete" : "Complete";
             run.Status = ScanStatus.Completed;
             run.CompletedAt = DateTimeOffset.UtcNow;
             source.LastScanAt = run.CompletedAt;
@@ -155,6 +190,7 @@ public sealed class MediaScanService(
             run.Status = ScanStatus.Cancelled;
             run.CompletedAt = DateTimeOffset.UtcNow;
             await repository.SaveChangesAsync(CancellationToken.None);
+            if (searchIndex is not null) await searchIndex.UpsertAsync(indexedSongs, CancellationToken.None);
             Report(run, progress);
             return Result<ScanRun>.Success(run);
         }
@@ -172,14 +208,62 @@ public sealed class MediaScanService(
     }
 
     private static void Report(ScanRun run, IProgress<MediaScanProgress>? progress) =>
-        progress?.Report(new MediaScanProgress(run.Id, run.Status, run.DiscoveredFiles, run.UpdatedFiles, run.ErrorCount));
+        progress?.Report(new MediaScanProgress(run.Id, run.Status, run.DiscoveredFiles, run.UpdatedFiles, run.ErrorCount,
+            run.IndexedFiles, run.ProbedFiles, run.CachedFiles, run.ProbeAttempts == 0 ? 0 : run.ProbeMilliseconds / run.ProbeAttempts, run.Phase));
 
     private static SongArtist CreateArtist(string name, int order) => new() { Order = order, Artist = new Artist { Name = name } };
 
-    private async Task ProbeAsync(MediaSource source, MediaFile file, ScanRun run, CancellationToken cancellationToken)
+    public static string Fingerprint(MediaSource source, MediaFile file) => Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(
+        $"{source.RootPath.Replace('\\', '/').TrimEnd('/').ToUpperInvariant()}/{Normalize(file.RelativePath).ToUpperInvariant()}\n{file.SizeBytes}\n{file.LastWriteTime.UtcTicks}")));
+
+    private async Task ProbePendingAsync(MediaSource source, List<MediaFile> files, ScanRun run, int concurrency,
+        IProgress<MediaScanProgress>? progress, CancellationToken cancellationToken)
     {
-        var relativePath = file.RelativePath.Replace('/', Path.DirectorySeparatorChar);
-        var result = await mediaProbe!.ProbeAsync(Path.Combine(source.RootPath, relativePath), cancellationToken);
+        using var workersCancellation = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        var active = new List<Task<(MediaFile File, Result<MediaProbeResult> Result, double Milliseconds)>>();
+        var next = 0;
+        try
+        {
+            while (next < files.Count || active.Count > 0)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                while (active.Count < concurrency && next < files.Count)
+                    active.Add(ProbeOneAsync(source, files[next++], workersCancellation.Token));
+                var finished = await Task.WhenAny(active);
+                active.Remove(finished);
+                var completed = await finished;
+                // Workers never touch the tracked graph or DbContext. Apply results on this one consumer.
+                await ApplyProbeAsync(completed.File, completed.Result, run, CancellationToken.None);
+                run.ProbeAttempts++;
+                run.ProbeMilliseconds += completed.Milliseconds;
+                if (completed.Result.IsSuccess)
+                {
+                    completed.File.ProbeFingerprint = Fingerprint(source, completed.File);
+                    run.ProbedFiles++;
+                }
+                await repository.SaveChangesAsync(CancellationToken.None);
+                Report(run, progress);
+            }
+        }
+        finally
+        {
+            await workersCancellation.CancelAsync();
+            try { await Task.WhenAll(active); } catch (OperationCanceledException) { }
+        }
+    }
+
+    private async Task<(MediaFile, Result<MediaProbeResult>, double)> ProbeOneAsync(MediaSource source, MediaFile file, CancellationToken token)
+    {
+        var timer = Stopwatch.StartNew();
+        Result<MediaProbeResult> result;
+        try { result = await mediaProbe!.ProbeAsync(Path.Combine(source.RootPath, file.RelativePath.Replace('/', Path.DirectorySeparatorChar)), token); }
+        catch (OperationCanceledException) { throw; }
+        catch (Exception) { result = Result<MediaProbeResult>.Failure(new Error("media_probe.unhandled_error", "Media probe failed.")); }
+        return (file, result, timer.Elapsed.TotalMilliseconds);
+    }
+
+    private async Task ApplyProbeAsync(MediaFile file, Result<MediaProbeResult> result, ScanRun run, CancellationToken cancellationToken)
+    {
         if (!result.IsSuccess)
         {
             file.Availability = AvailabilityStatus.Unreadable;

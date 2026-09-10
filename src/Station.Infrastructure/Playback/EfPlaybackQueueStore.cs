@@ -1,11 +1,13 @@
 using Microsoft.EntityFrameworkCore;
 using Station.Application.Playback;
+using Station.Application.Media;
+using Station.Application.Scanning;
 using Station.Domain.Models;
 using Station.Infrastructure.Persistence;
 
 namespace Station.Infrastructure.Playback;
 
-public sealed class EfPlaybackQueueStore(StationDbContext database) : IPlaybackQueueStore
+public sealed class EfPlaybackQueueStore(StationDbContext database, IMediaProbe? mediaProbe = null) : IPlaybackQueueStore
 {
     public async Task<PlayableQueueItem?> GetNextAsync(Guid roomId, CancellationToken cancellationToken = default)
     {
@@ -31,6 +33,23 @@ public sealed class EfPlaybackQueueStore(StationDbContext database) : IPlaybackQ
                     new PlayerFailure("player.media_unavailable", PlayerFailureKind.MediaUnavailable, true, "Song media is currently unavailable."));
             return new(item.Id, roomId, item.SongId, Guid.Empty, string.Empty,
                 new PlayerFailure("player.media_missing", PlayerFailureKind.MediaLoadFailed, false, "Song has no indexed media."));
+        }
+        if (mediaProbe is not null && string.IsNullOrEmpty(media.ProbeFingerprint))
+        {
+            var path = Path.Combine(media.MediaSource.RootPath, media.RelativePath);
+            var probe = await mediaProbe.ProbeAsync(path, cancellationToken);
+            if (probe.IsSuccess)
+            {
+                media.DurationSeconds = probe.Value.DurationSeconds;
+                media.ProbeFingerprint = MediaScanService.Fingerprint(media.MediaSource, media);
+                media.LastErrorCode = null;
+            }
+            else
+            {
+                // Probe is best-effort here: mpv still gets a chance to play the queued file.
+                media.LastErrorCode = probe.Error.Code;
+            }
+            await database.SaveChangesAsync(cancellationToken);
         }
         return new(item.Id, roomId, item.SongId, media.Id, Path.Combine(media.MediaSource.RootPath, media.RelativePath));
     }

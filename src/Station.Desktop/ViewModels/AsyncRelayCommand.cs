@@ -9,7 +9,7 @@ public sealed class AsyncRelayCommand(Func<Task> execute, Func<bool>? canExecute
     public bool CanExecute(object? parameter) => !running && (canExecute?.Invoke() ?? true);
     public async void Execute(object? parameter)
     {
-        if (running) return;
+        if (!CanExecute(parameter)) return;
         running = true; CanExecuteChanged?.Invoke(this, EventArgs.Empty);
         try { await execute(); } finally { running = false; CanExecuteChanged?.Invoke(this, EventArgs.Empty); }
     }

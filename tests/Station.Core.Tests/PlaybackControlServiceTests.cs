@@ -51,6 +51,14 @@ public sealed class PlaybackControlServiceTests
     }
 
     [Fact]
+    public async Task Skip_requires_active_playback_and_stops_the_adapter()
+    {
+        var adapter = new RecordingPlayerAdapter(ActiveSnapshot());
+        Assert.True((await new PlaybackControlService(adapter).SkipAsync()).IsSuccess);
+        Assert.Equal(1, adapter.StopCalls);
+    }
+
+    [Fact]
     public async Task Subtitle_must_reference_a_subtitle_track_and_can_be_disabled()
     {
         var adapter = new RecordingPlayerAdapter(ActiveSnapshot());
@@ -95,6 +103,7 @@ public sealed class PlaybackControlServiceTests
         public int VolumeCalls { get; private set; }
         public int SeekCalls { get; private set; }
         public int SubtitleCalls { get; private set; }
+        public int StopCalls { get; private set; }
         public Error? StateError { get; init; }
 
         public Task<Result<PlayerSnapshot>> GetStateAsync(CancellationToken cancellationToken = default) =>
@@ -118,7 +127,7 @@ public sealed class PlaybackControlServiceTests
             return Task.FromResult(Result<PlayerSnapshot>.Success(state));
         }
         public Task<Result<PlayerSnapshot>> StartAsync(CancellationToken cancellationToken = default) => Task.FromResult(Result<PlayerSnapshot>.Success(state));
-        public Task<Result<PlayerSnapshot>> StopAsync(CancellationToken cancellationToken = default) => Task.FromResult(Result<PlayerSnapshot>.Success(state));
+        public Task<Result<PlayerSnapshot>> StopAsync(CancellationToken cancellationToken = default) { StopCalls++; return Task.FromResult(Result<PlayerSnapshot>.Success(state)); }
         public Task<Result<PlayerSnapshot>> LoadAsync(PlayerLoadRequest request, CancellationToken cancellationToken = default) => Task.FromResult(Result<PlayerSnapshot>.Success(state));
         public Task<Result<PlayerSnapshot>> PlayAsync(CancellationToken cancellationToken = default) => Task.FromResult(Result<PlayerSnapshot>.Success(state));
         public Task<Result<PlayerSnapshot>> PauseAsync(CancellationToken cancellationToken = default) => Task.FromResult(Result<PlayerSnapshot>.Success(state));

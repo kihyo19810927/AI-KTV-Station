@@ -59,7 +59,8 @@ public static class RoomAuthorizationPolicy
         RoomPermission.ViewCatalog or
         RoomPermission.ViewQueue or
         RoomPermission.RequestSong or
-        RoomPermission.RemoveOwnRequest;
+        RoomPermission.RemoveOwnRequest or
+        RoomPermission.ControlPlayback;
 }
 
 public sealed class RoomAuthenticationService(
@@ -78,11 +79,15 @@ public sealed class RoomAuthenticationService(
         var normalizedCode = (joinCode ?? string.Empty).Trim().ToUpperInvariant();
         if (normalizedCode.Length != 6 || !normalizedCode.All(char.IsAsciiLetterOrDigit))
             return Failure<IssuedRoomToken>("auth.invalid_join_code", "A six-character room code is required.");
-        var normalizedNickname = NormalizeNickname(nickname);
-        if (normalizedNickname is null)
-            return Failure<IssuedRoomToken>("auth.invalid_nickname", "Nickname must contain 1 to 40 characters.");
         var room = await repository.FindOpenByJoinCodeAsync(normalizedCode, cancellationToken).ConfigureAwait(false);
         if (room is null) return Failure<IssuedRoomToken>("auth.room_unavailable", "The room is not open.");
+        var normalizedNickname = NormalizeNickname(nickname);
+        if (normalizedNickname is null)
+        {
+            var guests = await repository.ListGuestsAsync(room.Id, cancellationToken).ConfigureAwait(false);
+            var used = guests.Select(x => x.Nickname).ToHashSet(StringComparer.Ordinal);
+            normalizedNickname = Enumerable.Range(1, guests.Count + 2).Select(x => $"访客{x}").First(x => !used.Contains(x));
+        }
         return await IssueAsync(room, normalizedNickname, RoomRole.Guest, GuestLifetime, cancellationToken).ConfigureAwait(false);
     }
 

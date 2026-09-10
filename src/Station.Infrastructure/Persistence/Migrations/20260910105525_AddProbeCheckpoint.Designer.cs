@@ -2,6 +2,7 @@
 using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Station.Infrastructure.Persistence;
 
@@ -10,9 +11,11 @@ using Station.Infrastructure.Persistence;
 namespace Station.Infrastructure.Persistence.Migrations
 {
     [DbContext(typeof(StationDbContext))]
-    partial class StationDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260910105525_AddProbeCheckpoint")]
+    partial class AddProbeCheckpoint
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder.HasAnnotation("ProductVersion", "10.0.11");
@@ -445,13 +448,6 @@ namespace Station.Infrastructure.Persistence.Migrations
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("TEXT");
-
-                    b.Property<string>("ArtistGroup")
-                        .IsRequired()
-                        .ValueGeneratedOnAdd()
-                        .HasMaxLength(40)
-                        .HasColumnType("TEXT")
-                        .HasDefaultValue("其他");
 
                     b.Property<string>("Availability")
                         .IsRequired()

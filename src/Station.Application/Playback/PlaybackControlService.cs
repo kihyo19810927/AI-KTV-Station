@@ -12,6 +12,11 @@ public sealed record PlaybackProgress(
 public sealed class PlaybackControlService(IPlayerAdapter player)
 {
     public Task<Result<PlayerSnapshot>> GetSnapshotAsync(CancellationToken cancellationToken = default) => player.GetStateAsync(cancellationToken);
+    public async Task<Result<PlayerSnapshot>> SkipAsync(CancellationToken cancellationToken = default)
+    {
+        var state = await RequireActivePlaybackAsync(cancellationToken).ConfigureAwait(false);
+        return state.IsFailure ? state : await player.StopAsync(cancellationToken).ConfigureAwait(false);
+    }
     public async Task<Result<PlayerSnapshot>> PlayAsync(CancellationToken cancellationToken = default)
     {
         var state = await player.GetStateAsync(cancellationToken).ConfigureAwait(false);

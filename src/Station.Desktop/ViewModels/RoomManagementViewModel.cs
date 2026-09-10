@@ -64,7 +64,7 @@ public sealed class RoomManagementViewModel : ObservableObject
             if (host.IsFailure) { StatusMessage = host.Error.Message; return; }
             context.Identity = new(host.Value.RoomId, host.Value.GuestId, host.Value.Nickname, host.Value.Role, host.Value.ExpiresAt);
         }
-        JoinUrl = $"http://{addresses.GetPreferredAddress()}:{port}/?room={Uri.EscapeDataString(value.JoinCode)}";
+        JoinUrl = $"http://{addresses.GetPreferredAddress()}:{port}/join?code={Uri.EscapeDataString(value.JoinCode)}";
         QrCodePng = qrCodes.Render(JoinUrl); RaisePropertyChanged(nameof(JoinCode));
         await RefreshGuestsAsync(); StatusMessage = "房间已开启，可扫码点歌";
     }

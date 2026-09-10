@@ -36,6 +36,7 @@ public static class StationApiEndpoints
         api.MapGet("/playback", GetPlaybackAsync).WithName("GetPlayback");
         api.MapPost("/playback/play", PlayAsync).WithName("ResumePlayback");
         api.MapPost("/playback/pause", PauseAsync).WithName("PausePlayback");
+        api.MapPost("/playback/skip", SkipAsync).WithName("SkipPlayback");
         api.MapPost("/playback/volume", SetVolumeAsync).WithName("SetPlaybackVolume");
         api.MapPost("/playback/seek", SeekAsync).WithName("SeekPlayback");
         api.MapPost("/playback/audio", SelectAudioAsync).WithName("SelectAudioTrack");
@@ -122,6 +123,7 @@ public static class StationApiEndpoints
         int pageSize = 20,
         string? language = null,
         string? category = null,
+        string? artistGroup = null,
         string? quality = null,
         int? yearFrom = null,
         int? yearTo = null,
@@ -130,7 +132,7 @@ public static class StationApiEndpoints
     {
         var identity = await AuthorizeAsync(context, authentication, RoomPermission.ViewCatalog, cancellationToken);
         if (identity.IsFailure) return Problem(identity.Error);
-        var result = await search.SearchAsync(new(text, page, pageSize, language, category, quality, yearFrom, yearTo, sort), cancellationToken);
+        var result = await search.SearchAsync(new(text, page, pageSize, language, category, quality, yearFrom, yearTo, sort, artistGroup), cancellationToken);
         return result.IsSuccess ? Results.Ok(result.Value) : Problem(result.Error);
     }
 
@@ -199,7 +201,7 @@ public static class StationApiEndpoints
     {
         var identity = await AuthorizeAsync(context, authentication, RoomPermission.ViewQueue, cancellationToken);
         if (identity.IsFailure) return Problem(identity.Error);
-        var result = await playback.GetProgressAsync(cancellationToken);
+        var result = await playback.GetSnapshotAsync(cancellationToken);
         return result.IsSuccess ? Results.Ok(result.Value) : Problem(result.Error);
     }
 
@@ -262,6 +264,8 @@ public static class StationApiEndpoints
         HostControlAsync(context, auth, token, playback.PlayAsync);
     private static Task<IResult> PauseAsync(HttpContext context, RoomAuthenticationService auth, PlaybackControlService playback, CancellationToken token) =>
         HostControlAsync(context, auth, token, playback.PauseAsync);
+    private static Task<IResult> SkipAsync(HttpContext context, RoomAuthenticationService auth, PlaybackControlService playback, CancellationToken token) =>
+        HostControlAsync(context, auth, token, playback.SkipAsync);
     private static Task<IResult> SetVolumeAsync(HttpContext context, VolumeRequest request, RoomAuthenticationService auth, PlaybackControlService playback, CancellationToken token) =>
         HostControlAsync(context, auth, token, ct => playback.SetVolumeAsync(request.Volume, ct));
     private static Task<IResult> SeekAsync(HttpContext context, SeekRequest request, RoomAuthenticationService auth, PlaybackControlService playback, CancellationToken token) =>

@@ -57,6 +57,7 @@ public sealed class SqliteSongSearchIndex(StationDbContext database, ISearchText
         if (match is not null) where.Add("SongSearchFts MATCH @match");
         if (!string.IsNullOrWhiteSpace(query.Language)) where.Add("d.Language = @language COLLATE NOCASE");
         if (!string.IsNullOrWhiteSpace(query.Category)) where.Add("d.Category = @category COLLATE NOCASE");
+        if (!string.IsNullOrWhiteSpace(query.ArtistGroup)) where.Add("d.ArtistGroup = @artistGroup COLLATE NOCASE");
         if (!string.IsNullOrWhiteSpace(query.Quality)) where.Add("d.Quality = @quality COLLATE NOCASE");
         if (query.YearFrom is not null) where.Add("d.Year >= @yearFrom");
         if (query.YearTo is not null) where.Add("d.Year <= @yearTo");
@@ -106,10 +107,10 @@ public sealed class SqliteSongSearchIndex(StationDbContext database, ISearchText
         await using var command = transaction.Connection!.CreateCommand();
         command.Transaction = transaction;
         command.CommandText = """
-            INSERT INTO SongSearchDocuments (SongId, Title, NormalizedTitle, Artists, Language, Category, Quality, Year, Availability, Terms, AddedAt)
-            VALUES (@id, @title, @normalizedTitle, @artists, @language, @category, @quality, @year, @availability, @terms, @addedAt)
+            INSERT INTO SongSearchDocuments (SongId, Title, NormalizedTitle, Artists, Language, Category, ArtistGroup, Quality, Year, Availability, Terms, AddedAt)
+            VALUES (@id, @title, @normalizedTitle, @artists, @language, @category, @artistGroup, @quality, @year, @availability, @terms, @addedAt)
             ON CONFLICT(SongId) DO UPDATE SET Title=excluded.Title, NormalizedTitle=excluded.NormalizedTitle, Artists=excluded.Artists,
-              Language=excluded.Language, Category=excluded.Category, Quality=excluded.Quality, Year=excluded.Year,
+              Language=excluded.Language, Category=excluded.Category, ArtistGroup=excluded.ArtistGroup, Quality=excluded.Quality, Year=excluded.Year,
               Availability=excluded.Availability, Terms=excluded.Terms, AddedAt=excluded.AddedAt
             """;
         Add(command, "@id", song.Id.ToString("D"));
@@ -118,6 +119,7 @@ public sealed class SqliteSongSearchIndex(StationDbContext database, ISearchText
         Add(command, "@artists", artistDisplay);
         Add(command, "@language", song.Language);
         Add(command, "@category", song.Category);
+        Add(command, "@artistGroup", song.ArtistGroup);
         Add(command, "@quality", song.Quality);
         Add(command, "@year", song.Year);
         Add(command, "@availability", song.Availability.ToString());
@@ -171,6 +173,7 @@ public sealed class SqliteSongSearchIndex(StationDbContext database, ISearchText
         if (match is not null) Add(command, "@match", match);
         if (!string.IsNullOrWhiteSpace(query.Language)) Add(command, "@language", query.Language.Trim());
         if (!string.IsNullOrWhiteSpace(query.Category)) Add(command, "@category", query.Category.Trim());
+        if (!string.IsNullOrWhiteSpace(query.ArtistGroup)) Add(command, "@artistGroup", query.ArtistGroup.Trim());
         if (!string.IsNullOrWhiteSpace(query.Quality)) Add(command, "@quality", query.Quality.Trim());
         if (query.YearFrom is not null) Add(command, "@yearFrom", query.YearFrom);
         if (query.YearTo is not null) Add(command, "@yearTo", query.YearTo);

@@ -31,6 +31,7 @@ public sealed class StationDbContext(DbContextOptions<StationDbContext> options)
             e.Property(x => x.TitlePinyin).HasMaxLength(1200);
             e.Property(x => x.TitleInitials).HasMaxLength(300);
             e.Property(x => x.CompactTitle).HasMaxLength(300);
+            e.Property(x => x.ArtistGroup).HasMaxLength(40).HasDefaultValue("其他");
             e.Property(x => x.Availability).HasConversion<string>();
             e.HasIndex(x => x.NormalizedTitle);
         });
