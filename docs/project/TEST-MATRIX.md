@@ -74,5 +74,7 @@
 | GitHub Actions 发布前兼容 | Windows runner push workflow | #8 通过（3m02s、coverage artifact、无 Annotation）；Node 24 的 v5/v7 Action 组合无弃用警告 | #7 聚合测试瞬态失败已保留审计记录 |
 | 环境与生成 MKV | `scripts/verify-environment.ps1` | 通过（10.023s、4 轨、中文标题） | 无 |
 | 真实 MKV/设备 | `ENVIRONMENT-BASELINE.md` 用户验收步骤 | 待验证 | 用户设备、样本和挂载 |
+| 本机 `common` 工具发现 | xUnit 临时层级 + common 中真实 mpv/ffprobe 外部测试 | 通过（定位 2/2、外部媒体 4/4） | 二进制仅本机，不作为可分发包结论 |
+| WPF Demo 视觉基线与曲库入口 | Release XAML 编译 + ViewModel xUnit | 通过（Desktop 13/13；未选来源时扫描禁用） | 色彩、密度与大屏效果待用户目视验收 |
 
 禁止把替身、模拟器或文档审阅结果写成真实设备通过。

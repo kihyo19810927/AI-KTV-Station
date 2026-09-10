@@ -35,7 +35,7 @@ public sealed class CatalogManagementViewModel : ObservableObject
         SaveMetadataCommand = new AsyncRelayCommand(SaveMetadataAsync);
         RefreshSourcesCommand = new AsyncRelayCommand(RefreshSourcesAsync);
         AddSourceCommand = new AsyncRelayCommand(AddSourceAsync);
-        StartScanCommand = new AsyncRelayCommand(StartScanAsync);
+        StartScanCommand = new AsyncRelayCommand(StartScanAsync, () => SelectedSource is not null && !IsScanning);
         CancelScanCommand = new RelayCommand<object?>(_ => scanCancellation?.Cancel(), _ => IsScanning);
     }
 
@@ -51,8 +51,8 @@ public sealed class CatalogManagementViewModel : ObservableObject
     public string SearchText { get => searchText; set => SetProperty(ref searchText, value); }
     public string StatusMessage { get => statusMessage; private set => SetProperty(ref statusMessage, value); }
     public SongAdminDetails? SelectedSong { get => selectedSong; private set => SetProperty(ref selectedSong, value); }
-    public MediaSourceAdminDetails? SelectedSource { get => selectedSource; set => SetProperty(ref selectedSource, value); }
-    public bool IsScanning { get => isScanning; private set { if (SetProperty(ref isScanning, value)) ((RelayCommand<object?>)CancelScanCommand).NotifyCanExecuteChanged(); } }
+    public MediaSourceAdminDetails? SelectedSource { get => selectedSource; set { if (SetProperty(ref selectedSource, value)) ((AsyncRelayCommand)StartScanCommand).NotifyCanExecuteChanged(); } }
+    public bool IsScanning { get => isScanning; private set { if (SetProperty(ref isScanning, value)) { ((RelayCommand<object?>)CancelScanCommand).NotifyCanExecuteChanged(); ((AsyncRelayCommand)StartScanCommand).NotifyCanExecuteChanged(); } } }
     public string EditTitle { get => editTitle; set => SetProperty(ref editTitle, value); }
     public string? EditLanguage { get => editLanguage; set => SetProperty(ref editLanguage, value); }
     public string? EditCategory { get => editCategory; set => SetProperty(ref editCategory, value); }

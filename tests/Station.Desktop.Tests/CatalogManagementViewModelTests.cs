@@ -33,6 +33,14 @@ public sealed class CatalogManagementViewModelTests
         Assert.Equal(@"E:\fixture\16年", sources.AddedPath); Assert.Equal(0, scans.Calls);
     }
 
+    [Fact]
+    public void Scan_is_disabled_until_a_registered_source_is_selected()
+    {
+        var viewModel = new CatalogManagementViewModel(new FakeSearch(), new FakeCatalog(), new EmptySources(), new FakeScans());
+
+        Assert.False(viewModel.StartScanCommand.CanExecute(null));
+    }
+
     private sealed class FakeSearch : ISongSearchIndex
     {
         public int Calls { get; private set; }
@@ -59,5 +67,12 @@ public sealed class CatalogManagementViewModelTests
     {
         public int Calls { get; private set; }
         public Task<Result<ScanRun>> ScanAsync(Guid mediaSourceId, IProgress<MediaScanProgress>? progress = null, CancellationToken cancellationToken = default) { Calls++; throw new NotSupportedException(); }
+    }
+    private sealed class EmptySources : IMediaSourceService
+    {
+        public Task<Result<MediaSourceAdminDetails>> AddAsync(string name, string rootPath, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+        public Task<Result<MediaSourceAdminDetails>> SetEnabledAsync(Guid id, bool enabled, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+        public Task<IReadOnlyList<MediaSourceSummary>> ListPublicAsync(CancellationToken cancellationToken = default) => Task.FromResult<IReadOnlyList<MediaSourceSummary>>([]);
+        public Task<IReadOnlyList<MediaSourceAdminDetails>> ListAdminAsync(CancellationToken cancellationToken = default) => Task.FromResult<IReadOnlyList<MediaSourceAdminDetails>>([]);
     }
 }

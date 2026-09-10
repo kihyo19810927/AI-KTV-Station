@@ -5,7 +5,15 @@ using Station.Application.Health;
 namespace Station.Desktop.ViewModels;
 
 public enum DesktopPage { Dashboard, NowPlaying, Queue, Catalog, Room, Settings }
-public sealed record NavigationItem(DesktopPage Page, string Title, string Description);
+public sealed class NavigationItem(DesktopPage page, string icon, string title, string description) : ObservableObject
+{
+    private bool isSelected;
+    public DesktopPage Page { get; } = page;
+    public string Icon { get; } = icon;
+    public string Title { get; } = title;
+    public string Description { get; } = description;
+    public bool IsSelected { get => isSelected; set => SetProperty(ref isSelected, value); }
+}
 
 public sealed class MainWindowViewModel : ObservableObject
 {
@@ -21,8 +29,9 @@ public sealed class MainWindowViewModel : ObservableObject
         CatalogManagement = catalogManagement;
         RoomManagement = roomManagement;
         Settings = settings;
-        NavigationItems = new ReadOnlyCollection<NavigationItem>([new(DesktopPage.Dashboard, "仪表盘", "服务、播放器和曲库运行状态"), new(DesktopPage.NowPlaying, "正在播放", "播放、音轨、字幕、音量和进度"), new(DesktopPage.Queue, "点歌队列", "调整顺序、置顶、删除和插播"), new(DesktopPage.Catalog, "曲库管理", "搜索、扫描和元数据修正"), new(DesktopPage.Room, "房间与二维码", "开关房间、访客和点歌规则"), new(DesktopPage.Settings, "设置与诊断", "路径、端口、日志和恢复建议")]);
+        NavigationItems = new ReadOnlyCollection<NavigationItem>([new(DesktopPage.Dashboard, "⌂", "总览", "服务、播放器和曲库运行状态"), new(DesktopPage.NowPlaying, "▶", "正在播放", "播放、音轨、字幕、音量和进度"), new(DesktopPage.Queue, "☷", "点歌队列", "调整顺序、置顶、删除和插播"), new(DesktopPage.Catalog, "♫", "曲库管理", "搜索、扫描和元数据修正"), new(DesktopPage.Room, "⌁", "房间与二维码", "开关房间、访客和点歌规则"), new(DesktopPage.Settings, "⚙", "设置与诊断", "路径、端口、日志和恢复建议")]);
         current = NavigationItems[0];
+        current.IsSelected = true;
         NavigateCommand = new RelayCommand<DesktopPage>(Navigate);
         RefreshHealthCommand = new AsyncRelayCommand(RefreshHealthAsync);
     }
@@ -39,7 +48,7 @@ public sealed class MainWindowViewModel : ObservableObject
     public DesktopPage CurrentPage => current.Page;
     public string CurrentTitle => current.Title;
     public string CurrentDescription => current.Description;
-    private void Navigate(DesktopPage page) { var next = NavigationItems.Single(item => item.Page == page); if (next == current) return; current = next; RaisePropertyChanged(nameof(CurrentPage)); RaisePropertyChanged(nameof(CurrentTitle)); RaisePropertyChanged(nameof(CurrentDescription)); }
+    private void Navigate(DesktopPage page) { var next = NavigationItems.Single(item => item.Page == page); if (next == current) return; current.IsSelected = false; current = next; current.IsSelected = true; RaisePropertyChanged(nameof(CurrentPage)); RaisePropertyChanged(nameof(CurrentTitle)); RaisePropertyChanged(nameof(CurrentDescription)); }
     public async Task RefreshHealthAsync()
     {
         if (healthService is null) { HealthStatus = "健康服务未配置"; return; }

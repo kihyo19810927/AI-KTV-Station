@@ -7,8 +7,8 @@
 - 分支：`codex/KTVS-055`
 - 版本：`0.1.0-dev`
 - 阶段：Phase 8：发布准备
-- 已完成：KTVS-001 至 KTVS-057；KTVS-058 软件验证完成、实机门禁待验收
-- 当前任务：无可独立继续的软件任务；KTVS-058/059 等待外部门禁
+- 已完成：KTVS-001 至 KTVS-057；KTVS-058 软件验证完成；KTVS-060、KTVS-061 用户反馈改进完成
+- 当前任务：KTVS-058/059 等待实机与发布门禁；新版主控视觉待用户目视验收
 
 ## 调查结果
 
@@ -125,6 +125,10 @@ KTVS-057：形成统一运维手册，覆盖自包含 ZIP 安装、明确 LAN IP
 KTVS-058：`0.1.0-rc.3` 完整软件候选链通过：Release 构建 0 警告/错误、Core 153/153、Desktop 12/12、Web 24/24、生成 Unicode 四轨 MKV/mpv/ffprobe 通过。自包含 ZIP 共 566 项，SHA-256 为 `6d5d3a363d1318dbce5715cf60fd295a5231f15eb45cbc86dde61e3d3e94f1df`；从随机全新解压目录启动 Desktop、创建 SQLite 并访问内嵌 `/health` 成功。该冒烟测试同时发现并修复了首次安装目录不存在时数据库初始化失败。干净 Windows、手机、真实媒体、电视和功放结论仍为待实机验收。
 
 KTVS-059：已准备 `1.0.0` Release Notes 和发布材料验证脚本。脚本复核候选 ZIP 内容、sidecar SHA-256、发布说明章节与候选校验值，输出 `RELEASE_MATERIALS=passed`，并明确 `v1.0.0` Tag 尚不存在。未创建 Tag、GitHub Release 或正式二进制发布；这些动作等待 KTVS-058 实机门禁、项目自身许可决定和仓库所有者明确授权。
+
+KTVS-060：根目录新增仅本机使用的 `common/mpv` 与 `common/ffmpeg` 工具布局，实际复制 mpv、vulkan loader、ffmpeg 和 ffprobe，但由目录级 ignore 排除二进制。统一定位器优先从应用目录及其父级的 `common` 查找，再回退 PATH/WinGet；Python 不是 Station 运行时依赖。定位测试 2/2、common 真实外部媒体测试 4/4 通过，正式 ZIP 仍保持不捆绑边界。
+
+KTVS-061：按已确认 HTML Demo 升级 WPF 主控视觉语言，加入渐变品牌侧栏、图标与选中态导航、在线状态、统一按钮/输入/列表/卡片样式和更清晰的内容层级。曲库页将“添加曲库与增量扫描”提升为醒目独立区，明确支持格式与只读语义；未注册来源时扫描命令禁用，修复窄窗口下添加按钮被挤出后点击扫描无反馈的问题。Release 构建 0 警告/错误，Core 155/155、Desktop 13/13、外部媒体 4/4 通过；最终视觉待用户目视验收。
 
 KTVS-059 CI 复核：远端 push workflow #6 成功（2 分 57 秒），同时发现三个 JavaScript Action 的 Node 20 运行时弃用警告。首次统一升级 v7 后，workflow #7 的 Action 初始化、还原、格式与构建均成功，但聚合测试步骤以 exit 1 结束；未登录公开页面不提供测试日志，公开 API 仅返回步骤级失败。本机随即以相同 `scripts/test.ps1 -NoRestore` 复验 Core 153/153、Desktop 12/12、Web 24/24 全部通过。按官方 Node 24 迁移说明改用 checkout/setup-node v5，并保留 upload-artifact 当前 v7 后，workflow #8 成功（3 分 02 秒）、生成 coverage artifact 且无 Annotation，Node 20 弃用警告消失。
 
