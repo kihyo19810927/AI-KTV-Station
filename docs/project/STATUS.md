@@ -126,7 +126,7 @@ KTVS-058：`0.1.0-rc.3` 完整软件候选链通过：Release 构建 0 警告/�
 
 KTVS-059：已准备 `1.0.0` Release Notes 和发布材料验证脚本。脚本复核候选 ZIP 内容、sidecar SHA-256、发布说明章节与候选校验值，输出 `RELEASE_MATERIALS=passed`，并明确 `v1.0.0` Tag 尚不存在。未创建 Tag、GitHub Release 或正式二进制发布；这些动作等待 KTVS-058 实机门禁、项目自身许可决定和仓库所有者明确授权。
 
-KTVS-059 CI 复核：远端 push workflow #6 成功（2 分 57 秒），同时发现三个 JavaScript Action 的 Node 20 运行时弃用警告。首次统一升级 v7 后，workflow #7 的 Action 初始化、还原、格式与构建均成功，但聚合测试步骤以 exit 1 结束；未登录公开页面不提供测试日志，公开 API 仅返回步骤级失败。本机随即以相同 `scripts/test.ps1 -NoRestore` 复验 Core 153/153、Desktop 12/12、Web 24/24 全部通过。现按官方 Node 24 迁移说明使用 checkout/setup-node v5，并保留 upload-artifact 当前 v7，等待远端再次验证；不把一次本地通过伪报为 #7 已解决。
+KTVS-059 CI 复核：远端 push workflow #6 成功（2 分 57 秒），同时发现三个 JavaScript Action 的 Node 20 运行时弃用警告。首次统一升级 v7 后，workflow #7 的 Action 初始化、还原、格式与构建均成功，但聚合测试步骤以 exit 1 结束；未登录公开页面不提供测试日志，公开 API 仅返回步骤级失败。本机随即以相同 `scripts/test.ps1 -NoRestore` 复验 Core 153/153、Desktop 12/12、Web 24/24 全部通过。按官方 Node 24 迁移说明改用 checkout/setup-node v5，并保留 upload-artifact 当前 v7 后，workflow #8 成功（3 分 02 秒）、生成 coverage artifact 且无 Annotation，Node 20 弃用警告消失。
 
 KTVS-052：安全审查修复了配置监听地址未实际传给 Kestrel，以及扫描管理端点缺少 loopback 限制的问题。监听只接受显式 IP；开房、当前房间和扫描管理均为本机来源；API 增加禁缓存和基础浏览器安全头。令牌哈希、二维码、SignalR URL、sessionStorage、公共 DTO、日志与诊断路径边界已复核。定向安全/API 回归 18/18；完整软件测试 Core 152/152、Desktop 12/12、Web 24/24，类型检查、生产构建、.NET Release 构建、格式和依赖门禁通过。LAN HTTP 的被动监听风险已记录，严禁公网暴露。
 
