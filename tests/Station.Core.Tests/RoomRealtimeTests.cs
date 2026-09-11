@@ -59,6 +59,18 @@ public sealed class RoomRealtimeTests
     }
 
     [Fact]
+    public void Journal_uses_web_casing_and_string_enums_for_browser_events()
+    {
+        var journal = new RoomRealtimeJournal();
+        var eventItem = journal.Append(Guid.NewGuid(), "queue.status", new { ItemId = Guid.NewGuid(), Status = Station.Domain.Models.QueueItemStatus.Playing });
+
+        Assert.Equal("queue.status", eventItem.Type);
+        Assert.Equal("Playing", eventItem.Data.GetProperty("status").GetString());
+        Assert.True(eventItem.Data.TryGetProperty("itemId", out _));
+        Assert.False(eventItem.Data.TryGetProperty("ItemId", out _));
+    }
+
+    [Fact]
     public void Journal_returns_snapshot_requirement_when_client_falls_behind_retention()
     {
         var journal = new RoomRealtimeJournal();

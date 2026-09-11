@@ -85,5 +85,6 @@
 | 队列预探测状态与插歌 | xUnit + TestServer + SignalR reducer + Vitest | 通过（Probing/ProbeFailed/Waiting 状态转换、访客权限、插歌排序、终态即时移除；Core 171/171、Web 28/28） | 100 首真实长队列和手机 WebSocket 待实机验收 |
 | mpv 同实例切歌 | 生成 Unicode 双音轨 MKV + Windows Named Pipe JSON IPC | 通过（`stop` 产生 Stopped 事件；第二首加载及切歌前后 mpv PID 不变，2/2） | 电视输出切换观感待实机验收 |
 | RC10 进程清理 | 全新解压启动、内嵌服务健康、窗口检测、正常关闭 | 通过（567 项；`PACKAGE_PROCESS_CLEANUP=passed`；SHA-256 `8589ad8f…f5932`） | WebView2 和真实 mpv 同时退出待实机观察 |
+| SignalR 实时状态契约 | RoomRealtimeJournal JSON 契约测试 + TestServer/端到端 + Vitest reducer | 通过（camelCase、字符串枚举、旧字段兼容；API/端到端 8/8、Web 28/28、生产构建通过） | 真实手机 WebSocket 连接与断线重连待实机验收 |
 
 禁止把替身、模拟器或文档审阅结果写成真实设备通过。

@@ -22,6 +22,10 @@ public sealed record RoomRealtimeSync(
 public sealed class RoomRealtimeJournal
 {
     private const int EventLimit = 256;
+    private static readonly JsonSerializerOptions EventJsonOptions = new(JsonSerializerDefaults.Web)
+    {
+        Converters = { new System.Text.Json.Serialization.JsonStringEnumConverter() },
+    };
     private readonly ConcurrentDictionary<Guid, RoomJournal> rooms = new();
 
     public RoomRealtimeEvent Append(Guid roomId, string type, object payload)
@@ -29,7 +33,7 @@ public sealed class RoomRealtimeJournal
         var journal = rooms.GetOrAdd(roomId, static _ => new RoomJournal());
         lock (journal.Gate)
         {
-            var item = new RoomRealtimeEvent(++journal.Version, type, JsonSerializer.SerializeToElement(payload), DateTimeOffset.UtcNow);
+            var item = new RoomRealtimeEvent(++journal.Version, type, JsonSerializer.SerializeToElement(payload, EventJsonOptions), DateTimeOffset.UtcNow);
             journal.Events.Enqueue(item);
             while (journal.Events.Count > EventLimit) journal.Events.Dequeue();
             return item;
