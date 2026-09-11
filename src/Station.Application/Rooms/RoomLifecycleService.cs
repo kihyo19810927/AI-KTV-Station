@@ -29,7 +29,7 @@ public sealed class RoomLifecycleService(IRoomRepository repository, IRoomJoinCo
 {
     private const int JoinCodeAttempts = 8;
 
-    public async Task<Result<RoomAdminDetails>> CreateAsync(int maxQueuedSongsPerGuest = 10, CancellationToken cancellationToken = default)
+    public async Task<Result<RoomAdminDetails>> CreateAsync(int maxQueuedSongsPerGuest = 100, CancellationToken cancellationToken = default)
     {
         if (maxQueuedSongsPerGuest is < 1 or > 100)
             return Failure("room.invalid_queue_limit", "Guest queue limit must be between 1 and 100.");

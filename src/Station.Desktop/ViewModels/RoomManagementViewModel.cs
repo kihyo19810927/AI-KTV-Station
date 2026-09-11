@@ -18,7 +18,7 @@ public sealed class RoomManagementViewModel : ObservableObject
     private string statusMessage = "尚未开启房间";
     private string joinUrl = string.Empty;
     private byte[]? qrCodePng;
-    private int queueLimit = 10;
+    private int queueLimit = 100;
 
     public RoomManagementViewModel(RoomLifecycleService rooms, RoomAuthenticationService authentication, HostRoomContext context, IQrCodeRenderer qrCodes, ILanAddressProvider addresses, StationOptions options)
     {

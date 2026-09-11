@@ -64,6 +64,9 @@ public sealed class StationApiTests
         Assert.DoesNotContain("RelativePath", queueJson, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain("RootPath", queueJson, StringComparison.OrdinalIgnoreCase);
         Assert.Equal(HttpStatusCode.Forbidden, (await client.PostAsync($"/api/queue/{second.Id}/top", null)).StatusCode);
+        Assert.Equal(HttpStatusCode.OK, (await client.PostAsJsonAsync($"/api/queue/{second.Id}/insert", new { })).StatusCode);
+        var inserted = await client.GetFromJsonAsync<QueueEntry[]>("/api/queue", JsonOptions);
+        Assert.Equal(second.Id, inserted![0].Id);
         Assert.Equal(HttpStatusCode.OK, (await client.PostAsync("/api/playback/pause", null)).StatusCode);
         Assert.Equal(HttpStatusCode.OK, (await client.PostAsync("/api/playback/skip", null)).StatusCode);
 

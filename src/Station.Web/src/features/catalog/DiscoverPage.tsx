@@ -35,13 +35,15 @@ export function DiscoverPage() {
   const [browseMode, setBrowseMode] = useState<BrowseMode>('root')
   const [artists, setArtists] = useState<ArtistItem[]>([])
   const [artistGroup, setArtistGroup] = useState('')
+  const [selectedArtist, setSelectedArtist] = useState('')
+  const [animatedSongId, setAnimatedSongId] = useState('')
   const requestSequence = useRef(0)
-  const queryKey = useMemo(() => JSON.stringify([debouncedText, filters]), [debouncedText, filters])
+  const queryKey = useMemo(() => JSON.stringify([debouncedText, filters, selectedArtist]), [debouncedText, filters, selectedArtist])
 
   useEffect(() => { const controller = new AbortController(); api.get<FavoriteSong[]>('/api/library/favorites', controller.signal).then(items => setFavorites(new Set(items.map(item => item.songId)))).catch(() => undefined); return () => controller.abort() }, [api])
   useEffect(() => { if (browseMode !== 'singers') return; const controller = new AbortController(); const params = artistGroup ? `?artistGroup=${encodeURIComponent(artistGroup)}` : ''; api.get<ArtistItem[]>(`/api/catalog/artists${params}`, controller.signal).then(setArtists).catch(() => setArtists([])); return () => controller.abort() }, [api, artistGroup, browseMode])
 
-  useEffect(() => { setPage(1); setResult(null) }, [queryKey])
+  useEffect(() => { setPage(1) }, [queryKey])
   useEffect(() => {
     const controller = new AbortController()
     const sequence = ++requestSequence.current
@@ -50,19 +52,20 @@ export function DiscoverPage() {
     if (filters.language) params.set('language', filters.language)
     if (filters.category) params.set('category', filters.category)
     if (filters.artistGroup) params.set('artistGroup', filters.artistGroup)
+    if (selectedArtist) params.set('artist', selectedArtist)
     setLoading(true); setError('')
     const request = api.get<SongSearchPage>(`/api/catalog/search?${params}`, controller.signal)
     request.then(next => { if (sequence === requestSequence.current) setResult(current => page === 1 ? next : { ...next, items: [...(current?.items ?? []), ...next.items] }) }).catch(value => { if (sequence === requestSequence.current && !(value instanceof DOMException && value.name === 'AbortError')) setError(value instanceof ApiError ? value.message : '曲库暂时无法访问，请稍后重试。') }).finally(() => { if (sequence === requestSequence.current && !controller.signal.aborted) setLoading(false) })
     return () => controller.abort()
-  }, [api, debouncedText, filters, page, retry])
+  }, [api, debouncedText, filters, selectedArtist, page, retry])
 
-  const chooseCategory = (name: 'language' | 'category', value: string) => { setFilters({ ...initialFilters, [name]: value === '全部' ? '' : value }); setBrowseMode('root') }
+  const chooseCategory = (name: 'language' | 'category', value: string) => { setSelectedArtist(''); setFilters({ ...initialFilters, [name]: value === '全部' ? '' : value }); setBrowseMode('root') }
   async function requestSong(song: SongSearchItem) {
     setRequestingSongId(song.songId); setNotice('')
     try {
       const queue = await api.get<QueueEntry[]>('/api/queue')
       if (queue.some(item => item.songId === song.songId && item.requestedByGuestId === session?.guestId)) { setNotice(`《${song.title}》已经在你的队列中。`); return }
-      const queued = await api.post<QueueEntry>('/api/queue', { songId: song.songId }); addQueueItem(queued); setNotice(`已点播《${song.title}》。`)
+      const queued = await api.post<QueueEntry>('/api/queue', { songId: song.songId }); addQueueItem(queued); setAnimatedSongId(song.songId); window.setTimeout(() => setAnimatedSongId(current => current === song.songId ? '' : current), 650); setNotice(`已点播《${song.title}》，正在探测媒体。`)
     } catch (value) {
       if (value instanceof ApiError && value.problem.code === 'queue.guest_limit_reached') setNotice('你的点歌数量已达到本房间上限。')
       else setNotice(value instanceof ApiError ? value.message : '点歌失败，请稍后重试。')
@@ -78,12 +81,13 @@ export function DiscoverPage() {
       {browseMode === 'singer-groups' && <div className="browse-options">{singerGroups.map(value => <button key={value} onClick={() => { setArtistGroup(value === '全部' ? '' : value); setBrowseMode('singers') }}>{value}</button>)}</div>}
       {browseMode === 'languages' && <div className="browse-options">{languages.map(value => <button key={value} onClick={() => chooseCategory('language', value)}>{value}</button>)}</div>}
       {browseMode === 'styles' && <div className="browse-options">{styles.map(value => <button key={value} onClick={() => chooseCategory('category', value)}>{value}</button>)}</div>}
-      {browseMode === 'singers' && <div className="artist-grid">{artists.map(artist => <button key={artist.artistId} onClick={() => { setText(artist.name); setFilters(initialFilters); setBrowseMode('root') }}><span>{artist.imageUrl ? <img src={artist.imageUrl} alt="" /> : artist.name.slice(0, 1)}</span><strong>{artist.name}</strong></button>)}</div>}
+      {browseMode === 'singers' && <div className="artist-grid">{artists.map(artist => <button key={artist.artistId} aria-label={artist.name} onClick={() => { setText(''); setSelectedArtist(artist.name); setFilters(initialFilters); setBrowseMode('root') }}><span aria-hidden="true">{artist.imageUrl ? <img src={artist.imageUrl} alt="" /> : artist.name.slice(0, 1)}</span><strong>{artist.name}</strong></button>)}</div>}
     </section>
+    {selectedArtist && <div className="active-artist"><span>{selectedArtist}</span><button onClick={() => setSelectedArtist('')}>查看全部</button></div>}
     {notice && <p className="catalog-notice" role="status">{notice}</p>}
     {error && <section className="catalog-message" role="alert"><p>{error}</p><button onClick={() => setRetry(current => current + 1)}>重试</button></section>}
     {!error && loading && !result && <section className="catalog-message" aria-live="polite">正在搜索曲库…</section>}
     {!error && !loading && result?.items.length === 0 && <section className="catalog-message"><Music2 aria-hidden="true" /><strong>没有找到歌曲</strong><p>换个歌名、歌手、拼音或筛选条件试试。</p></section>}
-    {!error && result && result.items.length > 0 && <section className="song-list" aria-label="搜索结果">{result.items.map(song => <article className="song-row" key={song.songId}><div><strong>{song.title}</strong><small>{song.artists}{song.language ? ` · ${song.language}` : ''}{song.quality ? ` · ${song.quality}` : ''}</small></div><span className="song-actions"><button className={favorites.has(song.songId) ? 'favorite active' : 'favorite'} aria-label={`${favorites.has(song.songId) ? '取消收藏' : '收藏'} ${song.title}`} onClick={() => void toggleFavorite(song)}><Heart aria-hidden="true" /></button><button aria-label={`点播 ${song.title}`} onClick={() => void requestSong(song)} disabled={song.availability !== 'Available' || requestingSongId === song.songId}>{requestingSongId === song.songId ? '…' : '＋'}</button></span></article>)}{hasMore && <button className="load-more" onClick={() => setPage(current => current + 1)} disabled={loading}>{loading ? '加载中…' : `继续加载（${result.items.length}/${result.total}）`}</button>}</section>}
+    {!error && result && result.items.length > 0 && <section className="song-list" aria-label="搜索结果">{result.items.map(song => <article className="song-row" key={song.songId}><div><strong>{song.title}</strong><small>{song.artists}{song.language ? ` · ${song.language}` : ''}{song.quality ? ` · ${song.quality}` : ''}</small></div><span className="song-actions"><button className={favorites.has(song.songId) ? 'favorite active' : 'favorite'} aria-label={`${favorites.has(song.songId) ? '取消收藏' : '收藏'} ${song.title}`} onClick={() => void toggleFavorite(song)}><Heart aria-hidden="true" /></button><button className={animatedSongId === song.songId ? 'request-song queued' : 'request-song'} aria-label={`点播 ${song.title}`} onClick={() => void requestSong(song)} disabled={song.availability !== 'Available' || requestingSongId === song.songId}>{requestingSongId === song.songId ? '…' : animatedSongId === song.songId ? '✓' : '＋'}</button></span></article>)}{hasMore && <button className="load-more" onClick={() => setPage(current => current + 1)} disabled={loading}>{loading ? '加载中…' : `继续加载（${result.items.length}/${result.total}）`}</button>}</section>}
   </>
 }

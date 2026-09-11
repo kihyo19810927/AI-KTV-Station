@@ -7,6 +7,7 @@ public interface IPlayerAdapter : IAsyncDisposable
 {
     Task<Result<PlayerSnapshot>> StartAsync(CancellationToken cancellationToken = default);
     Task<Result<PlayerSnapshot>> StopAsync(CancellationToken cancellationToken = default);
+    Task<Result<PlayerSnapshot>> SkipAsync(CancellationToken cancellationToken = default) => StopAsync(cancellationToken);
     Task<Result<PlayerSnapshot>> LoadAsync(PlayerLoadRequest request, CancellationToken cancellationToken = default);
     Task<Result<PlayerSnapshot>> PlayAsync(CancellationToken cancellationToken = default);
     Task<Result<PlayerSnapshot>> PauseAsync(CancellationToken cancellationToken = default);

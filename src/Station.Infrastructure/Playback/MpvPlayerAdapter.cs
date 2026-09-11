@@ -138,6 +138,13 @@ public sealed class MpvPlayerAdapter : IPlayerAdapter
         finally { operationGate.Release(); }
     }
 
+    public Task<Result<PlayerSnapshot>> SkipAsync(CancellationToken cancellationToken = default) =>
+        ExecuteAsync(async () =>
+        {
+            await SendCommandAsync(cancellationToken, "stop").ConfigureAwait(false);
+            return CurrentSnapshot();
+        }, "player.skip_failed", "The current song could not be skipped.", cancellationToken);
+
     public async Task<Result<PlayerSnapshot>> LoadAsync(PlayerLoadRequest request, CancellationToken cancellationToken = default)
     {
         var validation = PlayerCommandValidation.Validate(request);

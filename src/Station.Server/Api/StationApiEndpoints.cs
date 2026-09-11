@@ -27,6 +27,7 @@ public static class StationApiEndpoints
         api.MapGet("/queue", GetQueueAsync).WithName("GetQueue");
         api.MapPost("/queue", RequestSongAsync).WithName("RequestSong");
         api.MapDelete("/queue/{itemId:guid}", RemoveQueueItemAsync).WithName("RemoveQueueItem");
+        api.MapPost("/queue/{itemId:guid}/insert", InsertQueueItemAsync).WithName("InsertQueueItem");
         api.MapPost("/queue/{itemId:guid}/top", MoveQueueItemToTopAsync).WithName("MoveQueueItemToTop");
 
         api.MapGet("/library/favorites", GetFavoritesAsync).WithName("GetFavorites");
@@ -53,7 +54,7 @@ public static class StationApiEndpoints
         CancellationToken cancellationToken)
     {
         if (!LocalRequestPolicy.IsLocal(context.Connection.RemoteIpAddress)) return Problem(new Error("auth.local_only", "Room administration is available only on the host."));
-        var created = await rooms.CreateAsync(request.MaxQueuedSongsPerGuest ?? 10, cancellationToken);
+        var created = await rooms.CreateAsync(request.MaxQueuedSongsPerGuest ?? 100, cancellationToken);
         if (created.IsFailure) return Problem(created.Error);
         var host = await authentication.IssueHostAsync(created.Value.Id, request.HostNickname ?? "主持人", cancellationToken);
         if (host.IsFailure) return Problem(host.Error);
@@ -125,6 +126,7 @@ public static class StationApiEndpoints
         string? language = null,
         string? category = null,
         string? artistGroup = null,
+        string? artist = null,
         string? quality = null,
         int? yearFrom = null,
         int? yearTo = null,
@@ -133,7 +135,7 @@ public static class StationApiEndpoints
     {
         var identity = await AuthorizeAsync(context, authentication, RoomPermission.ViewCatalog, cancellationToken);
         if (identity.IsFailure) return Problem(identity.Error);
-        var result = await search.SearchAsync(new(text, page, pageSize, language, category, quality, yearFrom, yearTo, sort, artistGroup), cancellationToken);
+        var result = await search.SearchAsync(new(text, page, pageSize, language, category, quality, yearFrom, yearTo, sort, artistGroup, artist), cancellationToken);
         return result.IsSuccess ? Results.Ok(result.Value) : Problem(result.Error);
     }
 
@@ -197,6 +199,21 @@ public static class StationApiEndpoints
         var identity = await AuthorizeAsync(context, authentication, RoomPermission.ReorderQueue, cancellationToken);
         if (identity.IsFailure) return Problem(identity.Error);
         var result = await queue.MoveToTopAsync(identity.Value, itemId, cancellationToken);
+        if (result.IsFailure) return Problem(result.Error);
+        await PublishAsync(context, identity.Value.RoomId, "queue.reordered", result.Value, cancellationToken);
+        return Results.Ok(result.Value);
+    }
+
+    private static async Task<IResult> InsertQueueItemAsync(
+        Guid itemId,
+        HttpContext context,
+        RoomAuthenticationService authentication,
+        RoomQueueService queue,
+        CancellationToken cancellationToken)
+    {
+        var identity = await AuthenticateAsync(context, authentication, cancellationToken);
+        if (identity.IsFailure) return Problem(identity.Error);
+        var result = await queue.InsertNextAsync(identity.Value, itemId, cancellationToken);
         if (result.IsFailure) return Problem(result.Error);
         await PublishAsync(context, identity.Value.RoomId, "queue.reordered", result.Value, cancellationToken);
         return Results.Ok(result.Value);

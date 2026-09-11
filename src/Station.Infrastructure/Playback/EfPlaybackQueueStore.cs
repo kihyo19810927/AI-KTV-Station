@@ -1,13 +1,14 @@
 using Microsoft.EntityFrameworkCore;
 using Station.Application.Playback;
 using Station.Application.Media;
+using Station.Application.Queue;
 using Station.Application.Scanning;
 using Station.Domain.Models;
 using Station.Infrastructure.Persistence;
 
 namespace Station.Infrastructure.Playback;
 
-public sealed class EfPlaybackQueueStore(StationDbContext database, IMediaProbe? mediaProbe = null) : IPlaybackQueueStore
+public sealed class EfPlaybackQueueStore(StationDbContext database, IMediaProbe? mediaProbe = null, IQueueStatusNotifier? notifier = null) : IPlaybackQueueStore
 {
     public async Task<PlayableQueueItem?> GetNextAsync(Guid roomId, CancellationToken cancellationToken = default)
     {
@@ -60,6 +61,7 @@ public sealed class EfPlaybackQueueStore(StationDbContext database, IMediaProbe?
         item.Status = status;
         item.CompletedAt = completedAt;
         await database.SaveChangesAsync(cancellationToken);
+        if (notifier is not null) await notifier.NotifyAsync(item.RoomSessionId, item.Id, status, cancellationToken);
     }
 
     public async Task<PlayHistory> StartHistoryAsync(PlayableQueueItem item, DateTimeOffset startedAt, CancellationToken cancellationToken = default)

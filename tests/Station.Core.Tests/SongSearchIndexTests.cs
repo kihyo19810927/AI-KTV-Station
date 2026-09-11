@@ -27,6 +27,8 @@ public sealed class SongSearchIndexTests
         var grouped = await fixture.Index.SearchAsync(new SongSearchQuery(PageSize: 10, ArtistGroup: "华语组合"));
         Assert.True(grouped.IsSuccess);
         Assert.Equal("海闊天空", Assert.Single(grouped.Value.Items).Title);
+        var artistOnly = await fixture.Index.SearchAsync(new SongSearchQuery(PageSize: 10, Artist: "周杰伦"));
+        Assert.Equal("夜曲", Assert.Single(artistOnly.Value.Items).Title);
         Assert.DoesNotContain(typeof(SongSearchItem).GetProperties(), x => x.Name.Contains("Path", StringComparison.OrdinalIgnoreCase));
     }
 

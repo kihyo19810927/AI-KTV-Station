@@ -37,6 +37,7 @@ public sealed class QueueManagementViewModelTests
         public Task<Result<IReadOnlyList<QueueEntry>>> ListAsync(RoomIdentity identity, CancellationToken cancellationToken = default) => Task.FromResult(Result<IReadOnlyList<QueueEntry>>.Success(Entries));
         public Task<Result<bool>> RemoveAsync(RoomIdentity identity, Guid itemId, CancellationToken cancellationToken = default) => Task.FromResult(Result<bool>.Success(true));
         public Task<Result<QueueEntry>> MoveToTopAsync(RoomIdentity identity, Guid itemId, CancellationToken cancellationToken = default) => Task.FromResult(Result<QueueEntry>.Success(Entries.Single(x => x.Id == itemId)));
+        public Task<Result<QueueEntry>> InsertNextAsync(RoomIdentity identity, Guid itemId, CancellationToken cancellationToken = default) => Task.FromResult(Result<QueueEntry>.Success(Entries.Single(x => x.Id == itemId)));
         public Task<Result<IReadOnlyList<QueueEntry>>> ReorderBeforeAsync(RoomIdentity identity, Guid itemId, Guid? beforeItemId, CancellationToken cancellationToken = default) => Task.FromResult(Result<IReadOnlyList<QueueEntry>>.Success(Entries));
     }
 }

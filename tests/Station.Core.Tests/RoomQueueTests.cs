@@ -24,6 +24,7 @@ public sealed class RoomQueueTests
         var queue = (await fixture.Service.ListAsync(fixture.GuestIdentity)).Value;
         Assert.Equal([first.Value.Id, second.Value.Id], queue.Select(x => x.Id));
         Assert.Equal(["Song 1", "Song 2"], queue.Select(x => x.Title));
+        Assert.All(queue, x => Assert.Equal(QueueItemStatus.Probing, x.Status));
         Assert.All(queue, x => Assert.Equal("访客", x.RequestedByNickname));
         Assert.DoesNotContain(typeof(QueueEntry).GetProperties(), x => x.Name.Contains("Path", StringComparison.OrdinalIgnoreCase));
     }
@@ -82,6 +83,19 @@ public sealed class RoomQueueTests
         var end = await fixture.Service.ReorderBeforeAsync(fixture.HostIdentity, first.Id, null);
         Assert.Equal([third.Id, second.Id, first.Id], end.Value.Select(x => x.Id));
         Assert.Equal(3, end.Value.Select(x => x.Position).Distinct().Count());
+    }
+
+    [Fact]
+    public async Task Guest_can_insert_only_an_owned_queued_item()
+    {
+        await using var fixture = await QueueFixture.CreateAsync();
+        var first = (await fixture.Service.RequestAsync(fixture.GuestIdentity, fixture.Songs[0].Id)).Value;
+        var hosted = (await fixture.Service.RequestAsync(fixture.HostIdentity, fixture.Songs[1].Id)).Value;
+        var second = (await fixture.Service.RequestAsync(fixture.GuestIdentity, fixture.Songs[2].Id)).Value;
+
+        Assert.Equal("queue.forbidden", (await fixture.Service.InsertNextAsync(fixture.GuestIdentity, hosted.Id)).Error.Code);
+        Assert.True((await fixture.Service.InsertNextAsync(fixture.GuestIdentity, second.Id)).IsSuccess);
+        Assert.Equal([second.Id, first.Id, hosted.Id], (await fixture.Service.ListAsync(fixture.GuestIdentity)).Value.Select(x => x.Id));
     }
 
     [Fact]

@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.SignalR;
 using Station.Application.Playback;
 using Station.Application.Queue;
 using Station.Application.Rooms;
+using Station.Domain.Models;
 
 namespace Station.Server.Realtime;
 
@@ -73,6 +74,12 @@ public sealed class RoomRealtimeJournal
 public interface IRoomRealtimePublisher
 {
     Task<RoomRealtimeEvent> PublishAsync(Guid roomId, string type, object payload, CancellationToken cancellationToken = default);
+}
+
+public sealed class SignalRQueueStatusNotifier(IRoomRealtimePublisher publisher) : IQueueStatusNotifier
+{
+    public async Task NotifyAsync(Guid roomId, Guid itemId, QueueItemStatus status, CancellationToken cancellationToken = default) =>
+        _ = await publisher.PublishAsync(roomId, "queue.status", new { ItemId = itemId, Status = status }, cancellationToken);
 }
 
 public sealed class SignalRRoomRealtimePublisher(

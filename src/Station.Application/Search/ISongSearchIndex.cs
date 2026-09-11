@@ -22,7 +22,8 @@ public sealed record SongSearchQuery(
     int? YearFrom = null,
     int? YearTo = null,
     SongSearchSort Sort = SongSearchSort.Relevance,
-    string? ArtistGroup = null);
+    string? ArtistGroup = null,
+    string? Artist = null);
 
 public sealed record SongSearchPage(IReadOnlyList<SongSearchItem> Items, long Total, int Page, int PageSize);
 

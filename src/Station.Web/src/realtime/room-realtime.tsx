@@ -9,7 +9,7 @@ export interface RoomRealtimeEvent { version: number; type: string; data: unknow
 export interface RoomRealtimeSnapshot { version: number; roomId: string; queue: QueueEntry[]; playback?: PlaybackProgress }
 interface RoomRealtimeSync { version: number; snapshot?: RoomRealtimeSnapshot; events: RoomRealtimeEvent[] }
 export interface RoomRealtimeState { version: number; queue: QueueEntry[]; playback?: PlaybackProgress }
-interface RoomRealtimeContextValue extends RoomRealtimeState { connectionStatus: ConnectionStatus; addQueueItem: (item: QueueEntry) => void }
+interface RoomRealtimeContextValue extends RoomRealtimeState { connectionStatus: ConnectionStatus; addQueueItem: (item: QueueEntry) => void; updateQueueItem: (item: QueueEntry) => void }
 const RoomRealtimeContext = createContext<RoomRealtimeContextValue | null>(null)
 const emptyState: RoomRealtimeState = { version: 0, queue: [] }
 
@@ -18,6 +18,7 @@ export function applyRoomEvent(state: RoomRealtimeState, event: RoomRealtimeEven
   if (event.type === 'queue.added') return { ...state, version: event.version, queue: [...state.queue.filter(item => item.id !== (event.data as QueueEntry).id), event.data as QueueEntry].sort((a, b) => a.position - b.position) }
   if (event.type === 'queue.removed') return { ...state, version: event.version, queue: state.queue.filter(item => item.id !== (event.data as { itemId: string }).itemId) }
   if (event.type === 'queue.reordered') { const changed = event.data as QueueEntry; return { ...state, version: event.version, queue: state.queue.map(item => item.id === changed.id ? changed : item).sort((a, b) => a.position - b.position) } }
+  if (event.type === 'queue.status') { const changed = event.data as { itemId: string; status: QueueEntry['status'] }; const terminal = ['Completed', 'Skipped', 'Failed'].includes(changed.status); return { ...state, version: event.version, queue: terminal ? state.queue.filter(item => item.id !== changed.itemId) : state.queue.map(item => item.id === changed.itemId ? { ...item, status: changed.status } : item) } }
   if (event.type === 'playback.changed') return { ...state, version: event.version, playback: event.data as PlaybackProgress }
   return { ...state, version: event.version }
 }
@@ -28,6 +29,7 @@ export function RoomRealtimeProvider({ children }: PropsWithChildren) {
   const [connectionStatus, setConnectionStatus] = useState<ConnectionStatus>('connecting')
   const version = useRef(0)
   const addQueueItem = (item: QueueEntry) => setState(current => ({ ...current, queue: [...current.queue.filter(existing => existing.id !== item.id), item].sort((a, b) => a.position - b.position) }))
+  const updateQueueItem = addQueueItem
   useEffect(() => {
     if (!session) return
     let disposed = false
@@ -43,7 +45,7 @@ export function RoomRealtimeProvider({ children }: PropsWithChildren) {
     void connection.start().then(subscribe).catch(() => { if (!disposed) setConnectionStatus('offline') })
     return () => { disposed = true; connection.off('roomEvent', accept); if (connection.state !== HubConnectionState.Disconnected) void connection.stop() }
   }, [session])
-  return <RoomRealtimeContext.Provider value={{ ...state, connectionStatus, addQueueItem }}>{children}</RoomRealtimeContext.Provider>
+  return <RoomRealtimeContext.Provider value={{ ...state, connectionStatus, addQueueItem, updateQueueItem }}>{children}</RoomRealtimeContext.Provider>
 }
 
 export function useRoomRealtime() { const value = useContext(RoomRealtimeContext); if (!value) throw new Error('useRoomRealtime must be used inside RoomRealtimeProvider'); return value }

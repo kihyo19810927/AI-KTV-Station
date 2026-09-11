@@ -20,6 +20,7 @@ public interface IRoomQueueService
     Task<Result<IReadOnlyList<QueueEntry>>> ListAsync(RoomIdentity identity, CancellationToken cancellationToken = default);
     Task<Result<bool>> RemoveAsync(RoomIdentity identity, Guid itemId, CancellationToken cancellationToken = default);
     Task<Result<QueueEntry>> MoveToTopAsync(RoomIdentity identity, Guid itemId, CancellationToken cancellationToken = default);
+    Task<Result<QueueEntry>> InsertNextAsync(RoomIdentity identity, Guid itemId, CancellationToken cancellationToken = default);
     Task<Result<IReadOnlyList<QueueEntry>>> ReorderBeforeAsync(RoomIdentity identity, Guid itemId, Guid? beforeItemId, CancellationToken cancellationToken = default);
 }
 
@@ -33,6 +34,11 @@ public interface IRoomQueueRepository
     Task AddAsync(QueueItem item, CancellationToken cancellationToken = default);
     Task SaveChangesAsync(CancellationToken cancellationToken = default);
     Task SaveReorderAsync(IReadOnlyList<QueueItem> orderedItems, CancellationToken cancellationToken = default);
+}
+
+public interface IQueueStatusNotifier
+{
+    Task NotifyAsync(Guid roomId, Guid itemId, QueueItemStatus status, CancellationToken cancellationToken = default);
 }
 
 public interface IRoomQueueLock
@@ -94,7 +100,7 @@ public sealed class RoomQueueService(
             RequestedByGuestId = identity.GuestId,
             RequestedByGuest = context.Value.Guest,
             Position = position,
-            Status = QueueItemStatus.Waiting,
+            Status = QueueItemStatus.Probing,
             RequestedAt = clock.GetUtcNow(),
         };
         await repository.AddAsync(item, cancellationToken).ConfigureAwait(false);
@@ -114,8 +120,8 @@ public sealed class RoomQueueService(
         var item = await repository.FindItemAsync(itemId, cancellationToken).ConfigureAwait(false);
         if (item is null || item.RoomSessionId != identity.RoomId)
             return Failure<bool>("queue.item_not_found", "Queue item was not found.");
-        if (item.Status != QueueItemStatus.Waiting)
-            return Failure<bool>("queue.item_not_mutable", "Only waiting items can be removed.");
+        if (!IsQueued(item.Status))
+            return Failure<bool>("queue.item_not_mutable", "Only queued items can be removed.");
         if (identity.Role != RoomRole.Host && item.RequestedByGuestId != identity.GuestId)
             return Failure<bool>("queue.forbidden", "Guests can remove only their own requests.");
         item.Status = QueueItemStatus.Skipped;
@@ -137,9 +143,9 @@ public sealed class RoomQueueService(
         var active = await repository.ListActiveAsync(identity.RoomId, cancellationToken).ConfigureAwait(false);
         var item = active.SingleOrDefault(x => x.Id == itemId);
         if (item is null) return Failure<QueueEntry>("queue.item_not_found", "Queue item was not found.");
-        if (item.Status != QueueItemStatus.Waiting)
-            return Failure<QueueEntry>("queue.item_not_mutable", "Only waiting items can be reordered.");
-        var first = active.Where(x => x.Status == QueueItemStatus.Waiting).OrderBy(x => x.Position).First();
+        if (!IsQueued(item.Status))
+            return Failure<QueueEntry>("queue.item_not_mutable", "Only queued items can be reordered.");
+        var first = active.Where(x => IsQueued(x.Status)).OrderBy(x => x.Position).First();
         if (first.Id != item.Id)
         {
             item.Position = checked(first.Position - PositionStep);
@@ -162,7 +168,7 @@ public sealed class RoomQueueService(
         var context = await ValidateContextAsync(identity, cancellationToken).ConfigureAwait(false);
         if (context.IsFailure) return Result<IReadOnlyList<QueueEntry>>.Failure(context.Error);
         var active = await repository.ListActiveAsync(identity.RoomId, cancellationToken).ConfigureAwait(false);
-        var waiting = active.Where(x => x.Status == QueueItemStatus.Waiting).OrderBy(x => x.Position).ToList();
+        var waiting = active.Where(x => IsQueued(x.Status)).OrderBy(x => x.Position).ToList();
         var moving = waiting.SingleOrDefault(x => x.Id == itemId);
         if (moving is null) return Failure<IReadOnlyList<QueueEntry>>("queue.item_not_mutable", "Only waiting items can be reordered.");
         waiting.Remove(moving);
@@ -171,8 +177,32 @@ public sealed class RoomQueueService(
         waiting.Insert(targetIndex, moving);
         for (var index = 0; index < waiting.Count; index++) waiting[index].Position = checked((index + 1L) * PositionStep);
         await repository.SaveReorderAsync(waiting, cancellationToken).ConfigureAwait(false);
-        var nonWaiting = active.Where(x => x.Status != QueueItemStatus.Waiting);
+        var nonWaiting = active.Where(x => !IsQueued(x.Status));
         return Result<IReadOnlyList<QueueEntry>>.Success(nonWaiting.Concat(waiting).OrderBy(x => x.Position).Select(Map).ToArray());
+    }
+
+    public async Task<Result<QueueEntry>> InsertNextAsync(
+        RoomIdentity identity,
+        Guid itemId,
+        CancellationToken cancellationToken = default)
+    {
+        if (itemId == Guid.Empty) return Failure<QueueEntry>("queue.invalid_item", "Queue item id is required.");
+        await using var lease = await queueLock.AcquireAsync(identity.RoomId, cancellationToken).ConfigureAwait(false);
+        var context = await ValidateContextAsync(identity, cancellationToken).ConfigureAwait(false);
+        if (context.IsFailure) return Result<QueueEntry>.Failure(context.Error);
+        var active = await repository.ListActiveAsync(identity.RoomId, cancellationToken).ConfigureAwait(false);
+        var item = active.SingleOrDefault(x => x.Id == itemId);
+        if (item is null) return Failure<QueueEntry>("queue.item_not_found", "Queue item was not found.");
+        if (identity.Role != RoomRole.Host && item.RequestedByGuestId != identity.GuestId)
+            return Failure<QueueEntry>("queue.forbidden", "Guests can insert only their own requests.");
+        if (!IsQueued(item.Status)) return Failure<QueueEntry>("queue.item_not_mutable", "Only queued items can be inserted.");
+        var first = active.Where(x => IsQueued(x.Status)).OrderBy(x => x.Position).First();
+        if (first.Id != item.Id)
+        {
+            item.Position = checked(first.Position - PositionStep);
+            await repository.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
+        }
+        return Result<QueueEntry>.Success(Map(item));
     }
 
     public async Task<Result<IReadOnlyList<QueueEntry>>> ListAsync(
@@ -207,6 +237,8 @@ public sealed class RoomQueueService(
         item.Position,
         item.Status,
         item.RequestedAt);
+
+    private static bool IsQueued(QueueItemStatus status) => status is QueueItemStatus.Probing or QueueItemStatus.ProbeFailed or QueueItemStatus.Waiting;
 
     private static Result<T> Failure<T>(string code, string message) => Result<T>.Failure(new Error(code, message));
 }

@@ -8,7 +8,7 @@ public sealed class RoomSession
     public DateTimeOffset? ClosedAt { get; set; }
     public RoomStatus Status { get; set; } = RoomStatus.Open;
     public int? OpenSlot { get; set; }
-    public int MaxQueuedSongsPerGuest { get; set; } = 10;
+    public int MaxQueuedSongsPerGuest { get; set; } = 100;
     public List<Guest> Guests { get; set; } = [];
     public List<QueueItem> Queue { get; set; } = [];
 }

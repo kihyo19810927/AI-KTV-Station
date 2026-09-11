@@ -8,7 +8,7 @@ namespace Station.Infrastructure.Queue;
 public sealed class EfRoomQueueRepository(StationDbContext database) : IRoomQueueRepository
 {
     private static readonly QueueItemStatus[] ActiveStatuses =
-        [QueueItemStatus.Waiting, QueueItemStatus.Preparing, QueueItemStatus.Playing, QueueItemStatus.Paused];
+        [QueueItemStatus.Probing, QueueItemStatus.ProbeFailed, QueueItemStatus.Waiting, QueueItemStatus.Preparing, QueueItemStatus.Playing, QueueItemStatus.Paused];
 
     public Task<RoomSession?> FindRoomAsync(Guid roomId, CancellationToken cancellationToken = default) =>
         database.RoomSessions.SingleOrDefaultAsync(x => x.Id == roomId, cancellationToken);

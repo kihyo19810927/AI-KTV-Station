@@ -58,6 +58,7 @@ public sealed class SqliteSongSearchIndex(StationDbContext database, ISearchText
         if (!string.IsNullOrWhiteSpace(query.Language)) where.Add("d.Language = @language COLLATE NOCASE");
         if (!string.IsNullOrWhiteSpace(query.Category)) where.Add("d.Category = @category COLLATE NOCASE");
         if (!string.IsNullOrWhiteSpace(query.ArtistGroup)) where.Add("d.ArtistGroup = @artistGroup COLLATE NOCASE");
+        if (!string.IsNullOrWhiteSpace(query.Artist)) where.Add("('/' || replace(d.Artists, ' / ', '/') || '/') LIKE ('%/' || @artist || '/%') COLLATE NOCASE");
         if (!string.IsNullOrWhiteSpace(query.Quality)) where.Add("d.Quality = @quality COLLATE NOCASE");
         if (query.YearFrom is not null) where.Add("d.Year >= @yearFrom");
         if (query.YearTo is not null) where.Add("d.Year <= @yearTo");
@@ -174,6 +175,7 @@ public sealed class SqliteSongSearchIndex(StationDbContext database, ISearchText
         if (!string.IsNullOrWhiteSpace(query.Language)) Add(command, "@language", query.Language.Trim());
         if (!string.IsNullOrWhiteSpace(query.Category)) Add(command, "@category", query.Category.Trim());
         if (!string.IsNullOrWhiteSpace(query.ArtistGroup)) Add(command, "@artistGroup", query.ArtistGroup.Trim());
+        if (!string.IsNullOrWhiteSpace(query.Artist)) Add(command, "@artist", query.Artist.Trim());
         if (!string.IsNullOrWhiteSpace(query.Quality)) Add(command, "@quality", query.Quality.Trim());
         if (query.YearFrom is not null) Add(command, "@yearFrom", query.YearFrom);
         if (query.YearTo is not null) Add(command, "@yearTo", query.YearTo);

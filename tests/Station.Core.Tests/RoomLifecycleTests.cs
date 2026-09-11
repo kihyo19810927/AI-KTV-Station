@@ -32,6 +32,7 @@ public sealed class RoomLifecycleTests
         await database.Database.EnsureCreatedAsync();
         var service = new RoomLifecycleService(new EfRoomRepository(database), new SequenceCodeGenerator("ABC234"));
         var created = await service.CreateAsync();
+        Assert.Equal(100, created.Value.MaxQueuedSongsPerGuest);
         var closed = await service.CloseAsync(created.Value.Id);
         var closedAgain = await service.CloseAsync(created.Value.Id);
         Assert.Equal(RoomStatus.Closed, closed.Value.Status);

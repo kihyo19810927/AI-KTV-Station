@@ -77,6 +77,10 @@ public sealed class StationEndToEndTests
         await using (var scope = factory.Services.CreateAsyncScope())
         {
             var database = scope.ServiceProvider.GetRequiredService<StationDbContext>();
+            var preflight = new EfQueuePreflightService(
+                database,
+                scope.ServiceProvider.GetRequiredService<IMediaProbe>());
+            Assert.True(await preflight.ProbeNextWaitingAsync(room.Room.Id));
             var orchestrator = new QueuePlaybackOrchestrator(
                 factory.Player,
                 new EfPlaybackQueueStore(database),

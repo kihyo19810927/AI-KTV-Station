@@ -15,7 +15,7 @@ public sealed class PlaybackControlService(IPlayerAdapter player)
     public async Task<Result<PlayerSnapshot>> SkipAsync(CancellationToken cancellationToken = default)
     {
         var state = await RequireActivePlaybackAsync(cancellationToken).ConfigureAwait(false);
-        return state.IsFailure ? state : await player.StopAsync(cancellationToken).ConfigureAwait(false);
+        return state.IsFailure ? state : await player.SkipAsync(cancellationToken).ConfigureAwait(false);
     }
     public async Task<Result<PlayerSnapshot>> PlayAsync(CancellationToken cancellationToken = default)
     {
