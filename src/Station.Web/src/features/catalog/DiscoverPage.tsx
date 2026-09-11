@@ -3,7 +3,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { ApiError } from '../../api/client'
 import { useSession } from '../../state/session'
 import type { QueueEntry } from '../queue/types'
-import { NowPlaying } from '../../realtime/NowPlaying'
+import { useRoomRealtime } from '../../realtime/room-realtime'
 
 interface SongSearchItem { songId: string; title: string; artists: string; language?: string; category?: string; quality?: string; year?: number; availability: 'Available' | 'Offline' | 'Unreadable' }
 interface SongSearchPage { items: SongSearchItem[]; total: number; page: number; pageSize: number }
@@ -15,6 +15,7 @@ function useDebouncedValue<T>(value: T, milliseconds: number) { const [debounced
 
 export function DiscoverPage() {
   const { api, session } = useSession()
+  const { addQueueItem } = useRoomRealtime()
   const [text, setText] = useState('')
   const debouncedText = useDebouncedValue(text.trim(), 300)
   const [filters, setFilters] = useState(initialFilters)
@@ -52,7 +53,7 @@ export function DiscoverPage() {
     try {
       const queue = await api.get<QueueEntry[]>('/api/queue')
       if (queue.some(item => item.songId === song.songId && item.requestedByGuestId === session?.guestId)) { setNotice(`《${song.title}》已经在你的队列中。`); return }
-      await api.post<QueueEntry>('/api/queue', { songId: song.songId }); setNotice(`已点播《${song.title}》。`)
+      const queued = await api.post<QueueEntry>('/api/queue', { songId: song.songId }); addQueueItem(queued); setNotice(`已点播《${song.title}》。`)
     } catch (value) {
       if (value instanceof ApiError && value.problem.code === 'queue.guest_limit_reached') setNotice('你的点歌数量已达到本房间上限。')
       else setNotice(value instanceof ApiError ? value.message : '点歌失败，请稍后重试。')
@@ -62,7 +63,6 @@ export function DiscoverPage() {
   const hasMore = result ? result.items.length < result.total : false
   return <>
     <label className="search-box"><Search aria-hidden="true" /><span className="sr-only">搜索歌曲</span><input value={text} onChange={event => setText(event.target.value)} placeholder="搜索歌名、歌手或拼音" /></label>
-    <NowPlaying />
     <section className="catalog-filters" aria-label="曲库筛选">
       <label><span className="sr-only">歌星</span><select value={filters.artistGroup} onChange={event => updateFilter('artistGroup', event.target.value)}><option value="">全部歌星</option><option>华语男歌手</option><option>华语女歌手</option><option>华语组合</option><option>欧美歌手</option><option>日韩歌手</option><option>其他</option></select></label>
       <label><span className="sr-only">语言</span><select value={filters.language} onChange={event => updateFilter('language', event.target.value)}><option value="">全部语种</option><option>国语</option><option>粤语</option><option>台语</option><option>闽南语</option><option>英语</option><option>日语</option><option>韩语</option><option>纯音乐</option></select></label>

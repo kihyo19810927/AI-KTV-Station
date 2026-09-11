@@ -9,7 +9,7 @@ export interface RoomRealtimeEvent { version: number; type: string; data: unknow
 export interface RoomRealtimeSnapshot { version: number; roomId: string; queue: QueueEntry[]; playback?: PlaybackProgress }
 interface RoomRealtimeSync { version: number; snapshot?: RoomRealtimeSnapshot; events: RoomRealtimeEvent[] }
 export interface RoomRealtimeState { version: number; queue: QueueEntry[]; playback?: PlaybackProgress }
-interface RoomRealtimeContextValue extends RoomRealtimeState { connectionStatus: ConnectionStatus }
+interface RoomRealtimeContextValue extends RoomRealtimeState { connectionStatus: ConnectionStatus; addQueueItem: (item: QueueEntry) => void }
 const RoomRealtimeContext = createContext<RoomRealtimeContextValue | null>(null)
 const emptyState: RoomRealtimeState = { version: 0, queue: [] }
 
@@ -27,6 +27,7 @@ export function RoomRealtimeProvider({ children }: PropsWithChildren) {
   const [state, setState] = useState(emptyState)
   const [connectionStatus, setConnectionStatus] = useState<ConnectionStatus>('connecting')
   const version = useRef(0)
+  const addQueueItem = (item: QueueEntry) => setState(current => ({ ...current, queue: [...current.queue.filter(existing => existing.id !== item.id), item].sort((a, b) => a.position - b.position) }))
   useEffect(() => {
     if (!session) return
     let disposed = false
@@ -42,7 +43,7 @@ export function RoomRealtimeProvider({ children }: PropsWithChildren) {
     void connection.start().then(subscribe).catch(() => { if (!disposed) setConnectionStatus('offline') })
     return () => { disposed = true; connection.off('roomEvent', accept); if (connection.state !== HubConnectionState.Disconnected) void connection.stop() }
   }, [session])
-  return <RoomRealtimeContext.Provider value={{ ...state, connectionStatus }}>{children}</RoomRealtimeContext.Provider>
+  return <RoomRealtimeContext.Provider value={{ ...state, connectionStatus, addQueueItem }}>{children}</RoomRealtimeContext.Provider>
 }
 
 export function useRoomRealtime() { const value = useContext(RoomRealtimeContext); if (!value) throw new Error('useRoomRealtime must be used inside RoomRealtimeProvider'); return value }

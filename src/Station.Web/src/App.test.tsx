@@ -47,6 +47,7 @@ describe('mobile application shell', () => {
     let queue: unknown[] = []
     vi.mocked(fetch).mockImplementation(async (url, init) => { const path = String(url); if (path.startsWith('/api/catalog')) return new Response(JSON.stringify({ items: [song], total: 1, page: 1, pageSize: 20 }), { status: 200, headers: { 'Content-Type': 'application/json' } }); if (path === '/api/queue' && init?.method === 'POST') { const item = { id: 'item-1', ...song, requestedByGuestId: 'guest-1', requestedByNickname: '小明', status: 'Waiting' }; queue = [item]; return new Response(JSON.stringify(item), { status: 201, headers: { 'Content-Type': 'application/json' } }) } return new Response(JSON.stringify(queue), { status: 200, headers: { 'Content-Type': 'application/json' } }) })
     sessionStorage.setItem('ai-ktv-station.room-session.v1', JSON.stringify(validSession)); renderApp('/room/discover'); await screen.findByText('夜曲'); fireEvent.click(screen.getByRole('button', { name: '点播 夜曲' })); expect(await screen.findByRole('status')).toHaveTextContent('已点播《夜曲》'); fireEvent.click(screen.getByRole('button', { name: '点播 夜曲' })); expect(await screen.findByRole('status')).toHaveTextContent('已经在你的队列中')
+    fireEvent.click(screen.getByRole('link', { name: '已点' })); expect(await screen.findByText('夜曲')).toBeInTheDocument()
     expect(vi.mocked(fetch).mock.calls.filter(([, init]) => init?.method === 'POST')).toHaveLength(1)
   })
   it('lists only my songs and removes a waiting item', async () => {
@@ -59,9 +60,9 @@ describe('mobile application shell', () => {
     vi.mocked(fetch).mockImplementation(async (url, init) => { if (String(url).startsWith('/api/catalog')) return new Response(JSON.stringify({ items: [song], total: 1, page: 1, pageSize: 20 }), { status: 200, headers: { 'Content-Type': 'application/json' } }); if (init?.method === 'POST') return new Response(JSON.stringify({ title: 'Guest queue limit was reached.', code: 'queue.guest_limit_reached' }), { status: 409 }); return new Response(JSON.stringify([]), { status: 200, headers: { 'Content-Type': 'application/json' } }) })
     sessionStorage.setItem('ai-ktv-station.room-session.v1', JSON.stringify(validSession)); renderApp('/room/discover'); await screen.findByText('夜曲'); fireEvent.click(screen.getByRole('button', { name: '点播 夜曲' })); expect(await screen.findByRole('status')).toHaveTextContent('点歌数量已达到本房间上限')
   })
-  it('subscribes without putting the token in the hub URL and renders the playback snapshot', async () => {
+  it('subscribes without putting the token in the hub URL and renders playback controls on their own tab', async () => {
     realtime.snapshot = { version: 8, roomId: 'room-1', queue: [{ id: 'playing-1', songId: 'song-1', title: '正在唱的歌', requestedByGuestId: 'guest-1', requestedByNickname: '小明', position: 1, status: 'Playing', requestedAt: '2026-09-10T00:00:00Z' }], playback: { playbackId: 'p1', state: 'Playing', position: '00:00:03' } }
-    sessionStorage.setItem('ai-ktv-station.room-session.v1', JSON.stringify(validSession)); renderApp('/room/discover'); await screen.findByText('正在唱的歌'); expect(realtime.lastUrl).toBe('/hubs/room'); expect(realtime.lastUrl).not.toContain('short-lived-token'); expect(realtime.invokeArgs).toEqual(['Subscribe', 'short-lived-token', null])
+    sessionStorage.setItem('ai-ktv-station.room-session.v1', JSON.stringify(validSession)); renderApp('/room/playback'); await screen.findByText('正在唱的歌'); expect(screen.getByRole('button', { name: '暂停' })).toBeInTheDocument(); expect(screen.getByRole('button', { name: '切歌' })).toBeInTheDocument(); expect(realtime.lastUrl).toBe('/hubs/room'); expect(realtime.lastUrl).not.toContain('short-lived-token'); expect(realtime.invokeArgs).toEqual(['Subscribe', 'short-lived-token', null])
   })
   it('toggles a favorite from discovery', async () => {
     const song = { songId: 'song-1', title: '收藏测试歌', artists: '歌手', availability: 'Available' }
@@ -72,6 +73,7 @@ describe('mobile application shell', () => {
     sessionStorage.setItem('ai-ktv-station.room-session.v1', JSON.stringify(validSession)); renderApp('/room/discover')
     expect(await screen.findByLabelText('歌星')).toBeInTheDocument(); expect(screen.getByLabelText('语言')).toBeInTheDocument(); expect(screen.getByLabelText('风格')).toBeInTheDocument(); expect(screen.queryByRole('button', { name: '热门' })).not.toBeInTheDocument()
   })
+  it('replaces the unused my tab with a playback tab', async () => { sessionStorage.setItem('ai-ktv-station.room-session.v1', JSON.stringify(validSession)); renderApp('/room/discover'); expect(await screen.findByRole('link', { name: '播放' })).toBeInTheDocument(); expect(screen.queryByRole('link', { name: '我的' })).not.toBeInTheDocument() })
   it('loads the favorites page and removes a favorite', async () => {
     vi.mocked(fetch).mockImplementation(async (_url, init) => init?.method === 'PUT' ? new Response(JSON.stringify({ favorite: false }), { status: 200, headers: { 'Content-Type': 'application/json' } }) : new Response(JSON.stringify([{ songId: 'fav-1', title: '心爱歌曲', artists: '歌手', favoritedAt: '2026-09-10T00:00:00Z' }]), { status: 200, headers: { 'Content-Type': 'application/json' } }))
     sessionStorage.setItem('ai-ktv-station.room-session.v1', JSON.stringify(validSession)); renderApp('/room/favorites'); await screen.findByText('心爱歌曲'); fireEvent.click(screen.getByRole('button', { name: '取消收藏 心爱歌曲' })); await waitFor(() => expect(screen.queryByText('心爱歌曲')).not.toBeInTheDocument())

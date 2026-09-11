@@ -45,6 +45,7 @@
 | Web 加入与会话恢复 | Vitest + jsdom，真实 API 客户端请求替身 | 通过（9 个前端场景：加入、预填、恢复、退出、过期/损坏清理） | 二维码与 Android/iPhone 标签页生命周期后验收 |
 | Web 曲库搜索 | Vitest + API 请求替身 | 通过（防抖查询、筛选参数、分页追加、空状态、错误重试、离线禁用） | 大曲库滚动与手机软键盘后验收 |
 | Web 点歌与我的歌曲 | Vitest + API 请求替身 | 通过（成功点歌、重复拦截、额度提示、本人筛选、等待项删除） | 多手机并发交互随实时同步后验收 |
+| Web 播放标签与即时队列 | Vitest + SignalR/API 替身 | 通过（25/25；独立播放控制页、无“我的”入口、POST 成功后无需刷新即可查看已点） | 真实手机 WebSocket 事件时序待验收 |
 | Web SignalR 实时状态 | Vitest reducer/Hub 替身 + 服务端真实 SignalR 客户端 | 通过（版本幂等、增量、快照、播放卡片、令牌不进 URL；服务端在线/补发已覆盖） | 手机 WebSocket、Wi-Fi 切换和休眠恢复后验收 |
 | Web 收藏与分类发现 | Vitest + SQLite 搜索回归 | 通过（收藏切换/列表；固定歌星、语种、风格筛选；移除热门/最近新增入口） | 歌手分组未知数据归“其他”；多访客手机交互后验收 |
 | 手机 Web 兼容基线 | Vitest 静态契约 + Vite 多浏览器目标 | 通过（320px、44px 触摸、焦点、safe-area、viewport、Chrome/Edge/Safari 构建目标） | Android Chrome 与 iPhone Safari 后验收 |
