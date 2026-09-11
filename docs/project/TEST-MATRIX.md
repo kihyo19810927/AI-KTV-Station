@@ -69,8 +69,8 @@
 | Windows 自包含发布包 | `scripts/publish-windows.ps1` + `verify-release-package.ps1` | 通过（win-x64、566 项、ZIP SHA-256、Web/说明/声明齐全） | 干净 Windows 安装待 KTVS-058；项目许可待决定 |
 | 数据库安全升级 | 临时 SQLite + 可控迁移执行器 | 通过（无迁移不备份、备份完整、删除数据后失败自动恢复） | 正式库升级与磁盘故障待实机演练 |
 | 运维文档完整性 | `scripts/verify-operations-docs.ps1` | 通过（6 份文档、7 章节、3 条安全警告） | 操作可用性随 KTVS-058 实机验收 |
-| RC3 候选版软件验证 | UAT 就绪链 + 发布包验证 + 随机临时目录启动 | 通过（Core 153、Desktop 12、Web 24、566 项 ZIP、SQLite/内嵌服务健康） | 干净 Windows 与真实设备仍待验收 |
-| 1.0.0 发布材料 | `scripts/verify-release-readiness.ps1` | 通过（Release Notes 五章节、候选 ZIP/sidecar SHA-256 一致、Tag 明确待创建） | 正式 Tag/Release 受实机、许可和所有者授权阻塞 |
+| RC6 候选版软件验证 | UAT 就绪链 + 发布包验证 + 随机临时目录启动/退出 | 通过（Core 159、Desktop 14、Web 24、566 项 ZIP、SQLite/内嵌服务健康、进程清理） | 干净 Windows 与真实设备仍待验收 |
+| 1.0.0 发布材料 | `scripts/verify-release-readiness.ps1` | 通过（Release Notes 五章节、候选记录版本、ZIP/sidecar/文档 SHA-256 一致、Tag 明确待创建） | 正式 Tag/Release 受实机、许可和所有者授权阻塞 |
 | GitHub Actions 发布前兼容 | Windows runner push workflow | #8 通过（3m02s、coverage artifact、无 Annotation）；Node 24 的 v5/v7 Action 组合无弃用警告 | #7 聚合测试瞬态失败已保留审计记录 |
 | 环境与生成 MKV | `scripts/verify-environment.ps1` | 通过（10.023s、4 轨、中文标题） | 无 |
 | 真实 MKV/设备 | `ENVIRONMENT-BASELINE.md` 用户验收步骤 | 待验证 | 用户设备、样本和挂载 |
