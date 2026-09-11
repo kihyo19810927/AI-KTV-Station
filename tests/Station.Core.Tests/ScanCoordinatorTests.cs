@@ -48,6 +48,36 @@ public sealed class ScanCoordinatorTests
         Assert.Equal("scan.operation_finished", coordinator.Cancel(started.ScanRunId).Error.Code);
     }
 
+    [Fact]
+    public async Task Terminal_status_is_published_only_after_the_scan_scope_is_disposed()
+    {
+        var runner = new DisposalBlockingRunner();
+        await using var provider = CreateProvider(runner, new RecordingSearchIndex());
+        await using var coordinator = new ScanCoordinator(provider.GetRequiredService<IServiceScopeFactory>());
+        var started = coordinator.Start(Guid.NewGuid()).Value;
+
+        await runner.DisposalStarted.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        var statusWhileDisposing = coordinator.Get(started.ScanRunId).Value.Status;
+        runner.AllowDisposal();
+        Assert.Equal(ScanStatus.Running, statusWhileDisposing);
+        Assert.Equal(ScanStatus.Completed, (await WaitForTerminalAsync(coordinator, started.ScanRunId)).Status);
+    }
+
+    [Fact]
+    public async Task Disposing_coordinator_cancels_and_waits_for_active_scans()
+    {
+        var runner = new ControlledRunner();
+        await using var provider = CreateProvider(runner, new RecordingSearchIndex());
+        var coordinator = new ScanCoordinator(provider.GetRequiredService<IServiceScopeFactory>());
+        var started = coordinator.Start(Guid.NewGuid()).Value;
+        await runner.Started.Task.WaitAsync(TimeSpan.FromSeconds(5));
+
+        await coordinator.DisposeAsync();
+
+        Assert.Equal(ScanStatus.Cancelled, coordinator.Get(started.ScanRunId).Value.Status);
+        Assert.Equal("scan.coordinator_stopped", coordinator.Start(Guid.NewGuid()).Error.Code);
+    }
+
     private static ServiceProvider CreateProvider(IMediaScanRunner runner, ISongSearchIndex index) => new ServiceCollection()
         .AddScoped<IMediaScanRunner>(_ => runner)
         .AddScoped<ISongSearchIndex>(_ => index)
@@ -94,5 +124,30 @@ public sealed class ScanCoordinatorTests
         public Task UpsertAsync(IReadOnlyCollection<Guid> songIds, CancellationToken cancellationToken = default) => Task.CompletedTask;
         public Task<Result<SongSearchPage>> SearchAsync(SongSearchQuery query, CancellationToken cancellationToken = default) =>
             Task.FromResult(Result<SongSearchPage>.Success(new SongSearchPage([], 0, query.Page, query.PageSize)));
+    }
+
+    private sealed class DisposalBlockingRunner : IMediaScanRunner, IAsyncDisposable
+    {
+        private readonly TaskCompletionSource disposalAllowed = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public TaskCompletionSource DisposalStarted { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        public void AllowDisposal() => disposalAllowed.TrySetResult();
+
+        public Task<Result<ScanRun>> ScanAsync(Guid mediaSourceId, Guid scanRunId, IProgress<MediaScanProgress> progress, CancellationToken cancellationToken = default)
+        {
+            progress.Report(new MediaScanProgress(scanRunId, ScanStatus.Running, 1, 1, 0));
+            return Task.FromResult(Result<ScanRun>.Success(new ScanRun
+            {
+                Id = scanRunId,
+                MediaSourceId = mediaSourceId,
+                Status = ScanStatus.Completed,
+            }));
+        }
+
+        public async ValueTask DisposeAsync()
+        {
+            DisposalStarted.TrySetResult();
+            await disposalAllowed.Task;
+        }
     }
 }

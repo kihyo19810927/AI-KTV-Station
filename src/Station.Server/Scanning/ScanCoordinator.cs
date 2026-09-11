@@ -6,10 +6,11 @@ using Station.Domain.Models;
 
 namespace Station.Server.Scanning;
 
-public sealed class ScanCoordinator(IServiceScopeFactory scopeFactory) : IScanCoordinator
+public sealed class ScanCoordinator(IServiceScopeFactory scopeFactory) : IScanCoordinator, IAsyncDisposable
 {
     private readonly object gate = new();
     private readonly Dictionary<Guid, Operation> operations = [];
+    private bool disposed;
 
     public Result<ScanOperationStatus> Start(Guid mediaSourceId)
     {
@@ -17,14 +18,15 @@ public sealed class ScanCoordinator(IServiceScopeFactory scopeFactory) : IScanCo
         Operation operation;
         lock (gate)
         {
+            if (disposed) return Failure("scan.coordinator_stopped", "The scan coordinator has stopped.");
             if (operations.Values.Any(x => x.Status.MediaSourceId == mediaSourceId && IsActive(x.Status.Status)))
                 return Failure("scan.already_running", "A scan for this media source is already running.");
             var now = DateTimeOffset.UtcNow;
             var status = new ScanOperationStatus(Guid.NewGuid(), mediaSourceId, ScanStatus.Pending, now, null, 0, 0, 0, null);
             operation = new Operation(status, new CancellationTokenSource());
             operations.Add(status.ScanRunId, operation);
+            operation.Execution = Task.Run(() => ExecuteAsync(operation), CancellationToken.None);
         }
-        _ = Task.Run(() => ExecuteAsync(operation), CancellationToken.None);
         return Result<ScanOperationStatus>.Success(operation.Status);
     }
 
@@ -54,29 +56,9 @@ public sealed class ScanCoordinator(IServiceScopeFactory scopeFactory) : IScanCo
         Update(operation, operation.Status with { Status = ScanStatus.Running });
         try
         {
-            await using var scope = scopeFactory.CreateAsyncScope();
-            var runner = scope.ServiceProvider.GetRequiredService<IMediaScanRunner>();
-            var progress = new InlineProgress<MediaScanProgress>(value => Update(operation, operation.Status with
-            {
-                Status = value.Status,
-                DiscoveredFiles = value.DiscoveredFiles,
-                UpdatedFiles = value.UpdatedFiles,
-                ErrorCount = value.ErrorCount,
-                IndexedFiles = value.IndexedFiles,
-                ProbedFiles = value.ProbedFiles,
-                CachedFiles = value.CachedFiles,
-                AverageProbeMilliseconds = value.AverageProbeMilliseconds,
-                Phase = value.Phase,
-            }));
-            var result = await runner.ScanAsync(operation.Status.MediaSourceId, operation.Status.ScanRunId, progress, operation.Cancellation.Token);
-            if (!result.IsSuccess)
-            {
-                Finish(operation, ScanStatus.Failed, result.Error.Code);
-                return;
-            }
-            if (result.Value.Status == ScanStatus.Completed)
-                await scope.ServiceProvider.GetRequiredService<ISongSearchIndex>().RebuildAsync(operation.Cancellation.Token);
-            Finish(operation, result.Value.Status, result.Value.ErrorSummary);
+            var completion = await ExecuteInScopeAsync(operation);
+            // A terminal status promises that scoped database resources have already been released.
+            Finish(operation, completion.Status, completion.ErrorCode);
         }
         catch (OperationCanceledException)
         {
@@ -90,6 +72,44 @@ public sealed class ScanCoordinator(IServiceScopeFactory scopeFactory) : IScanCo
         {
             operation.Cancellation.Dispose();
         }
+    }
+
+    private async Task<(ScanStatus Status, string? ErrorCode)> ExecuteInScopeAsync(Operation operation)
+    {
+        await using var scope = scopeFactory.CreateAsyncScope();
+        var runner = scope.ServiceProvider.GetRequiredService<IMediaScanRunner>();
+        var progress = new InlineProgress<MediaScanProgress>(value => Update(operation, operation.Status with
+        {
+            Status = value.Status,
+            DiscoveredFiles = value.DiscoveredFiles,
+            UpdatedFiles = value.UpdatedFiles,
+            ErrorCount = value.ErrorCount,
+            IndexedFiles = value.IndexedFiles,
+            ProbedFiles = value.ProbedFiles,
+            CachedFiles = value.CachedFiles,
+            AverageProbeMilliseconds = value.AverageProbeMilliseconds,
+            Phase = value.Phase,
+        }));
+        var result = await runner.ScanAsync(operation.Status.MediaSourceId, operation.Status.ScanRunId, progress, operation.Cancellation.Token);
+        if (!result.IsSuccess) return (ScanStatus.Failed, result.Error.Code);
+        if (result.Value.Status == ScanStatus.Completed)
+            await scope.ServiceProvider.GetRequiredService<ISongSearchIndex>().RebuildAsync(operation.Cancellation.Token);
+        return (result.Value.Status, result.Value.ErrorSummary);
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        Operation[] active;
+        Task[] executions;
+        lock (gate)
+        {
+            if (disposed) return;
+            disposed = true;
+            active = operations.Values.Where(x => IsActive(x.Status.Status)).ToArray();
+            executions = active.Select(x => x.Execution).ToArray();
+        }
+        foreach (var operation in active) operation.Cancellation.Cancel();
+        await Task.WhenAll(executions);
     }
 
     private void Finish(Operation operation, ScanStatus status, string? errorCode) => Update(operation, operation.Status with
@@ -111,6 +131,7 @@ public sealed class ScanCoordinator(IServiceScopeFactory scopeFactory) : IScanCo
     {
         public ScanOperationStatus Status { get; set; } = status;
         public CancellationTokenSource Cancellation { get; } = cancellation;
+        public Task Execution { get; set; } = Task.CompletedTask;
     }
 
     private sealed class InlineProgress<T>(Action<T> callback) : IProgress<T>

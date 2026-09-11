@@ -132,7 +132,7 @@ KTVS-061：按已确认 HTML Demo 升级 WPF 主控视觉语言，加入渐变�
 
 KTVS-062：扫描器已拆分基础索引与后台 ffprobe，路径+大小+修改时间指纹跳过未变化文件，支持取消检查点、1–4 路配置和细分进度。真实限定十首样本中，CloudDrive 并发1为60.03秒且10/10成功，并发2为106.55秒且5/10成功；本地并发1/2为0.68/0.33秒，故远程默认1。未探测歌曲允许点播，只在轮到队首时顺序探测并缓存结果。手机端改为自动访客昵称、LAN全网卡监听、带房间码URL及播放/切歌/音量/音轨/字幕控制；筛选改为歌星/语种/风格并由服务端执行歌星分组过滤。附件 JSON 36,601 条已先在暂存库验证，再在正式库备份后全部导入，未读取或修改媒体。启动 WebRoot 异常已修复，WPF 定时刷新播放与队列，正常关闭会停止内嵌服务并释放播放器。最终回归 Core 159/159、Desktop 14/14、Web 24/24、ffprobe 1/1、mpv 2/2，Release 构建 0 警告/错误、格式与依赖门禁通过。`0.1.0-rc.6` 共566项，SHA-256为 `11db6b4cf5b385402a4099922e1416ad22403752fa1ddb416bf65ea9431d6d5f`；全新解压启动和正常关闭检查通过，退出后 Station/mpv进程为0且5090无监听。
 
-KTVS-063：修正 RC6 与候选验证记录、1.0.0 发布说明和 Windows 构建示例之间的版本漂移。`verify-release-readiness.ps1` 除发布说明外，现也强制验证候选记录包含当前 ZIP 文件名所表达的版本和实际 SHA-256；RC6 的 566 项 ZIP、sidecar、候选记录和发布说明复核通过。完整回归 Core 159/159、Desktop 14/14、Web 24/24 通过；Web 首次在受限沙箱中因 Vite 辅助进程 `spawn EPERM` 未启动，按相同命令在沙箱外复跑通过。实机、许可和正式发布门禁不变。
+KTVS-063：修正 RC6 与候选验证记录、1.0.0 发布说明和 Windows 构建示例之间的版本漂移。`verify-release-readiness.ps1` 除发布说明外，现也强制验证候选记录包含当前 ZIP 文件名所表达的版本和实际 SHA-256；RC6 的 566 项 ZIP、sidecar、候选记录和发布说明复核通过。首次远端 push CI 暴露扫描状态先于 DI scope 释放的 SQLite 临时文件锁竞争；协调器现仅在 scope 释放后发布终态，主机关闭时会取消并等待活动扫描，并增加确定性回归测试。完整回归 Core 161/161、Desktop 14/14、Web 24/24，Release 构建 0 警告/错误、格式和依赖门禁通过。实机、许可和正式发布门禁不变。
 
 KTVS-059 CI 复核：远端 push workflow #6 成功（2 分 57 秒），同时发现三个 JavaScript Action 的 Node 20 运行时弃用警告。首次统一升级 v7 后，workflow #7 的 Action 初始化、还原、格式与构建均成功，但聚合测试步骤以 exit 1 结束；未登录公开页面不提供测试日志，公开 API 仅返回步骤级失败。本机随即以相同 `scripts/test.ps1 -NoRestore` 复验 Core 153/153、Desktop 12/12、Web 24/24 全部通过。按官方 Node 24 迁移说明改用 checkout/setup-node v5，并保留 upload-artifact 当前 v7 后，workflow #8 成功（3 分 02 秒）、生成 coverage artifact 且无 Annotation，Node 20 弃用警告消失。
 
