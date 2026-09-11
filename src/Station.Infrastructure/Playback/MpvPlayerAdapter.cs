@@ -72,7 +72,8 @@ public sealed class MpvPlayerAdapter : IPlayerAdapter
             };
             startInfo.ArgumentList.Add("--idle=yes");
             startInfo.ArgumentList.Add("--no-terminal");
-            startInfo.ArgumentList.Add("--force-window=no");
+            // Keep the owned output window alive while mpv is idle between queued songs.
+            startInfo.ArgumentList.Add("--force-window=yes");
             startInfo.ArgumentList.Add("--audio-display=no");
             startInfo.ArgumentList.Add($"--input-ipc-server=\\\\.\\pipe\\{pipeName}");
 

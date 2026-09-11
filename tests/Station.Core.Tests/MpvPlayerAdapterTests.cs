@@ -39,6 +39,7 @@ public sealed class MpvPlayerAdapterTests
         var start = await player.StartAsync();
         Assert.True(start.IsSuccess, start.Error.Code);
         Assert.Equal(PlayerLifecycleState.Idle, start.Value.State);
+        var processId = Assert.IsType<int>(player.ProcessId);
 
         var playbackId = Guid.NewGuid();
         using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(20));
@@ -66,6 +67,8 @@ public sealed class MpvPlayerAdapterTests
         var ended = await endedTask;
         Assert.Equal(PlaybackEndReason.Completed, ended.Reason);
         Assert.Equal(playbackId, ended.PlaybackId);
+        Assert.Equal(processId, player.ProcessId);
+        Assert.False(Process.GetProcessById(processId).HasExited);
         var stopped = await player.StopAsync(timeout.Token);
         Assert.True(stopped.IsSuccess, stopped.Error.Code);
         Assert.Equal(PlayerLifecycleState.Stopped, stopped.Value.State);

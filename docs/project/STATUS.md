@@ -7,7 +7,7 @@
 - 分支：`codex/KTVS-064`
 - 版本：`0.1.0-dev`
 - 阶段：Phase 8：发布准备
-- 已完成：KTVS-001 至 KTVS-057；KTVS-058 软件验证完成；KTVS-060 至 KTVS-064 用户反馈及发布一致性改进完成
+- 已完成：KTVS-001 至 KTVS-057；KTVS-058 软件验证完成；KTVS-060 至 KTVS-065 用户反馈及发布一致性改进完成
 - 当前任务：KTVS-058/059 继续等待实机、许可决定与正式发布授权
 
 ## 调查结果
@@ -135,6 +135,8 @@ KTVS-062：扫描器已拆分基础索引与后台 ffprobe，路径+大小+修�
 KTVS-063：修正 RC6 与候选验证记录、1.0.0 发布说明和 Windows 构建示例之间的版本漂移。`verify-release-readiness.ps1` 除发布说明外，现也强制验证候选记录包含当前 ZIP 文件名所表达的版本和实际 SHA-256；RC6 的 566 项 ZIP、sidecar、候选记录和发布说明复核通过。首次远端 push CI 暴露扫描状态先于 DI scope 释放的 SQLite 临时文件锁竞争；协调器现仅在 scope 释放后发布终态，主机关闭时会取消并等待活动扫描，并增加确定性回归测试。完整回归 Core 161/161、Desktop 14/14、Web 24/24，Release 构建 0 警告/错误、格式和依赖门禁通过。实机、许可和正式发布门禁不变。
 
 KTVS-064：手机端新增独立“播放”标签，将正在播放、暂停/继续、切歌、音量、原唱/伴奏和字幕控制从点歌页移入该页，并删除重复退出能力的“我的”标签。点歌 API 成功后立即将返回项合并到实时队列，服务端 SignalR 事件到达时仍按 ID/版本去重。Web 25/25 测试与生产构建通过；真实手机待实机验收。
+
+KTVS-065：新增独立队列预探测后台服务，在当前歌曲播放期间按位置顺序逐一 ffprobe 等待项并保存指纹；单首失败只记录错误，不删索引也不阻塞后续预探测，到队首时仍会尝试播放。mpv 原已使用 `--idle=yes`，用户看到的“退出”实为 `--force-window=no` 导致 EOF 后窗口消失；现改为常驻窗口。Release 构建 0 警告/错误，默认 Core 166/166、Desktop 14/14，真实 mpv 2/2 通过并确认 EOF 后进程 ID 不变。
 
 KTVS-059 CI 复核：远端 push workflow #6 成功（2 分 57 秒），同时发现三个 JavaScript Action 的 Node 20 运行时弃用警告。首次统一升级 v7 后，workflow #7 的 Action 初始化、还原、格式与构建均成功，但聚合测试步骤以 exit 1 结束；未登录公开页面不提供测试日志，公开 API 仅返回步骤级失败。本机随即以相同 `scripts/test.ps1 -NoRestore` 复验 Core 153/153、Desktop 12/12、Web 24/24 全部通过。按官方 Node 24 迁移说明改用 checkout/setup-node v5，并保留 upload-artifact 当前 v7 后，workflow #8 成功（3 分 02 秒）、生成 coverage artifact 且无 Annotation，Node 20 弃用警告消失。
 
