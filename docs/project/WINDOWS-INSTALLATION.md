@@ -22,7 +22,7 @@
 从干净源码使用 PowerShell 7：
 
 ```powershell
-pwsh.exe -ExecutionPolicy Bypass -File scripts/publish-windows.ps1 -Version 0.1.0-rc.3
+pwsh.exe -ExecutionPolicy Bypass -File scripts/publish-windows.ps1 -Version 0.1.0-rc.6
 ```
 
 输出位于 `artifacts`，包含 ZIP 和 SHA-256 文件。脚本以锁定依赖构建 Web 与 .NET 自包含 `win-x64` 包，生成逐文件清单，并拒绝 mpv、FFmpeg、数据库或用户设置进入包。
