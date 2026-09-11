@@ -23,6 +23,7 @@ public static class StationApiEndpoints
         api.MapPost("/rooms/{roomId:guid}/guests/{guestId:guid}/revoke", RevokeGuestAsync).WithName("RevokeGuest");
 
         api.MapGet("/catalog/search", SearchAsync).WithName("SearchCatalog");
+        api.MapGet("/catalog/artists", BrowseArtistsAsync).WithName("BrowseArtists");
         api.MapGet("/queue", GetQueueAsync).WithName("GetQueue");
         api.MapPost("/queue", RequestSongAsync).WithName("RequestSong");
         api.MapDelete("/queue/{itemId:guid}", RemoveQueueItemAsync).WithName("RemoveQueueItem");
@@ -134,6 +135,14 @@ public static class StationApiEndpoints
         if (identity.IsFailure) return Problem(identity.Error);
         var result = await search.SearchAsync(new(text, page, pageSize, language, category, quality, yearFrom, yearTo, sort, artistGroup), cancellationToken);
         return result.IsSuccess ? Results.Ok(result.Value) : Problem(result.Error);
+    }
+
+    private static async Task<IResult> BrowseArtistsAsync(HttpContext context, RoomAuthenticationService authentication,
+        IArtistBrowseService artists, string? artistGroup = null, CancellationToken cancellationToken = default)
+    {
+        var identity = await AuthorizeAsync(context, authentication, RoomPermission.ViewCatalog, cancellationToken);
+        if (identity.IsFailure) return Problem(identity.Error);
+        return Results.Ok(await artists.ListAsync(artistGroup, cancellationToken: cancellationToken));
     }
 
     private static async Task<IResult> GetQueueAsync(

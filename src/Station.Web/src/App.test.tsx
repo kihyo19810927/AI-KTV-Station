@@ -30,7 +30,9 @@ describe('mobile application shell', () => {
   it('debounces catalog search and sends selected filters', async () => {
     vi.mocked(fetch).mockImplementation(async () => new Response(JSON.stringify({ items: [{ songId: 'song-1', title: '夜曲', artists: '周杰伦', language: '国语', quality: '4K', availability: 'Available' }], total: 1, page: 1, pageSize: 20 }), { status: 200, headers: { 'Content-Type': 'application/json' } }))
     sessionStorage.setItem('ai-ktv-station.room-session.v1', JSON.stringify(validSession)); renderApp('/room/discover')
-    fireEvent.change(screen.getByPlaceholderText('搜索歌名、歌手或拼音'), { target: { value: 'yequ' } }); fireEvent.change(screen.getByLabelText('语言'), { target: { value: '国语' } })
+    fireEvent.change(screen.getByPlaceholderText('搜索歌名、歌手或拼音'), { target: { value: 'yequ' } })
+    fireEvent.click(screen.getByRole('button', { name: '按语种' }))
+    fireEvent.click(screen.getByRole('button', { name: '国语' }))
     await screen.findByText('夜曲')
     await waitFor(() => expect(vi.mocked(fetch).mock.calls.some(([url]) => String(url).includes('text=yequ') && String(url).includes(encodeURIComponent('国语')))).toBe(true), { timeout: 1500 })
   })
@@ -69,9 +71,10 @@ describe('mobile application shell', () => {
     vi.mocked(fetch).mockImplementation(async (url) => String(url).startsWith('/api/catalog') ? new Response(JSON.stringify({ items: [song], total: 1, page: 1, pageSize: 20 }), { status: 200, headers: { 'Content-Type': 'application/json' } }) : new Response(JSON.stringify([]), { status: 200, headers: { 'Content-Type': 'application/json' } }))
     sessionStorage.setItem('ai-ktv-station.room-session.v1', JSON.stringify(validSession)); renderApp('/room/discover'); await screen.findByText('收藏测试歌'); fireEvent.click(screen.getByRole('button', { name: '收藏 收藏测试歌' })); expect(await screen.findByRole('status')).toHaveTextContent('已收藏《收藏测试歌》'); expect(vi.mocked(fetch).mock.calls.some(([url, init]) => String(url).includes('/api/library/favorites/song-1') && init?.method === 'PUT')).toBe(true)
   })
-  it('shows the required singer language and style filters without legacy discovery modes', async () => {
+  it('uses independent second-level singer language and style menus instead of combined selects', async () => {
     sessionStorage.setItem('ai-ktv-station.room-session.v1', JSON.stringify(validSession)); renderApp('/room/discover')
-    expect(await screen.findByLabelText('歌星')).toBeInTheDocument(); expect(screen.getByLabelText('语言')).toBeInTheDocument(); expect(screen.getByLabelText('风格')).toBeInTheDocument(); expect(screen.queryByRole('button', { name: '热门' })).not.toBeInTheDocument()
+    expect(await screen.findByRole('button', { name: '按歌星' })).toBeInTheDocument(); expect(screen.getByRole('button', { name: '按语种' })).toBeInTheDocument(); expect(screen.getByRole('button', { name: '按风格' })).toBeInTheDocument(); expect(screen.queryByRole('combobox')).not.toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: '按语种' })); expect(screen.getByRole('button', { name: '粤语' })).toBeInTheDocument(); expect(screen.queryByRole('button', { name: '流行' })).not.toBeInTheDocument()
   })
   it('replaces the unused my tab with a playback tab', async () => { sessionStorage.setItem('ai-ktv-station.room-session.v1', JSON.stringify(validSession)); renderApp('/room/discover'); expect(await screen.findByRole('link', { name: '播放' })).toBeInTheDocument(); expect(screen.queryByRole('link', { name: '我的' })).not.toBeInTheDocument() })
   it('loads the favorites page and removes a favorite', async () => {

@@ -1,8 +1,7 @@
 using Station.Application.Catalog;
 using Station.Application.Common;
-using Station.Application.MediaSources;
-using Station.Application.Scanning;
 using Station.Application.Search;
+using Station.Desktop.Services;
 using Station.Desktop.ViewModels;
 using Station.Domain.Models;
 
@@ -11,34 +10,31 @@ namespace Station.Desktop.Tests;
 public sealed class CatalogManagementViewModelTests
 {
     [Fact]
-    public async Task Initialization_lists_sources_and_searches_existing_index_without_scanning()
+    public async Task Initialization_searches_existing_index_without_importing()
     {
-        var search = new FakeSearch(); var source = new FakeSources(); var scans = new FakeScans();
-        var viewModel = new CatalogManagementViewModel(search, new FakeCatalog(), source, scans);
+        var search = new FakeSearch(); var importer = new FakeImporter();
+        var viewModel = new CatalogManagementViewModel(search, new FakeCatalog(), importer, new FakePicker(null));
 
         await viewModel.InitializeAsync();
 
-        Assert.Single(viewModel.Sources); Assert.Single(viewModel.Songs); Assert.Equal(1, search.Calls); Assert.Equal(0, scans.Calls);
+        Assert.Single(viewModel.Songs); Assert.Equal(1, search.Calls); Assert.Equal(0, importer.Calls);
     }
 
     [Fact]
-    public async Task Adding_completed_year_directory_does_not_implicitly_scan_other_sources()
+    public async Task Import_uses_selected_json_and_mount_root_then_refreshes_search()
     {
-        var sources = new FakeSources(); var scans = new FakeScans();
-        var viewModel = new CatalogManagementViewModel(new FakeSearch(), new FakeCatalog(), sources, scans) { SourceName = "2016年", SourcePath = @"E:\fixture\16年" };
+        var search = new FakeSearch(); var importer = new FakeImporter();
+        var viewModel = new CatalogManagementViewModel(search, new FakeCatalog(), importer, new FakePicker(@"D:\fixture\曲库.jsonl")) { ImportMountRoot = @"E:\KTV_TEST" };
+        viewModel.SelectImportFileCommand.Execute(null);
 
-        viewModel.AddSourceCommand.Execute(null);
-        await sources.Added.Task.WaitAsync(TimeSpan.FromSeconds(2));
+        viewModel.ImportCatalogCommand.Execute(null);
+        await importer.Completed.Task.WaitAsync(TimeSpan.FromSeconds(2));
+        await Task.Delay(50);
 
-        Assert.Equal(@"E:\fixture\16年", sources.AddedPath); Assert.Equal(0, scans.Calls);
-    }
-
-    [Fact]
-    public void Scan_is_disabled_until_a_registered_source_is_selected()
-    {
-        var viewModel = new CatalogManagementViewModel(new FakeSearch(), new FakeCatalog(), new EmptySources(), new FakeScans());
-
-        Assert.False(viewModel.StartScanCommand.CanExecute(null));
+        Assert.Equal(@"D:\fixture\曲库.jsonl", importer.IndexPath);
+        Assert.Equal(@"E:\KTV_TEST", importer.MountRoot);
+        Assert.Contains("新增 2", viewModel.StatusMessage);
+        Assert.True(search.Calls >= 1);
     }
 
     private sealed class FakeSearch : ISongSearchIndex
@@ -53,26 +49,17 @@ public sealed class CatalogManagementViewModelTests
         public Task<Result<SongAdminDetails>> GetAsync(Guid songId, CancellationToken cancellationToken = default) => Task.FromResult(Result<SongAdminDetails>.Failure(new("unused", "unused")));
         public Task<Result<SongAdminDetails>> UpdateAsync(Guid songId, SongMetadataUpdate update, CancellationToken cancellationToken = default) => Task.FromResult(Result<SongAdminDetails>.Failure(new("unused", "unused")));
     }
-    private sealed class FakeSources : IMediaSourceService
-    {
-        private readonly List<MediaSourceAdminDetails> items = [new(Guid.NewGuid(), "现有年度", @"E:\fixture\existing", true, AvailabilityStatus.Available)];
-        public TaskCompletionSource Added { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
-        public string? AddedPath { get; private set; }
-        public Task<Result<MediaSourceAdminDetails>> AddAsync(string name, string rootPath, CancellationToken cancellationToken = default) { AddedPath = rootPath; var item = new MediaSourceAdminDetails(Guid.NewGuid(), name, rootPath, true, AvailabilityStatus.Available); items.Add(item); Added.TrySetResult(); return Task.FromResult(Result<MediaSourceAdminDetails>.Success(item)); }
-        public Task<Result<MediaSourceAdminDetails>> SetEnabledAsync(Guid id, bool enabled, CancellationToken cancellationToken = default) => throw new NotSupportedException();
-        public Task<IReadOnlyList<MediaSourceSummary>> ListPublicAsync(CancellationToken cancellationToken = default) => throw new NotSupportedException();
-        public Task<IReadOnlyList<MediaSourceAdminDetails>> ListAdminAsync(CancellationToken cancellationToken = default) => Task.FromResult<IReadOnlyList<MediaSourceAdminDetails>>(items.ToArray());
-    }
-    private sealed class FakeScans : ICatalogScanService
+    private sealed class FakeImporter : ICatalogJsonImportService
     {
         public int Calls { get; private set; }
-        public Task<Result<ScanRun>> ScanAsync(Guid mediaSourceId, IProgress<MediaScanProgress>? progress = null, CancellationToken cancellationToken = default) { Calls++; throw new NotSupportedException(); }
+        public string? IndexPath { get; private set; }
+        public string? MountRoot { get; private set; }
+        public TaskCompletionSource Completed { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public Task<Result<CatalogImportResult>> ImportAsync(string indexPath, string mountRoot, IProgress<CatalogImportProgress>? progress = null, CancellationToken cancellationToken = default)
+        {
+            Calls++; IndexPath = indexPath; MountRoot = mountRoot; Completed.TrySetResult();
+            return Task.FromResult(Result<CatalogImportResult>.Success(new(3, 2, 1, 0)));
+        }
     }
-    private sealed class EmptySources : IMediaSourceService
-    {
-        public Task<Result<MediaSourceAdminDetails>> AddAsync(string name, string rootPath, CancellationToken cancellationToken = default) => throw new NotSupportedException();
-        public Task<Result<MediaSourceAdminDetails>> SetEnabledAsync(Guid id, bool enabled, CancellationToken cancellationToken = default) => throw new NotSupportedException();
-        public Task<IReadOnlyList<MediaSourceSummary>> ListPublicAsync(CancellationToken cancellationToken = default) => Task.FromResult<IReadOnlyList<MediaSourceSummary>>([]);
-        public Task<IReadOnlyList<MediaSourceAdminDetails>> ListAdminAsync(CancellationToken cancellationToken = default) => Task.FromResult<IReadOnlyList<MediaSourceAdminDetails>>([]);
-    }
+    private sealed class FakePicker(string? path) : ICatalogImportFilePicker { public string? Pick() => path; }
 }

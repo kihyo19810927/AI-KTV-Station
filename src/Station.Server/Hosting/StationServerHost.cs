@@ -72,7 +72,7 @@ public static class StationServerHost
         if (sharedPlayer is null) services.AddSingleton<IPlayerAdapter>(_ => new MpvPlayerAdapter(new PlayerOptions { ExecutablePath = string.IsNullOrWhiteSpace(options.Player.ExecutablePath) ? ExternalToolLocator.Find("mpv.exe") ?? "mpv.exe" : options.Player.ExecutablePath, CommandTimeoutSeconds = options.Player.CommandTimeoutSeconds })); else services.AddSingleton(sharedPlayer);
         services.AddScoped<PlaybackControlService>(); services.AddScoped<IPlaybackStartupRecoveryStore, EfPlaybackStartupRecoveryStore>(); services.AddScoped<PlaybackStartupRecoveryService>();
         services.AddScoped<IPlaybackQueueStore, EfPlaybackQueueStore>(); services.AddScoped<IQueuePreflightService, EfQueuePreflightService>(); services.AddScoped<IPlaybackFailureStore, EfPlaybackFailureStore>(); services.AddSingleton(new PlaybackRecoveryPolicy()); services.AddScoped<PlaybackRecoveryService>(); services.AddScoped<QueuePlaybackOrchestrator>(); services.AddHostedService<RoomPlaybackHostedService>(); services.AddHostedService<QueuePreflightHostedService>();
-        services.AddScoped<IRoomLibraryRepository, EfRoomLibraryRepository>(); services.AddScoped<RoomLibraryService>(); services.AddSingleton<RoomRealtimeJournal>(); services.AddSingleton<IRoomRealtimePublisher, SignalRRoomRealtimePublisher>();
+        services.AddScoped<IRoomLibraryRepository, EfRoomLibraryRepository>(); services.AddScoped<RoomLibraryService>(); services.AddScoped<IArtistBrowseService, EfArtistBrowseService>(); services.AddSingleton<RoomRealtimeJournal>(); services.AddSingleton<IRoomRealtimePublisher, SignalRRoomRealtimePublisher>();
     }
 
     private static void MapPipeline(WebApplication app)

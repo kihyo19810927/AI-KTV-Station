@@ -50,30 +50,20 @@
                         <ListView ItemsSource="{Binding Songs}" BorderBrush="#E5E7EB"><ListView.ItemTemplate><DataTemplate><Button Command="{Binding DataContext.SelectSongCommand, RelativeSource={RelativeSource AncestorType=ListView}}" CommandParameter="{Binding}" HorizontalContentAlignment="Stretch" Background="Transparent" BorderThickness="0"><StackPanel Margin="4"><TextBlock Text="{Binding Title}" FontWeight="SemiBold" /><TextBlock Text="{Binding Artists}" Foreground="{StaticResource SecondaryTextBrush}" /></StackPanel></Button></DataTemplate></ListView.ItemTemplate></ListView>
                         <ScrollViewer Grid.Column="2" VerticalScrollBarVisibility="Auto"><StackPanel><TextBlock Text="人工元数据修正" FontSize="18" FontWeight="SemiBold" /><TextBlock Text="标题" Margin="0,12,0,4" /><TextBox Text="{Binding EditTitle}" Padding="8" /><TextBlock Text="语言" Margin="0,10,0,4" /><TextBox Text="{Binding EditLanguage}" Padding="8" /><TextBlock Text="分类" Margin="0,10,0,4" /><TextBox Text="{Binding EditCategory}" Padding="8" /><TextBlock Text="年份" Margin="0,10,0,4" /><TextBox Text="{Binding EditYear}" Padding="8" /><TextBlock Text="画质" Margin="0,10,0,4" /><TextBox Text="{Binding EditQuality}" Padding="8" /><Button Content="保存修正" Command="{Binding SaveMetadataCommand}" Margin="0,14,0,0" Background="{StaticResource AccentBrush}" Foreground="White" BorderThickness="0" /></StackPanel></ScrollViewer>
                     </Grid>
-                    <StackPanel Grid.Row="2" Margin="0,12,0,0">
-                        <TextBlock Text="{Binding ScanProgressMessage}" TextWrapping="Wrap" Foreground="{StaticResource AccentBrush}" Margin="0,4,0,10" />
-                        <WrapPanel Margin="0,0,0,8">
-                            <CheckBox Content="仅建立基础索引" IsChecked="{Binding ScanSettings.BasicIndexOnly}" Margin="0,0,18,0" />
-                            <CheckBox Content="读取 NFO（无 NFO 时关闭）" IsChecked="{Binding ScanSettings.ReadNfo}" Margin="0,0,18,0" />
-                            <TextBlock Text="探测并发（1–4）" VerticalAlignment="Center" />
-                            <TextBox Width="52" Text="{Binding ScanSettings.ProbeConcurrency, UpdateSourceTrigger=PropertyChanged, ValidatesOnExceptions=True}" Margin="8,0" />
-                        </WrapPanel>
-                        <Border Background="{StaticResource AccentSoftBrush}" CornerRadius="12" Padding="12">
-                            <StackPanel>
-                                <TextBlock Text="添加曲库 · 只读增量扫描" FontSize="17" FontWeight="SemiBold" Margin="0,0,0,8" />
-                                <Grid><Grid.ColumnDefinitions><ColumnDefinition Width="140" /><ColumnDefinition /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
-                                    <TextBox Text="{Binding SourceName}" ToolTip="曲库名称" Margin="0,0,8,0" />
-                                    <TextBox Grid.Column="1" Text="{Binding SourcePath}" ToolTip="年度或月份目录" Margin="0,0,8,0" />
-                                    <Button Grid.Column="2" Content="＋ 添加曲库" Command="{Binding AddSourceCommand}" />
-                                </Grid>
-                                <Grid Margin="0,8,0,0"><Grid.ColumnDefinitions><ColumnDefinition /><ColumnDefinition Width="Auto" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
-                                    <ComboBox ItemsSource="{Binding Sources}" SelectedItem="{Binding SelectedSource}" DisplayMemberPath="Name" Margin="0,0,8,0" />
-                                    <Button Grid.Column="1" Content="扫描所选" Command="{Binding StartScanCommand}" Background="{StaticResource AccentBrush}" Foreground="White" Margin="0,0,8,0" />
-                                    <Button Grid.Column="2" Content="取消扫描" Command="{Binding CancelScanCommand}" />
-                                </Grid>
-                            </StackPanel>
-                        </Border>
-                    </StackPanel>
+                    <Border Grid.Row="2" Margin="0,14,0,0" Background="{StaticResource AccentSoftBrush}" CornerRadius="12" Padding="14">
+                        <StackPanel>
+                            <TextBlock Text="导入 JSON 曲库 · 保留式增量更新" FontSize="17" FontWeight="SemiBold" />
+                            <TextBlock Text="从 NAS 生成的 JSON/JSONL 索引建库；已存在路径会跳过，不覆盖收藏、历史和人工修正。" Foreground="{StaticResource SecondaryTextBrush}" Margin="0,5,0,10" />
+                            <Grid><Grid.ColumnDefinitions><ColumnDefinition /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+                                <TextBox Text="{Binding ImportFilePath}" ToolTip="JSON 或 JSONL 曲库索引" Margin="0,0,8,0" />
+                                <Button Grid.Column="1" Content="选择文件" Command="{Binding SelectImportFileCommand}" />
+                            </Grid>
+                            <Grid Margin="0,8,0,0"><Grid.ColumnDefinitions><ColumnDefinition /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+                                <TextBox Text="{Binding ImportMountRoot}" ToolTip="本机 115 挂载根目录，例如 E:\KTV_TEST" Margin="0,0,8,0" />
+                                <Button Grid.Column="1" Content="增量导入" Command="{Binding ImportCatalogCommand}" Background="{StaticResource AccentBrush}" Foreground="White" BorderThickness="0" />
+                            </Grid>
+                        </StackPanel>
+                    </Border>
                 </Grid>
             </Border>
             <Border Grid.Row="2" Background="{StaticResource PanelBrush}" CornerRadius="18" Padding="28" DataContext="{Binding RoomManagement}">

@@ -119,6 +119,8 @@ public partial class App : System.Windows.Application
         collection.AddSingleton<ISongSearchIndex, SqliteSongSearchIndex>();
         collection.AddSingleton<ICatalogAdminRepository, EfCatalogAdminRepository>();
         collection.AddSingleton<ICatalogAdminService, CatalogAdminService>();
+        collection.AddSingleton<ICatalogJsonImportService, CatalogJsonImportService>();
+        collection.AddSingleton<Station.Desktop.Services.ICatalogImportFilePicker, Station.Desktop.Services.CatalogImportFilePicker>();
         collection.AddSingleton<IMediaScanRepository, EfMediaScanRepository>();
         collection.AddSingleton<IMediaFileEnumerator, FileSystemMediaFileEnumerator>();
         collection.AddSingleton<IMediaFilenameParser, KtvFilenameParser>();

@@ -48,7 +48,7 @@
 | Web 点歌与我的歌曲 | Vitest + API 请求替身 | 通过（成功点歌、重复拦截、额度提示、本人筛选、等待项删除） | 多手机并发交互随实时同步后验收 |
 | Web 播放标签与即时队列 | Vitest + SignalR/API 替身 | 通过（25/25；独立播放控制页、无“我的”入口、POST 成功后无需刷新即可查看已点） | 真实手机 WebSocket 事件时序待验收 |
 | Web SignalR 实时状态 | Vitest reducer/Hub 替身 + 服务端真实 SignalR 客户端 | 通过（版本幂等、增量、快照、播放卡片、令牌不进 URL；服务端在线/补发已覆盖） | 手机 WebSocket、Wi-Fi 切换和休眠恢复后验收 |
-| Web 收藏与分类发现 | Vitest + SQLite 搜索回归 | 通过（收藏切换/列表；固定歌星、语种、风格筛选；移除热门/最近新增入口） | 歌手分组未知数据归“其他”；多访客手机交互后验收 |
+| Web 收藏与分类发现 | Vitest + SQLite 搜索回归 | 通过（收藏切换/列表；歌星、语种、风格独立二级菜单；同名歌手聚合；无组合下拉框） | 歌手分组未知数据归“其他”；歌手图片刮削和手机交互后验收 |
 | 手机 Web 兼容基线 | Vitest 静态契约 + Vite 多浏览器目标 | 通过（320px、44px 触摸、焦点、safe-area、viewport、Chrome/Edge/Safari 构建目标） | Android Chrome 与 iPhone Safari 后验收 |
 | WPF 主控壳 | net10.0-windows xUnit + Release XAML 构建 | 通过（六目标导航、命令和属性通知 2 个场景） | Windows 缩放、多屏和视觉后验收 |
 | WPF 健康仪表盘 | xUnit + SQLite 内存库 + ViewModel 替身 | 通过（组件汇总、安全摘要、刷新状态） | CloudDrive/115 实挂待验收 |
@@ -57,7 +57,7 @@
 | 多格式/辅助文件扫描 | 临时 MPG/MPEG/MKV/KSC/RAR + SQLite | 通过（视频入库、KSC 关联、RAR 忽略、无 NFO 文件名建库） | 小批真实 115 样本待验收 |
 | 分目录增量建库 | 两个年度临时来源依次扫描 | 通过（先入库可用、后续追加、既有来源保持可用） | 全库规模随 KTVS-049 |
 | 保留式数据库升级 | 上一迁移预置数据 → 最新迁移 | 通过（歌曲、收藏、历史、人工音轨映射保留） | 正式库升级前仍需备份演练 |
-| WPF 曲库管理 | xUnit 服务替身 + Release XAML 编译 | 通过（搜索、来源列表、添加目录不自动扫描） | 真实曲库 UI/扫描验收待执行 |
+| WPF 曲库管理 | xUnit + 临时 SQLite/Unicode JSONL + Release XAML 编译 | 通过（camelCase artist、MPG、FTS、重复导入 0 新增；界面仅保留 JSON/JSONL 增量导入） | 72,295 首索引、真实挂载根目录和导入耗时待实机验收 |
 | WPF 房间与二维码 | SQLite + QRCoder PNG + ViewModel | 通过（房间、规则、访客公开投影、无令牌 URL/二维码） | 手机扫码、网卡选择和 Wi-Fi 连通待验收 |
 | 设置、日志与诊断 | 临时 JSON 设置、JSONL 日志、健康替身、WPF ViewModel | 通过（配置验证/往返、最近事件、换行净化、路径脱敏、恢复建议、重启提示） | 实际导出目录可用性随 Windows 验收 |
 | 关键业务端到端 | Unicode MPG/KSC 临时目录 + SQLite + TestServer + 可控播放器端口 | 通过（扫描、FTS、建房、加入、点歌、媒体加载、完成队列与历史） | 真实 115/mpv/电视/功放/手机不由替身结论覆盖 |
@@ -68,7 +68,7 @@
 | 依赖与许可证 | NuGet/NPM 锁文件、已还原包元数据、ffmpeg buildconf、mpv version | 通过（清单已生成；V1 禁止捆绑 mpv/FFmpeg） | 项目自身许可、未来二进制分发需用户批准 |
 | Desktop 内嵌服务与后台播放 | 真实 Kestrel 临时端口、共享播放器 DI、空队列后追加歌曲 | 通过（主机健康、单播放器、延迟点歌自动加载） | LAN 手机与真实媒体待实机验收 |
 | UAT 软件就绪包 | `scripts/run-uat-readiness.ps1` | 通过（Core 150/150、Desktop 12/12、Web 24/24、生成 MKV/mpv） | 用户执行设备与小批真实库步骤 |
-| Windows 自包含发布包 | `scripts/publish-windows.ps1` + `verify-release-package.ps1` | 通过（win-x64、566 项、ZIP SHA-256、Web/说明/声明齐全） | 干净 Windows 安装待 KTVS-058；项目许可待决定 |
+| Windows 自包含发布包 | `scripts/publish-windows.ps1` + `verify-release-package.ps1` | RC9 通过（win-x64、567 项、内置 72,295 首 JSONL 初始索引、无数据库/媒体工具） | 干净 Windows 安装与正式导入待验收；项目许可待决定 |
 | 数据库安全升级 | 临时 SQLite + 可控迁移执行器 | 通过（无迁移不备份、备份完整、删除数据后失败自动恢复） | 正式库升级与磁盘故障待实机演练 |
 | 运维文档完整性 | `scripts/verify-operations-docs.ps1` | 通过（6 份文档、7 章节、3 条安全警告） | 操作可用性随 KTVS-058 实机验收 |
 | RC6 候选版软件验证 | UAT 就绪链 + 发布包验证 + 随机临时目录启动/退出 | 通过（Core 159、Desktop 14、Web 24、566 项 ZIP、SQLite/内嵌服务健康、进程清理） | 干净 Windows 与真实设备仍待验收 |

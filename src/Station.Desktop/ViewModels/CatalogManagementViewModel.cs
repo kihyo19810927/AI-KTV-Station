@@ -1,10 +1,9 @@
 using System.Collections.ObjectModel;
+using System.IO;
 using System.Windows.Input;
 using Station.Application.Catalog;
-using Station.Application.MediaSources;
-using Station.Application.Scanning;
 using Station.Application.Search;
-using Station.Application.Configuration;
+using Station.Desktop.Services;
 
 namespace Station.Desktop.ViewModels;
 
@@ -12,60 +11,51 @@ public sealed class CatalogManagementViewModel : ObservableObject
 {
     private readonly ISongSearchIndex search;
     private readonly ICatalogAdminService catalog;
-    private readonly IMediaSourceService sources;
-    private readonly ICatalogScanService scans;
-    private CancellationTokenSource? scanCancellation;
     private string searchText = string.Empty;
-    private string statusMessage = "搜索曲库或添加一个年度目录";
+    private string statusMessage = "搜索曲库或导入 JSON/JSONL 索引";
     private SongAdminDetails? selectedSong;
-    private MediaSourceAdminDetails? selectedSource;
-    private bool isScanning;
     private string editTitle = string.Empty;
     private string? editLanguage;
     private string? editCategory;
     private string? editQuality;
     private int? editYear;
-    private string sourceName = string.Empty;
-    private string sourcePath = string.Empty;
+    private readonly ICatalogJsonImportService importer;
+    private readonly ICatalogImportFilePicker importFilePicker;
+    private string importFilePath = string.Empty;
+    private string importMountRoot = string.Empty;
+    private bool isImporting;
 
-    public CatalogManagementViewModel(ISongSearchIndex search, ICatalogAdminService catalog, IMediaSourceService sources, ICatalogScanService scans, ScanOptions? options = null)
+    public CatalogManagementViewModel(ISongSearchIndex search, ICatalogAdminService catalog, ICatalogJsonImportService importer, ICatalogImportFilePicker importFilePicker)
     {
-        ScanSettings = options ?? new ScanOptions();
-        this.search = search; this.catalog = catalog; this.sources = sources; this.scans = scans;
+        this.search = search; this.catalog = catalog; this.importer = importer; this.importFilePicker = importFilePicker;
         SearchCommand = new AsyncRelayCommand(SearchAsync);
         SelectSongCommand = new AsyncRelayCommand<SongSearchItem>(item => SelectSongAsync(item.SongId));
         SaveMetadataCommand = new AsyncRelayCommand(SaveMetadataAsync);
-        RefreshSourcesCommand = new AsyncRelayCommand(RefreshSourcesAsync);
-        AddSourceCommand = new AsyncRelayCommand(AddSourceAsync);
-        StartScanCommand = new AsyncRelayCommand(StartScanAsync, () => SelectedSource is not null && !IsScanning);
-        CancelScanCommand = new RelayCommand<object?>(_ => scanCancellation?.Cancel(), _ => IsScanning);
+        var bundledIndex = Path.Combine(AppContext.BaseDirectory, "initial-library", "ktv_songs_index.jsonl");
+        if (File.Exists(bundledIndex)) importFilePath = bundledIndex;
+        SelectImportFileCommand = new RelayCommand<object?>(_ => SelectImportFile());
+        ImportCatalogCommand = new AsyncRelayCommand(ImportCatalogAsync, () => !IsImporting);
     }
 
     public ObservableCollection<SongSearchItem> Songs { get; } = [];
-    public ScanOptions ScanSettings { get; }
-    public string ScanProgressMessage { get; private set; } = "先添加并选择来源；可勾选仅建立基础索引，稍后取消勾选再扫描补全音轨。";
-    public ObservableCollection<MediaSourceAdminDetails> Sources { get; } = [];
     public ICommand SearchCommand { get; }
     public ICommand SelectSongCommand { get; }
     public ICommand SaveMetadataCommand { get; }
-    public ICommand RefreshSourcesCommand { get; }
-    public ICommand AddSourceCommand { get; }
-    public ICommand StartScanCommand { get; }
-    public ICommand CancelScanCommand { get; }
+    public ICommand SelectImportFileCommand { get; }
+    public ICommand ImportCatalogCommand { get; }
     public string SearchText { get => searchText; set => SetProperty(ref searchText, value); }
     public string StatusMessage { get => statusMessage; private set => SetProperty(ref statusMessage, value); }
     public SongAdminDetails? SelectedSong { get => selectedSong; private set => SetProperty(ref selectedSong, value); }
-    public MediaSourceAdminDetails? SelectedSource { get => selectedSource; set { if (SetProperty(ref selectedSource, value)) ((AsyncRelayCommand)StartScanCommand).NotifyCanExecuteChanged(); } }
-    public bool IsScanning { get => isScanning; private set { if (SetProperty(ref isScanning, value)) { ((RelayCommand<object?>)CancelScanCommand).NotifyCanExecuteChanged(); ((AsyncRelayCommand)StartScanCommand).NotifyCanExecuteChanged(); } } }
     public string EditTitle { get => editTitle; set => SetProperty(ref editTitle, value); }
     public string? EditLanguage { get => editLanguage; set => SetProperty(ref editLanguage, value); }
     public string? EditCategory { get => editCategory; set => SetProperty(ref editCategory, value); }
     public string? EditQuality { get => editQuality; set => SetProperty(ref editQuality, value); }
     public int? EditYear { get => editYear; set => SetProperty(ref editYear, value); }
-    public string SourceName { get => sourceName; set => SetProperty(ref sourceName, value); }
-    public string SourcePath { get => sourcePath; set => SetProperty(ref sourcePath, value); }
+    public string ImportFilePath { get => importFilePath; set => SetProperty(ref importFilePath, value); }
+    public string ImportMountRoot { get => importMountRoot; set => SetProperty(ref importMountRoot, value); }
+    public bool IsImporting { get => isImporting; private set { if (SetProperty(ref isImporting, value)) ((AsyncRelayCommand)ImportCatalogCommand).NotifyCanExecuteChanged(); } }
 
-    public async Task InitializeAsync() { await RefreshSourcesAsync(); await SearchAsync(); }
+    public Task InitializeAsync() => SearchAsync();
 
     public async Task SearchAsync()
     {
@@ -90,42 +80,23 @@ public sealed class CatalogManagementViewModel : ObservableObject
         SelectedSong = result.Value; await SearchAsync(); StatusMessage = "人工修正已保存，搜索索引已刷新";
     }
 
-    private async Task RefreshSourcesAsync()
-    {
-        Replace(Sources, await sources.ListAdminAsync());
-        if (SelectedSource is null || Sources.All(x => x.Id != SelectedSource.Id)) SelectedSource = Sources.FirstOrDefault();
-    }
+    private void SelectImportFile() { var selected = importFilePicker.Pick(); if (!string.IsNullOrWhiteSpace(selected)) ImportFilePath = selected; }
 
-    private async Task AddSourceAsync()
+    private async Task ImportCatalogAsync()
     {
-        var result = await sources.AddAsync(SourceName, SourcePath);
-        if (result.IsFailure) { StatusMessage = result.Error.Message; return; }
-        await RefreshSourcesAsync(); SelectedSource = Sources.Single(x => x.Id == result.Value.Id); StatusMessage = "媒体源已添加，可单独扫描该目录";
-    }
-
-    private async Task StartScanAsync()
-    {
-        if (SelectedSource is null || IsScanning) { StatusMessage = "请选择要扫描的年度或月份目录"; return; }
-        if (ScanSettings.ProbeConcurrency is < 1 or > 4) { StatusMessage = "探测并发必须为 1 到 4"; return; }
-        scanCancellation = new CancellationTokenSource(); IsScanning = true;
-        var progress = new Progress<MediaScanProgress>(x =>
-        {
-            ScanProgressMessage = $"{(x.Phase == "Probing" ? "后台探测" : "基础索引")} · 发现 {x.DiscoveredFiles} · 已索引 {x.IndexedFiles} · ffprobe {x.ProbedFiles} · 缓存 {x.CachedFiles} · 错误 {x.ErrorCount} · 平均 {x.AverageProbeMilliseconds / 1000:F2} 秒/次";
-            RaisePropertyChanged(nameof(ScanProgressMessage));
-        });
+        IsImporting = true; StatusMessage = "正在增量导入曲库…";
+        var progress = new Progress<CatalogImportProgress>(x => StatusMessage = $"已读取 {x.Read:N0} · 新增 {x.Added:N0} · 跳过 {x.Skipped:N0} · 错误 {x.Errors:N0}");
         try
         {
-            var result = await scans.ScanAsync(SelectedSource.Id, progress, scanCancellation.Token);
-            var completionMessage = result.IsSuccess
-                ? result.Value.Status == Station.Domain.Models.ScanStatus.Cancelled
-                    ? "扫描已取消，检查点和已有索引已保留"
-                    : $"扫描完成：发现 {result.Value.DiscoveredFiles}，更新 {result.Value.UpdatedFiles}"
-                : result.Error.Message;
-            await SearchAsync(); StatusMessage = completionMessage;
+            var result = await importer.ImportAsync(ImportFilePath, ImportMountRoot, progress);
+            if (result.IsSuccess)
+            {
+                await SearchAsync();
+                StatusMessage = $"导入完成：新增 {result.Value.Added:N0}，跳过 {result.Value.Skipped:N0}，错误 {result.Value.Errors:N0}";
+            }
+            else StatusMessage = result.Error.Message;
         }
-        catch (OperationCanceledException) { StatusMessage = "扫描已取消，检查点和已有索引已保留"; }
-        catch (Exception) { StatusMessage = "扫描未完成，已有索引与检查点已保留；请检查来源连接后重试。"; }
-        finally { scanCancellation.Dispose(); scanCancellation = null; IsScanning = false; }
+        finally { IsImporting = false; }
     }
 
     private static void Replace<T>(ObservableCollection<T> target, IEnumerable<T> values) { target.Clear(); foreach (var value in values) target.Add(value); }

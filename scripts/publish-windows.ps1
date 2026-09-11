@@ -31,6 +31,12 @@ try {
 
     Copy-Item -LiteralPath (Join-Path $root 'docs\project\WINDOWS-INSTALLATION.md') -Destination (Join-Path $publishRoot 'INSTALL.md')
     Copy-Item -LiteralPath (Join-Path $root 'docs\project\THIRD-PARTY-NOTICES.md') -Destination (Join-Path $publishRoot 'THIRD-PARTY-NOTICES.md')
+    $initialLibrary = Join-Path $root 'artifacts\import-validation\ktv_songs_index.jsonl'
+    if (Test-Path -LiteralPath $initialLibrary) {
+        $initialLibraryRoot = Join-Path $publishRoot 'initial-library'
+        New-Item -ItemType Directory -Path $initialLibraryRoot -Force | Out-Null
+        Copy-Item -LiteralPath $initialLibrary -Destination (Join-Path $initialLibraryRoot 'ktv_songs_index.jsonl')
+    }
 
     $forbidden = @('mpv.exe', 'ffmpeg.exe', 'ffprobe.exe', 'station.db', 'settings.json')
     $packagedNames = Get-ChildItem -LiteralPath $publishRoot -File -Recurse | ForEach-Object Name
