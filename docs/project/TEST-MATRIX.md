@@ -68,7 +68,7 @@
 | 依赖与许可证 | NuGet/NPM 锁文件、已还原包元数据、ffmpeg buildconf、mpv version | 通过（清单已生成；V1 禁止捆绑 mpv/FFmpeg） | 项目自身许可、未来二进制分发需用户批准 |
 | Desktop 内嵌服务与后台播放 | 真实 Kestrel 临时端口、共享播放器 DI、空队列后追加歌曲 | 通过（主机健康、单播放器、延迟点歌自动加载） | LAN 手机与真实媒体待实机验收 |
 | UAT 软件就绪包 | `scripts/run-uat-readiness.ps1` | 通过（Core 150/150、Desktop 12/12、Web 24/24、生成 MKV/mpv） | 用户执行设备与小批真实库步骤 |
-| Windows 自包含发布包 | `scripts/publish-windows.ps1` + `verify-release-package.ps1` | RC10 通过（win-x64、567 项、内置 72,295 首 JSONL 初始索引、无数据库/媒体工具） | 干净 Windows 安装与正式导入待验收；项目许可待决定 |
+| Windows 自包含发布包 | `scripts/publish-windows.ps1` + `verify-release-package.ps1` | RC11 通过（win-x64、567 项、内置 72,295 首 JSONL 初始索引、无数据库/媒体工具） | 干净 Windows 安装与正式导入待验收；项目许可待决定 |
 | 数据库安全升级 | 临时 SQLite + 可控迁移执行器 | 通过（无迁移不备份、备份完整、删除数据后失败自动恢复） | 正式库升级与磁盘故障待实机演练 |
 | 运维文档完整性 | `scripts/verify-operations-docs.ps1` | 通过（6 份文档、7 章节、3 条安全警告） | 操作可用性随 KTVS-058 实机验收 |
 | RC6 候选版软件验证 | UAT 就绪链 + 发布包验证 + 随机临时目录启动/退出 | 通过（Core 159、Desktop 14、Web 24、566 项 ZIP、SQLite/内嵌服务健康、进程清理） | 干净 Windows 与真实设备仍待验收 |
@@ -84,7 +84,7 @@
 | RC6 进程清理 | 全新解压启动、正常关闭、进程与端口复核 | 通过（`PACKAGE_PROCESS_CLEANUP=passed`；Station 0、mpv 0、5090监听0） | WebView2只按应用进程树释放，不结束其他应用实例 |
 | 队列预探测状态与插歌 | xUnit + TestServer + SignalR reducer + Vitest | 通过（Probing/ProbeFailed/Waiting 状态转换、访客权限、插歌排序、终态即时移除；Core 171/171、Web 28/28） | 100 首真实长队列和手机 WebSocket 待实机验收 |
 | mpv 同实例切歌 | 生成 Unicode 双音轨 MKV + Windows Named Pipe JSON IPC | 通过（`stop` 产生 Stopped 事件；第二首加载及切歌前后 mpv PID 不变，2/2） | 电视输出切换观感待实机验收 |
-| RC10 进程清理 | 全新解压启动、内嵌服务健康、窗口检测、正常关闭 | 通过（567 项；`PACKAGE_PROCESS_CLEANUP=passed`；SHA-256 `8589ad8f…f5932`） | WebView2 和真实 mpv 同时退出待实机观察 |
+| RC11 进程清理 | 全新解压启动、内嵌服务健康、窗口检测、正常关闭 | 通过（567 项；`PACKAGE_PROCESS_CLEANUP=passed`；SHA-256 `86200e1e…0552`） | WebView2 和真实 mpv 同时退出待实机观察 |
 | SignalR 实时状态契约 | RoomRealtimeJournal JSON 契约测试 + TestServer/端到端 + Vitest reducer | 通过（camelCase、字符串枚举、旧字段兼容；API/端到端 8/8、Web 28/28、生产构建通过） | 真实手机 WebSocket 连接与断线重连待实机验收 |
 
 禁止把替身、模拟器或文档审阅结果写成真实设备通过。
