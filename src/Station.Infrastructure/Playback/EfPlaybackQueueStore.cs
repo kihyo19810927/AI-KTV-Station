@@ -18,6 +18,14 @@ public sealed class EfPlaybackQueueStore(StationDbContext database, IMediaProbe?
             .OrderBy(x => x.Position)
             .FirstOrDefaultAsync(cancellationToken);
         if (item is null) return null;
+        if (item.Status == QueueItemStatus.ProbeFailed)
+        {
+            var failedMedia = item.Song.MediaFiles.OrderBy(x => x.Id).FirstOrDefault();
+            return new(item.Id, roomId, item.SongId, failedMedia?.Id ?? Guid.Empty,
+                failedMedia is null ? string.Empty : Path.Combine(failedMedia.MediaSource.RootPath, failedMedia.RelativePath),
+                new PlayerFailure(failedMedia?.LastErrorCode ?? "media_probe.failed", PlayerFailureKind.MediaLoadFailed, false,
+                    "Media probing failed after three attempts."));
+        }
         var candidates = item.Song.MediaFiles
             .Where(x => x.MediaSource.IsEnabled)
             .OrderBy(x => x.Id)

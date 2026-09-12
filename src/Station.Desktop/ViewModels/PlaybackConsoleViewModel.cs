@@ -16,6 +16,7 @@ public sealed class PlaybackConsoleViewModel : ObservableObject, IDisposable
     private readonly HostRoomContext? roomContext;
     private CancellationTokenSource? volumeChange;
     private bool applyingSnapshot;
+    private bool isUserAdjustingVolume;
     private PlayerLifecycleState state = PlayerLifecycleState.Stopped;
     private double volume = 80;
     private double positionSeconds;
@@ -58,7 +59,7 @@ public sealed class PlaybackConsoleViewModel : ObservableObject, IDisposable
         set
         {
             if (!SetProperty(ref volume, Math.Clamp(value, 0, 100)) || applyingSnapshot) return;
-            if (State is PlayerLifecycleState.Playing or PlayerLifecycleState.Paused) ScheduleVolumeChange();
+            if (State is PlayerLifecycleState.Playing or PlayerLifecycleState.Paused) { isUserAdjustingVolume = true; ScheduleVolumeChange(); }
         }
     }
     public double PositionSeconds { get => positionSeconds; set => SetProperty(ref positionSeconds, value); }
@@ -105,7 +106,7 @@ public sealed class PlaybackConsoleViewModel : ObservableObject, IDisposable
         {
             State = snapshot.State;
             DurationSeconds = snapshot.Duration?.TotalSeconds ?? 1;
-            Volume = snapshot.Volume;
+            if (!isUserAdjustingVolume) Volume = snapshot.Volume;
             PositionSeconds = Math.Clamp(snapshot.Position.TotalSeconds, 0, DurationSeconds);
         }
         finally { applyingSnapshot = false; }
@@ -123,6 +124,8 @@ public sealed class PlaybackConsoleViewModel : ObservableObject, IDisposable
         var result = await queue.ListAsync(roomContext.Identity).ConfigureAwait(true);
         if (result.IsFailure) return;
         var current = result.Value.FirstOrDefault(x => x.Status is QueueItemStatus.Playing or QueueItemStatus.Paused or QueueItemStatus.Preparing);
+        if (current is null && State is PlayerLifecycleState.Playing or PlayerLifecycleState.Paused or PlayerLifecycleState.Preparing)
+            current = result.Value.FirstOrDefault();
         CurrentSongTitle = current?.Title ?? "暂无歌曲";
         CurrentSongArtists = current?.Artists ?? string.Empty;
     }
@@ -139,10 +142,10 @@ public sealed class PlaybackConsoleViewModel : ObservableObject, IDisposable
     {
         try
         {
-            await Task.Delay(150, source.Token);
+            await Task.Delay(50, source.Token);
             var result = await controls.SetVolumeAsync(Volume, source.Token);
             if (result.IsFailure && !source.IsCancellationRequested) ShowError(result.Error);
-            else if (result.IsSuccess && !source.IsCancellationRequested) Apply(result.Value);
+            else if (result.IsSuccess && !source.IsCancellationRequested) isUserAdjustingVolume = false;
         }
         catch (OperationCanceledException) when (source.IsCancellationRequested) { }
         finally

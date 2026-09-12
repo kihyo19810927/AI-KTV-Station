@@ -44,6 +44,8 @@ public sealed class CatalogJsonImportServiceTests
             var artists = await new EfArtistBrowseService(database).ListAsync(null);
             var jay = Assert.Single(artists, x => x.Name == "周杰伦");
             Assert.Equal(2, jay.SongCount);
+            Assert.Equal("华语男歌手", jay.Group);
+            Assert.NotNull(jay.ImageUrl);
 
             var second = await importer.ImportAsync(indexPath, root);
             Assert.True(second.IsSuccess, second.Error.Code);

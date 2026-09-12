@@ -203,7 +203,12 @@ public sealed class MpvPlayerAdapter : IPlayerAdapter
     {
         var validation = PlayerCommandValidation.ValidateVolume(volume);
         if (validation is not null) return Result<PlayerSnapshot>.Failure(validation);
-        return await SetPropertyAndRefreshAsync("volume", volume, "player.volume_failed", "The volume could not be changed.", cancellationToken).ConfigureAwait(false);
+        return await ExecuteAsync(async () =>
+        {
+            await SendCommandAsync(cancellationToken, "set_property", "volume", volume).ConfigureAwait(false);
+            lock (stateGate) snapshot = snapshot with { Volume = volume };
+            return CurrentSnapshot();
+        }, "player.volume_failed", "The volume could not be changed.", cancellationToken).ConfigureAwait(false);
     }
 
     public async Task<Result<PlayerSnapshot>> SelectAudioTrackAsync(int streamId, CancellationToken cancellationToken = default)

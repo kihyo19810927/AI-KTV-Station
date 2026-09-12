@@ -29,19 +29,24 @@ public sealed class QueuePreflightStatusTests
             database.AddRange(source, guest, item); await database.SaveChangesAsync();
             var notifier = new RecordingNotifier();
 
-            Assert.True(await new EfQueuePreflightService(database, new Probe(succeeds), notifier).ProbeNextWaitingAsync(room.Id));
+            var probe = new Probe(succeeds);
+            Assert.True(await new EfQueuePreflightService(database, probe, notifier).ProbeNextWaitingAsync(room.Id));
 
             Assert.Equal(expected, (await database.QueueItems.SingleAsync()).Status);
             Assert.Equal((item.Id, expected), Assert.Single(notifier.Changes));
+            Assert.Equal(succeeds ? 1 : 3, probe.Calls);
         }
         finally { if (File.Exists(path)) File.Delete(path); }
     }
 
     private sealed class Probe(bool succeeds) : IMediaProbe
     {
-        public Task<Result<MediaProbeResult>> ProbeAsync(string mediaPath, CancellationToken cancellationToken = default) => Task.FromResult(succeeds
-            ? Result<MediaProbeResult>.Success(new(10, []))
-            : Result<MediaProbeResult>.Failure(new("media_probe.failed", "failed")));
+        public int Calls { get; private set; }
+        public Task<Result<MediaProbeResult>> ProbeAsync(string mediaPath, CancellationToken cancellationToken = default)
+        {
+            Calls++;
+            return Task.FromResult(succeeds ? Result<MediaProbeResult>.Success(new(10, [])) : Result<MediaProbeResult>.Failure(new("media_probe.failed", "failed")));
+        }
     }
     private sealed class RecordingNotifier : IQueueStatusNotifier
     {

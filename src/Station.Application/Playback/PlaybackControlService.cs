@@ -9,7 +9,7 @@ public sealed record PlaybackProgress(
     TimeSpan Position,
     TimeSpan? Duration);
 
-public sealed class PlaybackControlService(IPlayerAdapter player)
+public sealed class PlaybackControlService(IPlayerAdapter player, PlaybackContinuationGate? continuationGate = null)
 {
     public Task<Result<PlayerSnapshot>> GetSnapshotAsync(CancellationToken cancellationToken = default) => player.GetStateAsync(cancellationToken);
     public async Task<Result<PlayerSnapshot>> SkipAsync(CancellationToken cancellationToken = default)
@@ -21,6 +21,11 @@ public sealed class PlaybackControlService(IPlayerAdapter player)
     {
         var state = await player.GetStateAsync(cancellationToken).ConfigureAwait(false);
         if (state.IsFailure) return state;
+        if (continuationGate?.IsSuspended == true && state.Value.State is PlayerLifecycleState.Failed or PlayerLifecycleState.Stopped)
+        {
+            continuationGate.Resume();
+            return state;
+        }
         return state.Value.State == PlayerLifecycleState.Paused
             ? await player.PlayAsync(cancellationToken).ConfigureAwait(false)
             : Result<PlayerSnapshot>.Failure(new Error("player.not_paused", "Playback is not paused."));

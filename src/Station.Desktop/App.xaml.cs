@@ -104,23 +104,28 @@ public partial class App : System.Windows.Application
             ExecutablePath = ExternalToolLocator.Find("mpv.exe") ?? "mpv.exe",
             CommandTimeoutSeconds = options.Player.CommandTimeoutSeconds,
         }));
+        collection.AddSingleton<PlaybackContinuationGate>();
         collection.AddSingleton<PlaybackControlService>();
         collection.AddSingleton<IPlaybackStartupRecoveryStore, EfPlaybackStartupRecoveryStore>();
         collection.AddSingleton<PlaybackStartupRecoveryService>();
         collection.AddSingleton<IRoomQueueRepository, EfRoomQueueRepository>();
         collection.AddSingleton<IRoomQueueLock, InProcessRoomQueueLock>();
-        collection.AddSingleton<IRoomQueueService, RoomQueueService>();
+        collection.AddSingleton<RoomQueueService>();
+        collection.AddSingleton<IRoomQueueService>(provider => provider.GetRequiredService<RoomQueueService>());
         collection.AddSingleton<HostRoomContext>();
         collection.AddSingleton<PlaybackConsoleViewModel>(provider => new PlaybackConsoleViewModel(
             provider.GetRequiredService<PlaybackControlService>(),
             provider.GetRequiredService<IRoomQueueService>(),
             provider.GetRequiredService<HostRoomContext>()));
         collection.AddSingleton<QueueManagementViewModel>();
+        collection.AddSingleton<DesktopSongRequestViewModel>();
         collection.AddSingleton<IMediaSourceRepository, EfMediaSourceRepository>();
         collection.AddSingleton<IMediaPathInspector, FileSystemMediaPathInspector>();
         collection.AddSingleton<IMediaSourceService, MediaSourceService>();
         collection.AddSingleton<ISearchTextNormalizer, ToolGoodSearchTextNormalizer>();
         collection.AddSingleton<ISongSearchIndex, SqliteSongSearchIndex>();
+        collection.AddSingleton<ArtistLexicon>();
+        collection.AddSingleton<IArtistBrowseService, EfArtistBrowseService>();
         collection.AddSingleton<ICatalogAdminRepository, EfCatalogAdminRepository>();
         collection.AddSingleton<ICatalogAdminService, CatalogAdminService>();
         collection.AddSingleton<ICatalogJsonImportService, CatalogJsonImportService>();
@@ -175,6 +180,7 @@ public partial class App : System.Windows.Application
         MainWindow.Show();
         await services.GetRequiredService<MainWindowViewModel>().RefreshHealthAsync();
         await services.GetRequiredService<CatalogManagementViewModel>().InitializeAsync();
+        await services.GetRequiredService<DesktopSongRequestViewModel>().InitializeAsync();
         await services.GetRequiredService<RoomManagementViewModel>().RefreshAsync();
         refreshTimer = new System.Windows.Threading.DispatcherTimer { Interval = TimeSpan.FromSeconds(2) };
         refreshTimer.Tick += async (_, _) =>

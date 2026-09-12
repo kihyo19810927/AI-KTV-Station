@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using Station.Application.Common;
 using Station.Application.Media;
 using Station.Application.Playback;
 using Station.Application.Queue;
@@ -36,7 +37,12 @@ public sealed class EfQueuePreflightService(StationDbContext database, IMediaPro
             if (notifier is not null) await notifier.NotifyAsync(roomId, item.Id, item.Status, cancellationToken);
             return true;
         }
-        var result = await mediaProbe.ProbeAsync(Path.Combine(media.MediaSource.RootPath, media.RelativePath), cancellationToken);
+        var result = Result<MediaProbeResult>.Failure(new Error("media_probe.not_started", "Media probe did not start."));
+        for (var attempt = 1; attempt <= 3; attempt++)
+        {
+            result = await mediaProbe.ProbeAsync(Path.Combine(media.MediaSource.RootPath, media.RelativePath), cancellationToken);
+            if (result.IsSuccess) break;
+        }
         if (result.IsSuccess)
         {
             media.DurationSeconds = result.Value.DurationSeconds;

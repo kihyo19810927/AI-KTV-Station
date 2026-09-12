@@ -92,5 +92,6 @@
 | KTVS-076 RC13 本地可执行包 | `scripts/publish-windows.ps1` + `scripts/verify-release-package.ps1` + `scripts/test-packaged-app.ps1` | 通过（579 项；自包含 .NET、mpv、FFmpeg/ffprobe/Vulkan、许可证说明；健康、窗口、正常退出和进程清理通过；SHA-256 `722415f966b38a2e5db3f629bcef6c0bc56a6c79e534a6d5fa8016dc7ae77889`） | 干净 Windows、真实媒体/设备和正式许可证复核待验收 |
 | KTVS-077 按歌星默认卡片视图 | Vitest + TypeScript + Vite + RC14 package smoke | 通过（Web 31/31；主入口直接展示全部歌手卡片，二级歌手分组保持卡片视图并刷新 artistGroup；RC14 579 项，SHA-256 `e13b6733eb0f644e48f797c3b292f9c80d1bd9c8ddee118679998bb252531529`；健康、窗口和退出清理通过） | 真实手机小屏视觉与触控待实机验收 |
 | KTVS-078 手机/WPF 插歌回归 | Core xUnit + Desktop xUnit + Web Vitest + Release 构建 + RC15 package smoke | 通过（Core 175/175、Desktop 16/16、Web 31/31；终态位置冲突、WPF 异常保护、手机队列更新覆盖；RC15 579 项，SHA-256 `24ad98043160892eb59547c64b4cb53d4178625a5bb5bc8edafdbfb45d11ed04`；健康、窗口和退出清理通过） | 真实手机操作、100 首长队列和 mpv 播放衔接待实机验收 |
+| KTVS-079 歌手/桌面点歌/探测与播放交互 | Core/Desktop/Web + mpv/ffprobe 脚本 + RC16 smoke | 通过（Core 非外部 174/174、Desktop 16/16、Web 31/31、ffprobe 1/1、mpv 3/3、耐久 20/20；RC16 579 项，SHA-256 `be529461211d80578442849d88b7ac11d88714e034f284471ac13650e4e9b48e`；包、窗口、健康与退出清理通过） | 韩国歌手数据、真实头像、NAS 失败媒体、mpv 主动关闭与 WPF 视觉待实机验收 |
 
 禁止把替身、模拟器或文档审阅结果写成真实设备通过。

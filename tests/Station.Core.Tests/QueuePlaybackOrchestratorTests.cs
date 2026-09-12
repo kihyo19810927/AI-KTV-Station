@@ -127,6 +127,26 @@ public sealed class QueuePlaybackOrchestratorTests
         Assert.Equal(item.QueueItemId, service.Current.QueueItemId);
     }
 
+    [Fact]
+    public async Task Closing_mpv_suspends_automatic_next_song_until_user_resumes()
+    {
+        var player = new FakePlayer();
+        var store = new MemoryPlaybackStore(Item(1), Item(2));
+        var gate = new PlaybackContinuationGate();
+        var service = new QueuePlaybackOrchestrator(player, store, new PlaybackRecoveryService(new MemoryFailureStore(),
+            new PlaybackRecoveryPolicy(2, TimeSpan.Zero, TimeSpan.Zero)), TimeProvider.System, gate);
+        await service.StartAsync(store.RoomId);
+        var playbackId = service.Current.PlaybackId;
+
+        await service.HandleAsync(new PlaybackFailedEvent(Guid.NewGuid(), DateTimeOffset.UtcNow, playbackId,
+            new PlayerFailure("player.process_exited", PlayerFailureKind.ProcessExited, true, "closed")));
+
+        Assert.True(gate.IsSuspended);
+        Assert.Null(service.Current.QueueItemId);
+        Assert.Single(player.Loads);
+        Assert.Equal(QueueItemStatus.Skipped, store.Statuses[store.Items[0].QueueItemId]);
+    }
+
     private static QueuePlaybackOrchestrator Create(
         FakePlayer player,
         MemoryPlaybackStore store,

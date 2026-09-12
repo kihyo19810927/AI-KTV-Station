@@ -14,7 +14,7 @@ type BrowseMode = 'root' | 'singer-groups' | 'singers' | 'artist-songs' | 'langu
 type SearchField = 'Any' | 'Title' | 'Artist'
 
 const initialFilters: Filters = { artistGroup: '', language: '', category: '', sort: 'Relevance' }
-const singerGroups = ['全部', '华语男歌手', '华语女歌手', '华语组合', '欧美歌手', '日韩歌手', '其他']
+const singerGroups = ['全部', '华语男歌手', '华语女歌手', '华语组合', '欧美歌手', '日本歌手', '韩国歌手', '其他']
 const languages = ['全部', '国语', '粤语', '台语', '闽南语', '英语', '日语', '韩语', '纯音乐']
 const styles = ['全部', '流行', '经典', '摇滚', '民谣', '儿歌', '舞曲', '影视原声', '纯音乐']
 const pageSize = 50

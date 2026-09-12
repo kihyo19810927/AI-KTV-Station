@@ -6,13 +6,15 @@ using Station.Application.Common;
 using Station.Application.Search;
 using Station.Domain.Models;
 using Station.Infrastructure.Persistence;
+using Station.Infrastructure.Search;
 
 namespace Station.Infrastructure.Catalog;
 
 public sealed class CatalogJsonImportService(
     StationDbContext database,
     ISearchTextNormalizer normalizer,
-    ISongSearchIndex searchIndex) : ICatalogJsonImportService
+    ISongSearchIndex searchIndex,
+    ArtistLexicon? artistLexicon = null) : ICatalogJsonImportService
 {
     private static readonly JsonSerializerOptions JsonOptions = new() { PropertyNameCaseInsensitive = true };
 
@@ -47,9 +49,10 @@ public sealed class CatalogJsonImportService(
                 var full = Path.GetFullPath(Path.Combine(root, relative.Replace('/', Path.DirectorySeparatorChar)));
                 if (!full.StartsWith(root + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase)) { errors++; continue; }
                 var title = string.IsNullOrWhiteSpace(record.Title) ? Path.GetFileNameWithoutExtension(relative) : record.Title.Trim();
-                var titleKeys = normalizer.CreateKeys(title);
-                var song = new Song { Title = title, NormalizedTitle = titleKeys.Normalized, SimplifiedTitle = titleKeys.Simplified, TraditionalTitle = titleKeys.Traditional, TitlePinyin = titleKeys.Pinyin, TitleInitials = titleKeys.Initials, CompactTitle = titleKeys.Compact, Language = record.Language, Category = record.Category, ArtistGroup = "其他", Year = InferYear(relative), Availability = AvailabilityStatus.Available };
                 var artists = record.Artists is { Count: > 0 } ? record.Artists : string.IsNullOrWhiteSpace(record.Artist) ? ["未知歌手"] : [record.Artist.Trim()];
+                var titleKeys = normalizer.CreateKeys(title);
+                var group = (artistLexicon ?? new ArtistLexicon()).Resolve(artists[0]).Group;
+                var song = new Song { Title = title, NormalizedTitle = titleKeys.Normalized, SimplifiedTitle = titleKeys.Simplified, TraditionalTitle = titleKeys.Traditional, TitlePinyin = titleKeys.Pinyin, TitleInitials = titleKeys.Initials, CompactTitle = titleKeys.Compact, Language = record.Language, Category = record.Category, ArtistGroup = group, Year = InferYear(relative), Availability = AvailabilityStatus.Available };
                 for (var order = 0; order < artists.Count; order++)
                 {
                     var name = artists[order].Trim(); var keys = normalizer.CreateKeys(name);
