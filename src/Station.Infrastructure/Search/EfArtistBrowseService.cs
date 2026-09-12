@@ -29,7 +29,7 @@ public sealed class EfArtistBrowseService(StationDbContext database, ArtistLexic
             })
             .Where(x => string.IsNullOrWhiteSpace(artistGroup) || string.Equals(x.Group, artistGroup, StringComparison.OrdinalIgnoreCase))
             .OrderByDescending(x => x.Popularity).ThenByDescending(x => x.SongCount).ThenBy(x => x.Name)
-            .Take(Math.Clamp(limit, 1, 500)).ToList();
+            .Take(Math.Clamp(limit, 1, 5_000)).ToList();
     }
 
     private static Guid CreateStableId(string name) => new(SHA256.HashData(Encoding.UTF8.GetBytes(name)).AsSpan(0, 16));

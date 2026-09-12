@@ -95,7 +95,16 @@ public sealed class QueueManagementViewModel : ObservableObject
     }
 
     private Station.Application.Rooms.RoomIdentity RequireIdentity() => roomContext.Identity ?? throw new InvalidOperationException("No active host room.");
-    private void Replace(IEnumerable<QueueEntry> items) { Items.Clear(); foreach (var item in items) Items.Add(item); StatusMessage = Items.Count == 0 ? "队列为空" : $"等待队列：{Items.Count} 首"; }
+    private void Replace(IEnumerable<QueueEntry> items)
+    {
+        var next = items.ToArray();
+        if (!Items.SequenceEqual(next))
+        {
+            Items.Clear();
+            foreach (var item in next) Items.Add(item);
+        }
+        StatusMessage = Items.Count == 0 ? "队列为空" : $"等待队列：{Items.Count} 首";
+    }
     private void ShowError(Error error) => StatusMessage = $"操作未完成：{error.Message}";
     private void ShowUnexpectedError() => StatusMessage = "操作未完成：队列状态已变化，请刷新后重试。";
 }

@@ -31,6 +31,20 @@ public sealed class QueueManagementViewModelTests
     }
 
     [Fact]
+    public async Task Refresh_with_unchanged_queue_keeps_existing_items_for_smooth_rendering()
+    {
+        var identity = new RoomIdentity(Guid.NewGuid(), Guid.NewGuid(), "主持人", RoomRole.Host, DateTimeOffset.UtcNow.AddHours(1));
+        var entry = Entry("不重绘歌曲", 1024);
+        var viewModel = new QueueManagementViewModel(new FakeQueue { Entries = [entry] }, new HostRoomContext { Identity = identity });
+
+        await viewModel.RefreshAsync();
+        var projected = viewModel.Items.Single();
+        await viewModel.RefreshAsync();
+
+        Assert.Same(projected, viewModel.Items.Single());
+    }
+
+    [Fact]
     public async Task Insert_failure_is_reported_without_escaping_the_view_model()
     {
         var identity = new RoomIdentity(Guid.NewGuid(), Guid.NewGuid(), "主持人", RoomRole.Host, DateTimeOffset.UtcNow.AddHours(1));

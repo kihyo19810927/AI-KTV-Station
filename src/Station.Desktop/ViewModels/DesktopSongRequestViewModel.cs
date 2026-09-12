@@ -8,6 +8,7 @@ namespace Station.Desktop.ViewModels;
 
 public sealed class DesktopSongRequestViewModel : ObservableObject
 {
+    private const int ArtistPageSize = 40;
     private readonly ISongSearchIndex search;
     private readonly IArtistBrowseService artistBrowse;
     private readonly RoomQueueService queue;
@@ -16,6 +17,8 @@ public sealed class DesktopSongRequestViewModel : ObservableObject
     private string statusMessage = "输入歌名或歌手后搜索，也可以按歌星浏览";
     private bool showingArtists;
     private string artistGroup = string.Empty;
+    private IReadOnlyList<ArtistBrowseItem> allArtists = [];
+    private int artistPage = 1;
 
     public DesktopSongRequestViewModel(ISongSearchIndex search, IArtistBrowseService artistBrowse, RoomQueueService queue,
         HostRoomContext room, QueueManagementViewModel queueManagement)
@@ -24,11 +27,11 @@ public sealed class DesktopSongRequestViewModel : ObservableObject
         QueueManagement = queueManagement;
         SearchTitleCommand = new AsyncRelayCommand(() => SearchAsync(SongSearchField.Title));
         SearchArtistCommand = new AsyncRelayCommand(() => SearchAsync(SongSearchField.Artist));
-        ShowSongsCommand = new AsyncRelayCommand(() => SearchAsync(SongSearchField.Any));
-        ShowArtistsCommand = new AsyncRelayCommand(() => LoadArtistsAsync(string.Empty));
         SelectArtistGroupCommand = new AsyncRelayCommand<string>(LoadArtistsAsync);
         SelectArtistCommand = new AsyncRelayCommand<ArtistBrowseItem>(artist => SearchArtistAsync(artist.Name));
         RequestSongCommand = new AsyncRelayCommand<SongSearchItem>(RequestSongAsync);
+        PreviousArtistPageCommand = new AsyncRelayCommand(() => ChangeArtistPageAsync(-1), () => artistPage > 1);
+        NextArtistPageCommand = new AsyncRelayCommand(() => ChangeArtistPageAsync(1), () => artistPage < ArtistPageCount);
     }
 
     public ObservableCollection<SongSearchItem> Songs { get; } = [];
@@ -42,11 +45,15 @@ public sealed class DesktopSongRequestViewModel : ObservableObject
     public string ArtistGroup { get => artistGroup; private set => SetProperty(ref artistGroup, value); }
     public ICommand SearchTitleCommand { get; }
     public ICommand SearchArtistCommand { get; }
-    public ICommand ShowSongsCommand { get; }
-    public ICommand ShowArtistsCommand { get; }
     public ICommand SelectArtistGroupCommand { get; }
     public ICommand SelectArtistCommand { get; }
     public ICommand RequestSongCommand { get; }
+    public AsyncRelayCommand PreviousArtistPageCommand { get; }
+    public AsyncRelayCommand NextArtistPageCommand { get; }
+    public int ArtistPageCount => Math.Max(1, (int)Math.Ceiling(allArtists.Count / (double)ArtistPageSize));
+    public string ArtistPageText => allArtists.Count == 0
+        ? "暂无歌星"
+        : $"第 {artistPage} / {ArtistPageCount} 页 · 共 {allArtists.Count:N0} 位歌星";
 
     public Task InitializeAsync() => SearchAsync(SongSearchField.Any);
 
@@ -66,9 +73,27 @@ public sealed class DesktopSongRequestViewModel : ObservableObject
     private async Task LoadArtistsAsync(string group)
     {
         ArtistGroup = group == "全部" ? string.Empty : group;
-        var rows = await artistBrowse.ListAsync(ArtistGroup, 300);
-        Replace(Artists, rows); ShowingArtists = true;
-        StatusMessage = string.IsNullOrEmpty(ArtistGroup) ? $"按热度显示 {rows.Count} 位歌手" : $"{ArtistGroup}：{rows.Count} 位歌手";
+        allArtists = await artistBrowse.ListAsync(ArtistGroup, 3_000);
+        artistPage = 1;
+        ShowArtistPage();
+        ShowingArtists = true;
+        StatusMessage = string.IsNullOrEmpty(ArtistGroup) ? $"按热度显示 {allArtists.Count:N0} 位歌星" : $"{ArtistGroup}：{allArtists.Count:N0} 位歌星";
+    }
+
+    private Task ChangeArtistPageAsync(int offset)
+    {
+        artistPage = Math.Clamp(artistPage + offset, 1, ArtistPageCount);
+        ShowArtistPage();
+        return Task.CompletedTask;
+    }
+
+    private void ShowArtistPage()
+    {
+        Replace(Artists, allArtists.Skip((artistPage - 1) * ArtistPageSize).Take(ArtistPageSize));
+        RaisePropertyChanged(nameof(ArtistPageText));
+        RaisePropertyChanged(nameof(ArtistPageCount));
+        PreviousArtistPageCommand.NotifyCanExecuteChanged();
+        NextArtistPageCommand.NotifyCanExecuteChanged();
     }
 
     private async Task RequestSongAsync(SongSearchItem song)
