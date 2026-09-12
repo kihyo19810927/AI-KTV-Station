@@ -19,7 +19,21 @@ public sealed class PlaybackConsoleViewModelTests
         Assert.Equal("00:03 / 00:10", viewModel.PositionText);
         Assert.Single(viewModel.AudioTracks);
         Assert.Single(viewModel.SubtitleTracks);
+        Assert.Equal("伴奏", viewModel.AudioTracks[0].DisplayName);
         Assert.Equal("正在播放", viewModel.StatusMessage);
+    }
+
+    [Fact]
+    public async Task Volume_slider_applies_after_a_short_debounce_without_a_second_button()
+    {
+        var adapter = new FakePlayer(Snapshot());
+        var viewModel = new PlaybackConsoleViewModel(new PlaybackControlService(adapter));
+        await viewModel.RefreshAsync();
+
+        viewModel.Volume = 42;
+        await adapter.VolumeApplied.Task.WaitAsync(TimeSpan.FromSeconds(2));
+
+        Assert.Equal(42, adapter.State.Volume);
     }
 
     [Fact]

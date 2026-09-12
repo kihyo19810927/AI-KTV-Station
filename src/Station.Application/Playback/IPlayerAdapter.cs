@@ -34,7 +34,17 @@ public sealed record PlayerSnapshot(
     IReadOnlyList<PlayerTrack> Tracks,
     PlayerFailure? Failure = null);
 
-public sealed record PlayerTrack(int StreamId, MediaTrackType Type, string? Codec, string? Language, string? Title, bool IsSelected);
+public sealed record PlayerTrack(int StreamId, MediaTrackType Type, string? Codec, string? Language, string? Title, bool IsSelected)
+{
+    public string DisplayName => !string.IsNullOrWhiteSpace(Title)
+        ? Title!
+        : Type switch
+        {
+            MediaTrackType.Audio => $"音轨 {StreamId}",
+            MediaTrackType.Subtitle => $"字幕 {StreamId}",
+            _ => $"轨道 {StreamId}",
+        };
+}
 
 public enum PlayerFailureKind
 {

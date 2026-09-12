@@ -44,6 +44,7 @@ public sealed class PlaybackQueuePreparationTests
                 Song = firstMedia.Song,
                 RequestedByGuest = guest,
                 Position = 1,
+                Status = QueueItemStatus.ProbeFailed,
                 RequestedAt = DateTimeOffset.UtcNow,
             };
             var second = new QueueItem

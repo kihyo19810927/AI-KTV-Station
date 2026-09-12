@@ -19,12 +19,6 @@ const languages = ['全部', '国语', '粤语', '台语', '闽南语', '英语'
 const styles = ['全部', '流行', '经典', '摇滚', '民谣', '儿歌', '舞曲', '影视原声', '纯音乐']
 const pageSize = 50
 
-function useDebouncedValue<T>(value: T, milliseconds: number) {
-  const [debounced, setDebounced] = useState(value)
-  useEffect(() => { const timer = window.setTimeout(() => setDebounced(value), milliseconds); return () => window.clearTimeout(timer) }, [value, milliseconds])
-  return debounced
-}
-
 function avatarColor(name: string) {
   const colors = ['#f56a00', '#7265e6', '#ffbf00', '#00a2ae', '#1890ff', '#52c41a', '#eb2f96']
   let hash = 0
@@ -32,14 +26,46 @@ function avatarColor(name: string) {
   return colors[Math.abs(hash) % colors.length]
 }
 
+interface SavedDiscoverState {
+  text: string
+  submittedText: string
+  searchField: SearchField
+  filters: Filters
+  page: number
+  browseMode: BrowseMode
+  artistGroup: string
+  selectedArtist: string
+}
+
+function loadDiscoverState(key: string): SavedDiscoverState | null {
+  try {
+    const raw = sessionStorage.getItem(key)
+    if (!raw) return null
+    const value = JSON.parse(raw) as Partial<SavedDiscoverState>
+    if (typeof value.text !== 'string' || typeof value.submittedText !== 'string') return null
+    return {
+      text: value.text,
+      submittedText: value.submittedText,
+      searchField: value.searchField === 'Title' || value.searchField === 'Artist' || value.searchField === 'Any' ? value.searchField : 'Any',
+      filters: { ...initialFilters, ...(value.filters ?? {}) },
+      page: typeof value.page === 'number' && value.page > 0 ? Math.floor(value.page) : 1,
+      browseMode: value.browseMode === 'singer-groups' || value.browseMode === 'singers' || value.browseMode === 'artist-songs' || value.browseMode === 'languages' || value.browseMode === 'styles' ? value.browseMode : 'root',
+      artistGroup: typeof value.artistGroup === 'string' ? value.artistGroup : '',
+      selectedArtist: typeof value.selectedArtist === 'string' ? value.selectedArtist : '',
+    }
+  } catch { return null }
+}
+
 export function DiscoverPage() {
   const { api, session } = useSession()
   const { addQueueItem } = useRoomRealtime()
-  const [text, setText] = useState('')
-  const debouncedText = useDebouncedValue(text.trim(), 300)
-  const [searchField, setSearchField] = useState<SearchField>('Any')
-  const [filters, setFilters] = useState(initialFilters)
-  const [page, setPage] = useState(1)
+  const storageKey = `ai-ktv-station.discover-state.v1.${session?.roomId ?? 'unknown'}.${session?.guestId ?? 'unknown'}`
+  const [savedState] = useState(() => loadDiscoverState(storageKey))
+  const [text, setText] = useState(savedState?.text ?? '')
+  const [submittedText, setSubmittedText] = useState(savedState?.submittedText ?? '')
+  const [searchField, setSearchField] = useState<SearchField>(savedState?.searchField ?? 'Any')
+  const [filters, setFilters] = useState<Filters>(savedState?.filters ?? initialFilters)
+  const [page, setPage] = useState(savedState?.page ?? 1)
   const [result, setResult] = useState<SongSearchPage | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
@@ -47,15 +73,15 @@ export function DiscoverPage() {
   const [requestingSongId, setRequestingSongId] = useState('')
   const [notice, setNotice] = useState('')
   const [favorites, setFavorites] = useState<Set<string>>(new Set())
-  const [browseMode, setBrowseMode] = useState<BrowseMode>('root')
+  const [browseMode, setBrowseMode] = useState<BrowseMode>(savedState?.browseMode ?? 'root')
   const [artists, setArtists] = useState<ArtistItem[]>([])
   const [artistLoading, setArtistLoading] = useState(false)
-  const [artistGroup, setArtistGroup] = useState('')
-  const [selectedArtist, setSelectedArtist] = useState('')
+  const [artistGroup, setArtistGroup] = useState(savedState?.artistGroup ?? '')
+  const [selectedArtist, setSelectedArtist] = useState(savedState?.selectedArtist ?? '')
   const [animatedSongId, setAnimatedSongId] = useState('')
   const requestSequence = useRef(0)
 
-  const queryKey = useMemo(() => JSON.stringify([debouncedText, searchField, filters, selectedArtist]), [debouncedText, searchField, filters, selectedArtist])
+  const queryKey = useMemo(() => JSON.stringify([submittedText, searchField, filters, selectedArtist]), [submittedText, searchField, filters, selectedArtist])
   const isArtistBrowse = browseMode === 'singer-groups' || browseMode === 'singers'
   const totalPages = result ? Math.max(1, Math.ceil(result.total / result.pageSize)) : 1
 
@@ -64,6 +90,12 @@ export function DiscoverPage() {
     api.get<FavoriteSong[]>('/api/library/favorites', controller.signal).then(items => setFavorites(new Set(items.map(item => item.songId)))).catch(() => undefined)
     return () => controller.abort()
   }, [api])
+
+  useEffect(() => {
+    try {
+      sessionStorage.setItem(storageKey, JSON.stringify({ text, submittedText, searchField, filters, page, browseMode, artistGroup, selectedArtist } satisfies SavedDiscoverState))
+    } catch { /* session storage is optional */ }
+  }, [storageKey, text, submittedText, searchField, filters, page, browseMode, artistGroup, selectedArtist])
 
   useEffect(() => {
     if (browseMode !== 'singers') return
@@ -80,7 +112,7 @@ export function DiscoverPage() {
     const controller = new AbortController()
     const sequence = ++requestSequence.current
     const params = new URLSearchParams({ page: String(page), pageSize: String(pageSize), sort: filters.sort })
-    if (debouncedText) params.set('text', debouncedText)
+    if (submittedText) params.set('text', submittedText)
     if (searchField !== 'Any') params.set('field', searchField)
     if (filters.language) params.set('language', filters.language)
     if (filters.category) params.set('category', filters.category)
@@ -92,7 +124,14 @@ export function DiscoverPage() {
       .catch(value => { if (sequence === requestSequence.current && !(value instanceof DOMException && value.name === 'AbortError')) setError(value instanceof ApiError ? value.message : '曲库暂时无法访问，请稍后重试。') })
       .finally(() => { if (sequence === requestSequence.current && !controller.signal.aborted) setLoading(false) })
     return () => controller.abort()
-  }, [api, debouncedText, searchField, filters, selectedArtist, page, retry])
+  }, [api, submittedText, searchField, filters, selectedArtist, page, retry])
+
+  const submitSearch = (field: SearchField) => {
+    setSearchField(field)
+    setSubmittedText(text.trim())
+    setPage(1)
+    if (browseMode !== 'root' && browseMode !== 'artist-songs') setBrowseMode('root')
+  }
 
   const chooseCategory = (name: 'language' | 'category', value: string) => {
     setSelectedArtist('')
@@ -126,25 +165,25 @@ export function DiscoverPage() {
   }
 
   function chooseArtist(artist: ArtistItem) {
-    setText(''); setSearchField('Artist'); setSelectedArtist(artist.name); setFilters(initialFilters); setBrowseMode('artist-songs')
+    setText(''); setSubmittedText(''); setSearchField('Artist'); setSelectedArtist(artist.name); setFilters(initialFilters); setBrowseMode('artist-songs')
   }
 
   return <>
     <label className="search-box">
       <Search aria-hidden="true" /><span className="sr-only">搜索歌曲</span>
-      <input value={text} onChange={event => { setText(event.target.value); if (event.target.value && browseMode !== 'root' && browseMode !== 'artist-songs') setBrowseMode('root') }} placeholder="搜索歌名、歌手或拼音" />
+      <input value={text} onChange={event => setText(event.target.value)} placeholder="输入关键字后点击按歌名或按歌手" />
     </label>
     <div className="search-scope" role="group" aria-label="搜索范围">
-      {([['Any', '全部'], ['Title', '按歌名'], ['Artist', '按歌手']] as const).map(([value, label]) => <button key={value} className={searchField === value ? 'active' : ''} onClick={() => { setSearchField(value); setPage(1) }}>{label}</button>)}
+      {([['Any', '全部'], ['Title', '按歌名'], ['Artist', '按歌手']] as const).map(([value, label]) => <button key={value} className={searchField === value ? 'active' : ''} onClick={() => submitSearch(value)}>{label}</button>)}
     </div>
 
     <section className="browse-menu" aria-label="曲库分类">
-      {browseMode === 'root' && <div className="browse-root"><button onClick={() => setBrowseMode('singer-groups')}><Users />按歌星</button><button onClick={() => setBrowseMode('languages')}><Languages />按语种</button><button onClick={() => setBrowseMode('styles')}><Shapes />按风格</button></div>}
+      {browseMode === 'root' && <div className="browse-root"><button onClick={() => { setSelectedArtist(''); setBrowseMode('singer-groups') }}><Users />按歌星</button><button onClick={() => setBrowseMode('languages')}><Languages />按语种</button><button onClick={() => setBrowseMode('styles')}><Shapes />按风格</button></div>}
       {browseMode !== 'root' && <button className="browse-back" onClick={() => setBrowseMode(browseMode === 'artist-songs' ? 'singers' : browseMode === 'singers' ? 'singer-groups' : 'root')}><ChevronLeft />{browseMode === 'artist-songs' ? '返回歌星列表' : '返回'}</button>}
       {browseMode === 'singer-groups' && <div className="browse-options">{singerGroups.map(value => <button key={value} onClick={() => { setArtistGroup(value === '全部' ? '' : value); setBrowseMode('singers') }}>{value}</button>)}</div>}
       {browseMode === 'languages' && <div className="browse-options">{languages.map(value => <button key={value} onClick={() => chooseCategory('language', value)}>{value}</button>)}</div>}
       {browseMode === 'styles' && <div className="browse-options">{styles.map(value => <button key={value} onClick={() => chooseCategory('category', value)}>{value}</button>)}</div>}
-      {browseMode === 'singers' && <div className="artist-view-container">{artistLoading ? <div className="catalog-message">正在加载歌星列表…</div> : artists.length === 0 ? <div className="catalog-message"><strong>该分类下暂无歌星数据</strong><p>可以返回选择其他歌手分类。</p></div> : <div className="artist-grid">{artists.map(artist => { const key = artist.id ?? artist.artistId ?? artist.name; const image = artist.imageUrl ?? artist.avatarUrl; return <button key={key} className="artist-card-btn" aria-label={artist.name} onClick={() => chooseArtist(artist)}><span className="artist-avatar-badge" style={{ backgroundColor: image ? 'transparent' : avatarColor(artist.name) }}>{image ? <img src={image} alt={artist.name} /> : artist.name.trim().slice(0, 1)}</span><strong className="artist-name-label">{artist.name}</strong><small className="artist-count-label">{artist.songCount} 首</small></button> })}</div>}</div>}
+      {browseMode === 'singers' && <div className="artist-view-container" aria-label="歌手列表">{artistLoading ? <div className="catalog-message">正在加载歌星列表…</div> : artists.length === 0 ? <div className="catalog-message"><strong>该分类下暂无歌星数据</strong><p>请返回选择其他歌手分类，或先导入带歌手信息的曲库。</p></div> : <div className="artist-grid">{artists.map(artist => { const key = artist.id ?? artist.artistId ?? artist.name; const image = artist.imageUrl ?? artist.avatarUrl; return <button key={key} className="artist-card-btn" aria-label={artist.name} onClick={() => chooseArtist(artist)}><span className="artist-avatar-badge" style={{ backgroundColor: image ? 'transparent' : avatarColor(artist.name) }}>{image ? <img src={image} alt={artist.name} /> : artist.name.trim().slice(0, 1)}</span><strong className="artist-name-label">{artist.name}</strong><small className="artist-count-label">{artist.songCount} 首</small></button> })}</div>}</div>}
     </section>
 
     {selectedArtist && <div className="active-artist"><span>歌手：<strong>{selectedArtist}</strong></span><button onClick={() => { setSelectedArtist(''); setSearchField('Any'); setBrowseMode('root') }}>查看全部</button></div>}

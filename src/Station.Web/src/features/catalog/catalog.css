@@ -5,7 +5,7 @@
 .browse-root button { display: grid; place-items: center; gap: 4px; padding: 9px 4px; }
 .browse-root svg, .browse-back svg { width: 18px; }
 .browse-options { display: flex; flex-wrap: wrap; gap: 8px; padding: 8px 0; max-width: 100%; overflow-wrap: anywhere; }
-.browse-options button { padding: 8px 14px; white-space: nowrap; }
+.browse-options button { padding: 8px 14px; white-space: normal; overflow-wrap: anywhere; text-align: center; min-width: 0; }
 .browse-back { display: flex; align-items: center; gap: 3px; padding: 6px 10px; }
 .artist-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(78px, 1fr)); gap: 14px 8px; padding: 12px 1px; max-width: 100%; }
 .artist-card-btn { min-width: 0; padding: 8px 4px; display: grid; justify-items: center; gap: 5px; }

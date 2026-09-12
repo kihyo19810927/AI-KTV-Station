@@ -86,5 +86,9 @@
 | mpv 同实例切歌 | 生成 Unicode 双音轨 MKV + Windows Named Pipe JSON IPC | 通过（`stop` 产生 Stopped 事件；第二首加载及切歌前后 mpv PID 不变，2/2） | 电视输出切换观感待实机验收 |
 | RC11 进程清理 | 全新解压启动、内嵌服务健康、窗口检测、正常关闭 | 通过（567 项；`PACKAGE_PROCESS_CLEANUP=passed`；SHA-256 `86200e1e…0552`） | WebView2 和真实 mpv 同时退出待实机观察 |
 | SignalR 实时状态契约 | RoomRealtimeJournal JSON 契约测试 + TestServer/端到端 + Vitest reducer | 通过（camelCase、字符串枚举、旧字段兼容；API/端到端 8/8、Web 28/28、生产构建通过） | 真实手机 WebSocket 连接与断线重连待实机验收 |
+| KTVS-073 播放控制回归 | Desktop xUnit + Release XAML + mpv Unicode named-pipe 外部测试 | 通过（Desktop 15/15；mpv 3/3；音量自动提交、空轨道标签和下一首解除暂停已覆盖） | 真实电视/功放待实机验收 |
+| KTVS-074 队列生命周期回归 | Core xUnit + SQLite 唯一位置约束 + 队首播放存储 | 通过（Core 非外部 174/174；完成项不占限额/位置，ProbeFailed 队首可选取） | 真实 100 首长队列待实机验收 |
+| KTVS-075 手机发现状态回归 | Vitest + TypeScript + Vite | 通过（Web 30/30；显式检索、歌星互斥卡片、菜单换行和标签切换状态持久化） | 真实手机 WebSocket 与视觉待实机验收 |
+| KTVS-076 RC13 本地可执行包 | `scripts/publish-windows.ps1` + `scripts/verify-release-package.ps1` + `scripts/test-packaged-app.ps1` | 通过（579 项；自包含 .NET、mpv、FFmpeg/ffprobe/Vulkan、许可证说明；健康、窗口、正常退出和进程清理通过；SHA-256 `722415f966b38a2e5db3f629bcef6c0bc56a6c79e534a6d5fa8016dc7ae77889`） | 干净 Windows、真实媒体/设备和正式许可证复核待验收 |
 
 禁止把替身、模拟器或文档审阅结果写成真实设备通过。

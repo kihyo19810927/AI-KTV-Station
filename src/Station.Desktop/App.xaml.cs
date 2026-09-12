@@ -107,11 +107,14 @@ public partial class App : System.Windows.Application
         collection.AddSingleton<PlaybackControlService>();
         collection.AddSingleton<IPlaybackStartupRecoveryStore, EfPlaybackStartupRecoveryStore>();
         collection.AddSingleton<PlaybackStartupRecoveryService>();
-        collection.AddSingleton<PlaybackConsoleViewModel>();
         collection.AddSingleton<IRoomQueueRepository, EfRoomQueueRepository>();
         collection.AddSingleton<IRoomQueueLock, InProcessRoomQueueLock>();
         collection.AddSingleton<IRoomQueueService, RoomQueueService>();
         collection.AddSingleton<HostRoomContext>();
+        collection.AddSingleton<PlaybackConsoleViewModel>(provider => new PlaybackConsoleViewModel(
+            provider.GetRequiredService<PlaybackControlService>(),
+            provider.GetRequiredService<IRoomQueueService>(),
+            provider.GetRequiredService<HostRoomContext>()));
         collection.AddSingleton<QueueManagementViewModel>();
         collection.AddSingleton<IMediaSourceRepository, EfMediaSourceRepository>();
         collection.AddSingleton<IMediaPathInspector, FileSystemMediaPathInspector>();

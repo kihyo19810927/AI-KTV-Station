@@ -17,6 +17,8 @@
 - [x] 本地候选 ZIP、逐文件清单和 ZIP SHA-256 可生成并验证
 - [x] RC12 候选包已生成：579 项，SHA-256 `a7b9a37731d208a6857d3415ce3e96968ea1c14e47a3f7f9f2df0b966f67ce9d`
 - [x] RC12 包含 `tools/mpv`、`tools/ffmpeg`、`tools/licenses`，隔离启动、内嵌服务健康、窗口和退出清理通过
+- [x] RC13 候选包已生成：579 项，SHA-256 `722415f966b38a2e5db3f629bcef6c0bc56a6c79e534a6d5fa8016dc7ae77889`
+- [x] RC13 包含 `tools/mpv`、`tools/ffmpeg`、`tools/licenses`，隔离启动、内嵌服务健康、窗口和退出清理通过
 - [x] RC6 全新解压启动及正常关闭通过，退出后无 Station/mpv 残留且 5090 已释放
 - [x] `1.0.0` Release Notes 与候选校验验证脚本已准备
 - [ ] `v1.0.0` Tag 与 GitHub Release 已在全部门禁通过并经所有者授权后创建

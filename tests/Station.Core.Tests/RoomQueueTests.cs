@@ -43,6 +43,21 @@ public sealed class RoomQueueTests
     }
 
     [Fact]
+    public async Task Completed_request_does_not_consume_guest_queue_limit()
+    {
+        await using var fixture = await QueueFixture.CreateAsync(limit: 1);
+        var first = (await fixture.Service.RequestAsync(fixture.GuestIdentity, fixture.Songs[0].Id)).Value;
+        var stored = await fixture.Database.QueueItems.SingleAsync(x => x.Id == first.Id);
+        stored.Status = QueueItemStatus.Completed;
+        stored.CompletedAt = Now;
+        await fixture.Database.SaveChangesAsync();
+
+        var second = await fixture.Service.RequestAsync(fixture.GuestIdentity, fixture.Songs[1].Id);
+
+        Assert.True(second.IsSuccess, second.Error.Message);
+    }
+
+    [Fact]
     public async Task Guest_removes_only_own_waiting_item_and_host_can_remove_any()
     {
         await using var fixture = await QueueFixture.CreateAsync();

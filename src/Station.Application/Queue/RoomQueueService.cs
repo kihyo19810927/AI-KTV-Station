@@ -13,7 +13,8 @@ public sealed record QueueEntry(
     string RequestedByNickname,
     long Position,
     QueueItemStatus Status,
-    DateTimeOffset RequestedAt);
+    DateTimeOffset RequestedAt,
+    string? Artists = null);
 
 public interface IRoomQueueService
 {
@@ -31,6 +32,7 @@ public interface IRoomQueueRepository
     Task<Song?> FindSongAsync(Guid songId, CancellationToken cancellationToken = default);
     Task<QueueItem?> FindItemAsync(Guid itemId, CancellationToken cancellationToken = default);
     Task<IReadOnlyList<QueueItem>> ListActiveAsync(Guid roomId, CancellationToken cancellationToken = default);
+    Task<long?> GetMaxPositionAsync(Guid roomId, CancellationToken cancellationToken = default);
     Task AddAsync(QueueItem item, CancellationToken cancellationToken = default);
     Task SaveChangesAsync(CancellationToken cancellationToken = default);
     Task SaveReorderAsync(IReadOnlyList<QueueItem> orderedItems, CancellationToken cancellationToken = default);
@@ -91,7 +93,8 @@ public sealed class RoomQueueService(
         var ownCount = active.Count(x => x.RequestedByGuestId == identity.GuestId);
         if (!identity.Role.Equals(RoomRole.Host) && ownCount >= context.Value.Room.MaxQueuedSongsPerGuest)
             return Failure<QueueEntry>("queue.guest_limit_reached", "Guest queue limit was reached.");
-        var position = active.Count == 0 ? PositionStep : checked(active.Max(x => x.Position) + PositionStep);
+        var maxPosition = await repository.GetMaxPositionAsync(identity.RoomId, cancellationToken).ConfigureAwait(false);
+        var position = maxPosition is null ? PositionStep : checked(maxPosition.Value + PositionStep);
         var item = new QueueItem
         {
             RoomSessionId = identity.RoomId,
@@ -236,7 +239,8 @@ public sealed class RoomQueueService(
         item.RequestedByGuest.Nickname,
         item.Position,
         item.Status,
-        item.RequestedAt);
+        item.RequestedAt,
+        string.Join(" / ", item.Song.Artists.OrderBy(x => x.Order).Select(x => x.Artist.Name)));
 
     private static bool IsQueued(QueueItemStatus status) => status is QueueItemStatus.Probing or QueueItemStatus.ProbeFailed or QueueItemStatus.Waiting;
 

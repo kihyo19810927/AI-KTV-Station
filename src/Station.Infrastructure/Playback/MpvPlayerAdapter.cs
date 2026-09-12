@@ -170,6 +170,9 @@ public sealed class MpvPlayerAdapter : IPlayerAdapter
             {
                 await SendCommandAsync(cancellationToken, "loadfile", request.MediaPath, "replace").ConfigureAwait(false);
                 await loaded.Task.WaitAsync(commandTimeout, cancellationToken).ConfigureAwait(false);
+                // mpv retains the previous pause property when replacing a file.
+                // Every queue item must start playing unless the user pauses it afterwards.
+                await SendCommandAsync(cancellationToken, "set_property", "pause", false).ConfigureAwait(false);
                 return await RefreshSnapshotAsync(cancellationToken).ConfigureAwait(false);
             }
             finally

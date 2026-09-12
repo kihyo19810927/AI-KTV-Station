@@ -18,7 +18,7 @@ export function applyRoomEvent(state: RoomRealtimeState, event: RoomRealtimeEven
   if (event.type === 'queue.added') { const item = normalizeQueueEntry(event.data); return item ? { ...state, version: event.version, queue: [...state.queue.filter(existing => existing.id !== item.id), item].sort((a, b) => a.position - b.position) } : { ...state, version: event.version } }
   if (event.type === 'queue.removed') { const itemId = readString(event.data, 'itemId'); return { ...state, version: event.version, queue: itemId ? state.queue.filter(item => item.id !== itemId) : state.queue } }
   if (event.type === 'queue.reordered') { const changed = normalizeQueueEntry(event.data); return changed ? { ...state, version: event.version, queue: state.queue.map(item => item.id === changed.id ? changed : item).sort((a, b) => a.position - b.position) } : { ...state, version: event.version } }
-  if (event.type === 'queue.status') { const itemId = readString(event.data, 'itemId'); const status = readString(event.data, 'status') as QueueEntry['status'] | undefined; const terminal = status !== undefined && ['Completed', 'Skipped', 'Failed'].includes(status); return { ...state, version: event.version, queue: itemId && status ? terminal ? state.queue.filter(item => item.id !== itemId) : state.queue.map(item => item.id === itemId ? { ...item, status } : item) : state.queue } }
+  if (event.type === 'queue.status') { const itemId = readString(event.data, 'itemId'); const status = readEnumString(event.data, 'status', ['Probing', 'ProbeFailed', 'Waiting', 'Preparing', 'Playing', 'Paused', 'Completed', 'Skipped', 'Failed']) as QueueEntry['status'] | undefined; const terminal = status !== undefined && ['Completed', 'Skipped', 'Failed'].includes(status); return { ...state, version: event.version, queue: itemId && status ? terminal ? state.queue.filter(item => item.id !== itemId) : state.queue.map(item => item.id === itemId ? { ...item, status } : item) : state.queue } }
   if (event.type === 'playback.changed') return { ...state, version: event.version, playback: normalizePlayback(event.data) }
   return { ...state, version: event.version }
 }
@@ -46,13 +46,14 @@ function normalizeQueueEntry(data: unknown): QueueEntry | undefined {
   const id = readString(data, 'id')
   const songId = readString(data, 'songId')
   const title = readString(data, 'title')
+  const artists = readString(data, 'artists')
   const requestedByGuestId = readString(data, 'requestedByGuestId')
   const requestedByNickname = readString(data, 'requestedByNickname')
   const status = readEnumString(data, 'status', ['Probing', 'ProbeFailed', 'Waiting', 'Preparing', 'Playing', 'Paused', 'Completed', 'Skipped', 'Failed']) as QueueEntry['status'] | undefined
   const position = readValue(data, 'position')
   const requestedAt = readString(data, 'requestedAt')
   if (!id || !songId || !title || !requestedByGuestId || !requestedByNickname || !status || typeof position !== 'number' || !requestedAt) return undefined
-  return { id, songId, title, requestedByGuestId, requestedByNickname, position, status, requestedAt }
+  return { id, songId, title, artists, requestedByGuestId, requestedByNickname, position, status, requestedAt }
 }
 
 function normalizePlayback(data: unknown): PlaybackProgress | undefined {

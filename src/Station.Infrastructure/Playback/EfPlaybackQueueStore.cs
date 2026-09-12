@@ -14,7 +14,7 @@ public sealed class EfPlaybackQueueStore(StationDbContext database, IMediaProbe?
     {
         var item = await database.QueueItems
             .Include(x => x.Song).ThenInclude(x => x.MediaFiles).ThenInclude(x => x.MediaSource)
-            .Where(x => x.RoomSessionId == roomId && x.Status == QueueItemStatus.Waiting)
+            .Where(x => x.RoomSessionId == roomId && (x.Status == QueueItemStatus.Waiting || x.Status == QueueItemStatus.ProbeFailed))
             .OrderBy(x => x.Position)
             .FirstOrDefaultAsync(cancellationToken);
         if (item is null) return null;
