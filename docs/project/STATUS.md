@@ -5,10 +5,10 @@
 ## 当前基线
 
 - 分支：`codex/KTVS-064`
-- 版本：`0.1.0-rc.13`（本地候选包）
+- 版本：`0.1.0-rc.14`（本地候选包）
 - 阶段：Phase 10：持续验收问题修复与发布准备
-- 已完成：KTVS-001 至 KTVS-057；KTVS-058 软件验证完成；KTVS-060 至 KTVS-076 用户反馈、回归修复及本地候选包完成
-- 当前任务：本轮软件修改与 RC13 本地打包已完成；真实设备、完整许可证材料复核和正式发布授权仍保持待验收/待授权
+- 已完成：KTVS-001 至 KTVS-057；KTVS-058 软件验证完成；KTVS-060 至 KTVS-077 用户反馈、回归修复及本地候选包完成
+- 当前任务：本轮软件修改与 RC14 本地打包已完成；真实设备、完整许可证材料复核和正式发布授权仍保持待验收/待授权
 
 ## 调查结果
 
@@ -24,7 +24,7 @@
 
 本轮 KTVS-073 至 KTVS-075 回归验证：Web 30/30、Core 非 External 174/174、Desktop 15/15、TypeScript `tsc -b` 和 Vite production build 通过；真实 mpv named-pipe 集成 3/3、20 轮连续播放 20/20，重复结束事件 0、进程重启 0。首次在受限沙箱中执行 mpv 时的 named-pipe `Access denied` 已按环境限制记录，未伪报为代码失败。
 
-KTVS-076 本地候选包：`artifacts/AI-KTV-Station-0.1.0-rc.13-win-x64.zip`，579 项，大小 296,573,962 bytes，SHA-256 `722415f966b38a2e5db3f629bcef6c0bc56a6c79e534a6d5fa8016dc7ae77889`。包内含自包含 .NET、`tools/mpv`、`tools/ffmpeg`、Vulkan loader、许可证说明和初始 JSONL 歌库；解压启动、健康检查、窗口检测及正常退出进程清理通过。
+KTVS-077 本地候选包：`artifacts/AI-KTV-Station-0.1.0-rc.14-win-x64.zip`，579 项，大小 296,573,958 bytes，SHA-256 `e13b6733eb0f644e48f797c3b292f9c80d1bd9c8ddee118679998bb252531529`。包内含自包含 .NET、`tools/mpv`、`tools/ffmpeg`、Vulkan loader、许可证说明和初始 JSONL 歌库；解压启动、健康检查、窗口检测及正常退出进程清理通过。
 
 KTVS-006：`dotnet build AI-KTV-Station.slnx --configuration Release -m:1 -p:UseSharedCompilation=false` 成功，0 警告/0 错误；依赖检查输出 `PROJECT_DEPENDENCIES=passed`。沙箱内并行 MSBuild 会遇到命名管道权限限制，基线命令暂用 `-m:1` 与禁用共享编译。
 
