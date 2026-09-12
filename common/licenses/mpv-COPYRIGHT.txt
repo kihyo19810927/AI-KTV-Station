@@ -1,0 +1,10 @@
+mpv copyright notice
+
+mpv is a fork of mplayer2, which is a fork of MPlayer.
+Copyright and contributor information are maintained by the upstream project:
+https://github.com/mpv-player/mpv/blob/master/Copyright
+
+The mpv program is GPLv2 or later by default. The upstream project also
+contains LGPLv2.1-or-later code and files. The effective terms depend on the
+exact build configuration and linked libraries; this package preserves the
+binary version/configuration notice above and does not relicense mpv.

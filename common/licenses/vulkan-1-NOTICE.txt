@@ -1,0 +1,4 @@
+vulkan-1.dll is bundled because the selected mpv Windows build depends on the
+Vulkan loader. It is distributed as part of the upstream Windows mpv bundle.
+The loader's own license and copyright notice are available from Khronos:
+https://github.com/KhronosGroup/Vulkan-Loader

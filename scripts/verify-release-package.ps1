@@ -8,12 +8,24 @@ Add-Type -AssemblyName System.IO.Compression.FileSystem
 $archive = [IO.Compression.ZipFile]::OpenRead($packagePath)
 try {
     $entries = @($archive.Entries | ForEach-Object FullName)
-    foreach ($required in @('Station.Desktop.exe', 'wwwroot/index.html', 'INSTALL.md', 'THIRD-PARTY-NOTICES.md', 'manifest.json')) {
+    foreach ($required in @(
+        'Station.Desktop.exe',
+        'wwwroot/index.html',
+        'INSTALL.md',
+        'THIRD-PARTY-NOTICES.md',
+        'manifest.json',
+        'tools/mpv/mpv.exe',
+        'tools/mpv/vulkan-1.dll',
+        'tools/ffmpeg/ffmpeg.exe',
+        'tools/ffmpeg/ffprobe.exe',
+        'tools/licenses/mpv-LICENSE.txt',
+        'tools/licenses/ffmpeg-LICENSE.txt'
+    )) {
         if (-not ($entries | Where-Object { $_.Replace('\', '/').EndsWith("/$required", [StringComparison]::OrdinalIgnoreCase) })) {
             throw "Required package entry is missing: $required"
         }
     }
-    foreach ($forbidden in @('mpv.exe', 'ffmpeg.exe', 'ffprobe.exe', 'station.db', 'settings.json')) {
+    foreach ($forbidden in @('station.db', 'settings.json')) {
         if ($entries | Where-Object { [IO.Path]::GetFileName($_) -ieq $forbidden }) {
             throw "Forbidden package entry exists: $forbidden"
         }

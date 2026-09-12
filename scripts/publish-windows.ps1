@@ -38,7 +38,30 @@ try {
         Copy-Item -LiteralPath $initialLibrary -Destination (Join-Path $initialLibraryRoot 'ktv_songs_index.jsonl')
     }
 
-    $forbidden = @('mpv.exe', 'ffmpeg.exe', 'ffprobe.exe', 'station.db', 'settings.json')
+    $toolFiles = @(
+        @{ Source = 'mpv\mpv.exe'; Destination = 'tools\mpv\mpv.exe' },
+        @{ Source = 'mpv\vulkan-1.dll'; Destination = 'tools\mpv\vulkan-1.dll' },
+        @{ Source = 'ffmpeg\ffmpeg.exe'; Destination = 'tools\ffmpeg\ffmpeg.exe' },
+        @{ Source = 'ffmpeg\ffprobe.exe'; Destination = 'tools\ffmpeg\ffprobe.exe' }
+    )
+    foreach ($toolFile in $toolFiles) {
+        $source = Join-Path $root ('common\' + $toolFile.Source)
+        if (-not (Test-Path -LiteralPath $source -PathType Leaf)) {
+            throw "Bundled runtime tool is missing: $source"
+        }
+        $destination = Join-Path $publishRoot $toolFile.Destination
+        New-Item -ItemType Directory -Path ([IO.Path]::GetDirectoryName($destination)) -Force | Out-Null
+        Copy-Item -LiteralPath $source -Destination $destination -Force
+    }
+    $licenseSource = Join-Path $root 'common\licenses'
+    if (-not (Test-Path -LiteralPath $licenseSource -PathType Container)) {
+        throw "Bundled tool license notices are missing: $licenseSource"
+    }
+    $licenseDestination = Join-Path $publishRoot 'tools\licenses'
+    New-Item -ItemType Directory -Path $licenseDestination -Force | Out-Null
+    Get-ChildItem -LiteralPath $licenseSource -File | Copy-Item -Destination $licenseDestination -Force
+
+    $forbidden = @('station.db', 'settings.json')
     $packagedNames = Get-ChildItem -LiteralPath $publishRoot -File -Recurse | ForEach-Object Name
     foreach ($name in $forbidden) {
         if ($packagedNames -contains $name) { throw "Forbidden file in package: $name" }

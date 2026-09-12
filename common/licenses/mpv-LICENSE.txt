@@ -1,0 +1,10 @@
+mpv license reference
+
+The complete upstream license texts are maintained here:
+GPLv2-or-later: https://github.com/mpv-player/mpv/blob/master/LICENSE.GPL
+LGPLv2.1-or-later: https://github.com/mpv-player/mpv/blob/master/LICENSE.LGPL
+Copyright/build licensing details: https://github.com/mpv-player/mpv/blob/master/Copyright
+
+This file is a redistribution notice for the bundled binary. The upstream
+license texts at the URLs above are part of the corresponding source tree and
+must be retained or made available with a redistribution of this binary.

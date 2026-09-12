@@ -65,10 +65,10 @@
 | CloudDrive 故障注入 | 临时 SQLite/媒体 + 错误枚举器 + 可控播放器 | 通过（断挂不误删、403 离线保留、重扫恢复、超时重启并完成） | 真实 115/CloudDrive 错误文本和时延待验收 |
 | 进程与启动恢复 | SQLite 文件重开 + 三种活动队列状态 + 真实 mpv 进程终止 | 通过（重入队、旧历史闭合、幂等恢复、mpv 可重试崩溃事件） | 突然断电与磁盘写缓存待实机验收 |
 | 安全边界 | 配置验证、loopback 策略、TestServer、OpenAPI、脱敏和 Web 存储测试 | 通过（显式 IP、仅本机管理、无路径/哈希契约、安全头、令牌不进 URL/localStorage） | LAN HTTP 被动监听风险；严禁公网暴露 |
-| 依赖与许可证 | NuGet/NPM 锁文件、已还原包元数据、ffmpeg buildconf、mpv version | 通过（清单已生成；V1 禁止捆绑 mpv/FFmpeg） | 项目自身许可、未来二进制分发需用户批准 |
+| 依赖与许可证 | NuGet/NPM 锁文件、已还原包元数据、ffmpeg buildconf、mpv version、随包 notices | 进行中（工具版本和来源说明已加入；完整许可证材料需发布前复核） | 项目自身许可、公开二进制分发仍需所有者复核 |
 | Desktop 内嵌服务与后台播放 | 真实 Kestrel 临时端口、共享播放器 DI、空队列后追加歌曲 | 通过（主机健康、单播放器、延迟点歌自动加载） | LAN 手机与真实媒体待实机验收 |
 | UAT 软件就绪包 | `scripts/run-uat-readiness.ps1` | 通过（Core 150/150、Desktop 12/12、Web 24/24、生成 MKV/mpv） | 用户执行设备与小批真实库步骤 |
-| Windows 自包含发布包 | `scripts/publish-windows.ps1` + `verify-release-package.ps1` | RC11 通过（win-x64、567 项、内置 72,295 首 JSONL 初始索引、无数据库/媒体工具） | 干净 Windows 安装与正式导入待验收；项目许可待决定 |
+| Windows 自包含发布包 | `scripts/publish-windows.ps1` + `verify-release-package.ps1` + `test-packaged-app.ps1` | RC12 通过（579 项、mpv/ffmpeg/ffprobe/Vulkan loader、许可证说明；隔离启动/健康/窗口/退出清理通过；无数据库/设置） | 干净 Windows 安装、工具版本和正式许可证复核待验收 |
 | 数据库安全升级 | 临时 SQLite + 可控迁移执行器 | 通过（无迁移不备份、备份完整、删除数据后失败自动恢复） | 正式库升级与磁盘故障待实机演练 |
 | 运维文档完整性 | `scripts/verify-operations-docs.ps1` | 通过（6 份文档、7 章节、3 条安全警告） | 操作可用性随 KTVS-058 实机验收 |
 | RC6 候选版软件验证 | UAT 就绪链 + 发布包验证 + 随机临时目录启动/退出 | 通过（Core 159、Desktop 14、Web 24、566 项 ZIP、SQLite/内嵌服务健康、进程清理） | 干净 Windows 与真实设备仍待验收 |
