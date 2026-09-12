@@ -12,6 +12,8 @@ public interface ISongSearchIndex
 
 public enum SongSearchSort { Relevance, Title, YearDescending, RecentlyAdded }
 
+public enum SongSearchField { Any, Title, Artist }
+
 public sealed record SongSearchQuery(
     string? Text = null,
     int Page = 1,
@@ -22,7 +24,9 @@ public sealed record SongSearchQuery(
     int? YearFrom = null,
     int? YearTo = null,
     SongSearchSort Sort = SongSearchSort.Relevance,
-    string? ArtistGroup = null);
+    string? ArtistGroup = null,
+    string? Artist = null,
+    SongSearchField Field = SongSearchField.Any);
 
 public sealed record SongSearchPage(IReadOnlyList<SongSearchItem> Items, long Total, int Page, int PageSize);
 

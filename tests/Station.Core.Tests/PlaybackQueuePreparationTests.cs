@@ -10,7 +10,7 @@ namespace Station.Core.Tests;
 public sealed class PlaybackQueuePreparationTests
 {
     [Fact]
-    public async Task Probes_only_the_queue_head_and_reuses_its_fingerprint()
+    public async Task Probe_failed_head_is_skipped_without_a_fourth_probe_and_next_waiting_item_is_probed()
     {
         var databasePath = Path.Combine(Path.GetTempPath(), $"ai-ktv-queue-probe-{Guid.NewGuid():N}.db");
         try
@@ -44,6 +44,7 @@ public sealed class PlaybackQueuePreparationTests
                 Song = firstMedia.Song,
                 RequestedByGuest = guest,
                 Position = 1,
+                Status = QueueItemStatus.ProbeFailed,
                 RequestedAt = DateTimeOffset.UtcNow,
             };
             var second = new QueueItem
@@ -62,19 +63,19 @@ public sealed class PlaybackQueuePreparationTests
 
             var selectedFirst = await store.GetNextAsync(room.Id);
             Assert.Equal(first.Id, selectedFirst?.QueueItemId);
-            Assert.Equal([Path.Combine(source.RootPath, "first.mkv")], probe.Paths);
-            Assert.NotEmpty(firstMedia.ProbeFingerprint!);
-            Assert.Equal(12.5, firstMedia.DurationSeconds);
+            Assert.NotNull(selectedFirst?.PreflightFailure);
+            Assert.Empty(probe.Paths);
+            Assert.Null(firstMedia.ProbeFingerprint);
             Assert.Null(secondMedia.ProbeFingerprint);
 
             _ = await store.GetNextAsync(room.Id);
-            Assert.Single(probe.Paths);
+            Assert.Empty(probe.Paths);
 
             await store.SetQueueStatusAsync(first.Id, QueueItemStatus.Skipped, DateTimeOffset.UtcNow);
             var selectedSecond = await store.GetNextAsync(room.Id);
             Assert.Equal(second.Id, selectedSecond?.QueueItemId);
-            Assert.Equal(2, probe.Paths.Count);
-            Assert.Equal(Path.Combine(source.RootPath, "second.mkv"), probe.Paths[1]);
+            Assert.Single(probe.Paths);
+            Assert.Equal(Path.Combine(source.RootPath, "second.mkv"), probe.Paths[0]);
         }
         finally
         {

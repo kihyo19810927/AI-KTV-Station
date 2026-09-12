@@ -45,7 +45,12 @@ public static class StationServerHost
         builder.Logging.AddJsonConsole();
         builder.Services.AddOptions<StationOptions>().BindConfiguration(StationOptions.SectionName).Validate(x => StationOptionsValidator.Validate(x).IsSuccess, "Station configuration is invalid.").ValidateOnStart();
         builder.Services.ConfigureHttpJsonOptions(x => x.SerializerOptions.Converters.Add(new JsonStringEnumConverter()));
-        builder.Services.AddOpenApi(); builder.Services.AddSignalR();
+        builder.Services.AddOpenApi();
+        builder.Services.AddSignalR().AddJsonProtocol(options =>
+        {
+            options.PayloadSerializerOptions.PropertyNamingPolicy = System.Text.Json.JsonNamingPolicy.CamelCase;
+            options.PayloadSerializerOptions.Converters.Add(new JsonStringEnumConverter());
+        });
         var options = builder.Configuration.GetSection(StationOptions.SectionName).Get<StationOptions>() ?? new();
         var validation = StationOptionsValidator.Validate(options); if (validation.IsFailure) throw new InvalidOperationException(validation.Error.Message);
         var address = IPAddress.Parse(options.Server.BindAddress);
@@ -69,10 +74,10 @@ public static class StationServerHost
         services.TryAddSingleton(options.Scanning);
         services.AddScoped<IMediaScanRepository, EfMediaScanRepository>(); services.AddScoped<IScanRunReader, EfScanRunReader>(); services.AddScoped<IMediaFileEnumerator, FileSystemMediaFileEnumerator>(); services.AddScoped<IMediaFilenameParser, KtvFilenameParser>(); services.AddScoped<INfoMetadataReader, NfoXmlMetadataReader>(); services.AddSingleton<ISearchTextNormalizer, ToolGoodSearchTextNormalizer>(); services.AddScoped<IMediaProbe>(_ => new FfprobeMediaProbe(ExternalToolLocator.Find("ffprobe.exe") ?? "ffprobe.exe", TimeSpan.FromSeconds(30))); services.AddScoped<IMediaScanRunner, MediaScanService>(); services.AddScoped<ISongSearchIndex, SqliteSongSearchIndex>(); services.AddSingleton<IScanCoordinator, ScanCoordinator>();
         services.AddSingleton(TimeProvider.System); services.AddScoped<IDatabaseMigrationExecutor, EfDatabaseMigrationExecutor>(); services.AddScoped<DatabaseUpgradeService>(); services.AddScoped<IRoomRepository, EfRoomRepository>(); services.AddSingleton<IRoomJoinCodeGenerator, SecureRoomJoinCodeGenerator>(); services.AddScoped<RoomLifecycleService>(); services.AddScoped<IRoomIdentityRepository, EfRoomIdentityRepository>(); services.AddSingleton<IRoomTokenProtector, Sha256RoomTokenProtector>(); services.AddScoped<RoomAuthenticationService>(); services.AddScoped<IRoomQueueRepository, EfRoomQueueRepository>(); services.AddSingleton<IRoomQueueLock, InProcessRoomQueueLock>(); services.AddScoped<RoomQueueService>();
-        if (sharedPlayer is null) services.AddSingleton<IPlayerAdapter>(_ => new MpvPlayerAdapter(new PlayerOptions { ExecutablePath = string.IsNullOrWhiteSpace(options.Player.ExecutablePath) ? ExternalToolLocator.Find("mpv.exe") ?? "mpv.exe" : options.Player.ExecutablePath, CommandTimeoutSeconds = options.Player.CommandTimeoutSeconds })); else services.AddSingleton(sharedPlayer);
+        if (sharedPlayer is null) services.AddSingleton<IPlayerAdapter>(_ => new MpvPlayerAdapter(new PlayerOptions { ExecutablePath = ExternalToolLocator.Find("mpv.exe") ?? "mpv.exe", CommandTimeoutSeconds = options.Player.CommandTimeoutSeconds })); else services.AddSingleton(sharedPlayer);
         services.AddScoped<PlaybackControlService>(); services.AddScoped<IPlaybackStartupRecoveryStore, EfPlaybackStartupRecoveryStore>(); services.AddScoped<PlaybackStartupRecoveryService>();
-        services.AddScoped<IPlaybackQueueStore, EfPlaybackQueueStore>(); services.AddScoped<IPlaybackFailureStore, EfPlaybackFailureStore>(); services.AddSingleton(new PlaybackRecoveryPolicy()); services.AddScoped<PlaybackRecoveryService>(); services.AddScoped<QueuePlaybackOrchestrator>(); services.AddHostedService<RoomPlaybackHostedService>();
-        services.AddScoped<IRoomLibraryRepository, EfRoomLibraryRepository>(); services.AddScoped<RoomLibraryService>(); services.AddSingleton<RoomRealtimeJournal>(); services.AddSingleton<IRoomRealtimePublisher, SignalRRoomRealtimePublisher>();
+        services.AddScoped<IPlaybackQueueStore, EfPlaybackQueueStore>(); services.AddScoped<IQueuePreflightService, EfQueuePreflightService>(); services.AddScoped<IPlaybackFailureStore, EfPlaybackFailureStore>(); services.AddSingleton(new PlaybackRecoveryPolicy()); services.AddSingleton<PlaybackContinuationGate>(); services.AddScoped<PlaybackRecoveryService>(); services.AddScoped<QueuePlaybackOrchestrator>(); services.AddHostedService<RoomPlaybackHostedService>(); services.AddHostedService<QueuePreflightHostedService>();
+        services.AddScoped<IRoomLibraryRepository, EfRoomLibraryRepository>(); services.AddScoped<RoomLibraryService>(); services.AddSingleton<ArtistLexicon>(); services.AddScoped<IArtistBrowseService, EfArtistBrowseService>(); services.AddSingleton<RoomRealtimeJournal>(); services.AddSingleton<IRoomRealtimePublisher, SignalRRoomRealtimePublisher>(); services.AddSingleton<IQueueStatusNotifier, SignalRQueueStatusNotifier>();
     }
 
     private static void MapPipeline(WebApplication app)

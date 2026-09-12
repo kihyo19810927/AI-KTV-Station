@@ -1,0 +1,16 @@
+FFmpeg license reference
+
+Most FFmpeg source files are licensed under the GNU Lesser General Public
+License version 2.1 or later. Optional GPL components change the effective
+terms for builds that enable them. This package uses a Gyan full build whose
+configuration enables GPL and version 3 components; see ffmpeg-README.txt.
+
+Official license texts and the exact obligations are maintained upstream:
+https://ffmpeg.org/legal.html
+https://github.com/FFmpeg/FFmpeg/blob/master/COPYING.LGPLv2.1
+https://github.com/FFmpeg/FFmpeg/blob/master/COPYING.GPLv2
+https://github.com/FFmpeg/FFmpeg/blob/master/COPYING.GPLv3
+
+This file is a redistribution notice. Do not treat it as a replacement for
+the complete upstream license texts; provide the linked upstream texts or the
+corresponding source package when redistributing these binaries.

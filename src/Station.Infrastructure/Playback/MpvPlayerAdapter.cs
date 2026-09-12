@@ -57,58 +57,64 @@ public sealed class MpvPlayerAdapter : IPlayerAdapter
         try
         {
             ThrowIfDisposed();
-            if (IsRunning()) return Result<PlayerSnapshot>.Success(CurrentSnapshot());
-            if (string.IsNullOrWhiteSpace(executablePath) || !File.Exists(executablePath))
-                return Failure("player.executable_missing", "The configured player executable is unavailable.");
-
-            var pipeName = $"ai-ktv-station-{Environment.ProcessId}-{Guid.NewGuid():N}";
-            var startInfo = new ProcessStartInfo
-            {
-                FileName = executablePath,
-                UseShellExecute = false,
-                CreateNoWindow = true,
-                RedirectStandardError = true,
-                RedirectStandardOutput = true,
-            };
-            startInfo.ArgumentList.Add("--idle=yes");
-            startInfo.ArgumentList.Add("--no-terminal");
-            startInfo.ArgumentList.Add("--force-window=no");
-            startInfo.ArgumentList.Add("--audio-display=no");
-            startInfo.ArgumentList.Add($"--input-ipc-server=\\\\.\\pipe\\{pipeName}");
-
-            try
-            {
-                lifetime = new CancellationTokenSource();
-                process = new Process { StartInfo = startInfo, EnableRaisingEvents = true };
-                process.Exited += OnProcessExited;
-                if (!process.Start()) return Failure("player.start_failed", "The player could not be started.");
-                process.BeginErrorReadLine();
-                process.BeginOutputReadLine();
-
-                pipe = new NamedPipeClientStream(".", pipeName, PipeDirection.InOut, PipeOptions.Asynchronous);
-                using var connectionTimeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-                connectionTimeout.CancelAfter(commandTimeout);
-                await pipe.ConnectAsync(connectionTimeout.Token).ConfigureAwait(false);
-                reader = new StreamReader(pipe, new UTF8Encoding(false), false, 4096, leaveOpen: true);
-                writer = new StreamWriter(pipe, new UTF8Encoding(false), 4096, leaveOpen: true) { AutoFlush = true, NewLine = "\n" };
-                readTask = ReadLoopAsync(lifetime.Token);
-            }
-            catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
-            {
-                await CleanupProcessAsync().ConfigureAwait(false);
-                return Failure("player.connection_timeout", "Timed out while connecting to the player.");
-            }
-            catch (Exception ex) when (ex is not OperationCanceledException)
-            {
-                await CleanupProcessAsync().ConfigureAwait(false);
-                return Failure("player.start_failed", "The player could not be started.");
-            }
-
-            ChangeState(PlayerLifecycleState.Idle, null, null);
-            Publish(new PlayerStartedEvent(Guid.NewGuid(), DateTimeOffset.UtcNow));
-            return Result<PlayerSnapshot>.Success(CurrentSnapshot());
+            return await StartCoreAsync(cancellationToken).ConfigureAwait(false);
         }
         finally { operationGate.Release(); }
+    }
+
+    private async Task<Result<PlayerSnapshot>> StartCoreAsync(CancellationToken cancellationToken)
+    {
+        if (IsRunning()) return Result<PlayerSnapshot>.Success(CurrentSnapshot());
+        if (string.IsNullOrWhiteSpace(executablePath) || !File.Exists(executablePath))
+            return Failure("player.executable_missing", "The configured player executable is unavailable.");
+
+        await CleanupProcessAsync().ConfigureAwait(false);
+        stopping = false;
+        var pipeName = $"ai-ktv-station-{Environment.ProcessId}-{Guid.NewGuid():N}";
+        var startInfo = new ProcessStartInfo
+        {
+            FileName = executablePath,
+            UseShellExecute = false,
+            CreateNoWindow = true,
+            RedirectStandardError = true,
+            RedirectStandardOutput = true,
+        };
+        startInfo.ArgumentList.Add("--idle=yes");
+        startInfo.ArgumentList.Add("--no-terminal");
+        startInfo.ArgumentList.Add("--force-window=yes");
+        startInfo.ArgumentList.Add("--audio-display=no");
+        startInfo.ArgumentList.Add($"--input-ipc-server=\\\\.\\pipe\\{pipeName}");
+
+        try
+        {
+            lifetime = new CancellationTokenSource();
+            process = new Process { StartInfo = startInfo, EnableRaisingEvents = true };
+            process.Exited += OnProcessExited;
+            if (!process.Start()) return Failure("player.start_failed", "The player could not be started.");
+            process.BeginErrorReadLine();
+            process.BeginOutputReadLine();
+            pipe = new NamedPipeClientStream(".", pipeName, PipeDirection.InOut, PipeOptions.Asynchronous);
+            using var connectionTimeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+            connectionTimeout.CancelAfter(commandTimeout);
+            await pipe.ConnectAsync(connectionTimeout.Token).ConfigureAwait(false);
+            reader = new StreamReader(pipe, new UTF8Encoding(false), false, 4096, leaveOpen: true);
+            writer = new StreamWriter(pipe, new UTF8Encoding(false), 4096, leaveOpen: true) { AutoFlush = true, NewLine = "\n" };
+            readTask = ReadLoopAsync(lifetime.Token);
+        }
+        catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
+        {
+            await CleanupProcessAsync().ConfigureAwait(false);
+            return Failure("player.connection_timeout", "Timed out while connecting to the player.");
+        }
+        catch (Exception) when (!cancellationToken.IsCancellationRequested)
+        {
+            await CleanupProcessAsync().ConfigureAwait(false);
+            return Failure("player.start_failed", "The player could not be started.");
+        }
+
+        ChangeState(PlayerLifecycleState.Idle, null, null);
+        Publish(new PlayerStartedEvent(Guid.NewGuid(), DateTimeOffset.UtcNow));
+        return Result<PlayerSnapshot>.Success(CurrentSnapshot());
     }
 
     public async Task<Result<PlayerSnapshot>> StopAsync(CancellationToken cancellationToken = default)
@@ -120,6 +126,7 @@ public sealed class MpvPlayerAdapter : IPlayerAdapter
             var before = CurrentSnapshot();
             if (!IsRunning())
             {
+                await CleanupProcessAsync().ConfigureAwait(false);
                 ChangeState(PlayerLifecycleState.Stopped, null, null);
                 return Result<PlayerSnapshot>.Success(CurrentSnapshot());
             }
@@ -136,6 +143,13 @@ public sealed class MpvPlayerAdapter : IPlayerAdapter
         }
         finally { operationGate.Release(); }
     }
+
+    public Task<Result<PlayerSnapshot>> SkipAsync(CancellationToken cancellationToken = default) =>
+        ExecuteAsync(async () =>
+        {
+            await SendCommandAsync(cancellationToken, "stop").ConfigureAwait(false);
+            return CurrentSnapshot();
+        }, "player.skip_failed", "The current song could not be skipped.", cancellationToken);
 
     public async Task<Result<PlayerSnapshot>> LoadAsync(PlayerLoadRequest request, CancellationToken cancellationToken = default)
     {
@@ -156,6 +170,9 @@ public sealed class MpvPlayerAdapter : IPlayerAdapter
             {
                 await SendCommandAsync(cancellationToken, "loadfile", request.MediaPath, "replace").ConfigureAwait(false);
                 await loaded.Task.WaitAsync(commandTimeout, cancellationToken).ConfigureAwait(false);
+                // mpv retains the previous pause property when replacing a file.
+                // Every queue item must start playing unless the user pauses it afterwards.
+                await SendCommandAsync(cancellationToken, "set_property", "pause", false).ConfigureAwait(false);
                 return await RefreshSnapshotAsync(cancellationToken).ConfigureAwait(false);
             }
             finally
@@ -186,7 +203,12 @@ public sealed class MpvPlayerAdapter : IPlayerAdapter
     {
         var validation = PlayerCommandValidation.ValidateVolume(volume);
         if (validation is not null) return Result<PlayerSnapshot>.Failure(validation);
-        return await SetPropertyAndRefreshAsync("volume", volume, "player.volume_failed", "The volume could not be changed.", cancellationToken).ConfigureAwait(false);
+        return await ExecuteAsync(async () =>
+        {
+            await SendCommandAsync(cancellationToken, "set_property", "volume", volume).ConfigureAwait(false);
+            lock (stateGate) snapshot = snapshot with { Volume = volume };
+            return CurrentSnapshot();
+        }, "player.volume_failed", "The volume could not be changed.", cancellationToken).ConfigureAwait(false);
     }
 
     public async Task<Result<PlayerSnapshot>> SelectAudioTrackAsync(int streamId, CancellationToken cancellationToken = default)
@@ -234,7 +256,11 @@ public sealed class MpvPlayerAdapter : IPlayerAdapter
         try
         {
             ThrowIfDisposed();
-            if (!IsRunning()) return Result<PlayerSnapshot>.Failure(new Error("player.not_started", "The player is not running."));
+            if (!IsRunning())
+            {
+                var started = await StartCoreAsync(cancellationToken).ConfigureAwait(false);
+                if (started.IsFailure) return started;
+            }
             try { return Result<PlayerSnapshot>.Success(await action().ConfigureAwait(false)); }
             catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) { throw; }
             catch (TimeoutException) { return Result<PlayerSnapshot>.Failure(new Error("player.command_timeout", "The player command timed out.")); }

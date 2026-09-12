@@ -27,6 +27,8 @@ public static class ExternalToolLocator
         var current = new DirectoryInfo(Path.GetFullPath(baseDirectory));
         while (current is not null)
         {
+            yield return Path.Combine(current.FullName, "tools", toolFolder, executableName);
+            yield return Path.Combine(current.FullName, "tools", executableName);
             yield return Path.Combine(current.FullName, "common", toolFolder, executableName);
             current = current.Parent;
         }

@@ -1,0 +1,9 @@
+FFmpeg copyright notice
+
+Copyright (c) the FFmpeg developers.
+FFmpeg license and component copyright information:
+https://ffmpeg.org/legal.html
+https://github.com/FFmpeg/FFmpeg/blob/master/CREDITS
+
+This notice applies to the bundled FFmpeg and ffprobe executables identified
+in ffmpeg-README.txt.

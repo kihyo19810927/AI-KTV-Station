@@ -56,6 +56,27 @@ public sealed class RoomAuthenticationTests
     }
 
     [Fact]
+    public async Task Reissuing_host_token_reuses_one_host_record_and_protects_it()
+    {
+        await using var database = CreateDatabase();
+        await database.Database.EnsureCreatedAsync();
+        var room = await AddOpenRoomAsync(database);
+        var clock = new AdjustableTimeProvider(Start);
+        var service = new RoomAuthenticationService(new EfRoomIdentityRepository(database), new Sha256RoomTokenProtector(), clock);
+
+        var first = await service.IssueHostAsync(room.Id, "主持人");
+        clock.Advance(TimeSpan.FromMinutes(1));
+        var second = await service.IssueHostAsync(room.Id, "主控机");
+
+        Assert.True(first.IsSuccess);
+        Assert.True(second.IsSuccess);
+        Assert.Equal(first.Value.GuestId, second.Value.GuestId);
+        Assert.NotEqual(first.Value.Token, second.Value.Token);
+        Assert.Equal(1, await database.Guests.CountAsync(x => x.IsHost && x.RevokedAt == null));
+        Assert.Equal("auth.host_protected", (await service.RevokeAsync(second.Value.GuestId)).Error.Code);
+    }
+
+    [Fact]
     public async Task Admin_guest_list_contains_public_state_but_never_token_hash()
     {
         await using var database = CreateDatabase(); await database.Database.EnsureCreatedAsync();

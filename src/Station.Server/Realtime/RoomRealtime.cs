@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.SignalR;
 using Station.Application.Playback;
 using Station.Application.Queue;
 using Station.Application.Rooms;
+using Station.Domain.Models;
 
 namespace Station.Server.Realtime;
 
@@ -21,6 +22,10 @@ public sealed record RoomRealtimeSync(
 public sealed class RoomRealtimeJournal
 {
     private const int EventLimit = 256;
+    private static readonly JsonSerializerOptions EventJsonOptions = new(JsonSerializerDefaults.Web)
+    {
+        Converters = { new System.Text.Json.Serialization.JsonStringEnumConverter() },
+    };
     private readonly ConcurrentDictionary<Guid, RoomJournal> rooms = new();
 
     public RoomRealtimeEvent Append(Guid roomId, string type, object payload)
@@ -28,7 +33,7 @@ public sealed class RoomRealtimeJournal
         var journal = rooms.GetOrAdd(roomId, static _ => new RoomJournal());
         lock (journal.Gate)
         {
-            var item = new RoomRealtimeEvent(++journal.Version, type, JsonSerializer.SerializeToElement(payload), DateTimeOffset.UtcNow);
+            var item = new RoomRealtimeEvent(++journal.Version, type, JsonSerializer.SerializeToElement(payload, EventJsonOptions), DateTimeOffset.UtcNow);
             journal.Events.Enqueue(item);
             while (journal.Events.Count > EventLimit) journal.Events.Dequeue();
             return item;
@@ -75,6 +80,12 @@ public interface IRoomRealtimePublisher
     Task<RoomRealtimeEvent> PublishAsync(Guid roomId, string type, object payload, CancellationToken cancellationToken = default);
 }
 
+public sealed class SignalRQueueStatusNotifier(IRoomRealtimePublisher publisher) : IQueueStatusNotifier
+{
+    public async Task NotifyAsync(Guid roomId, Guid itemId, QueueItemStatus status, CancellationToken cancellationToken = default) =>
+        _ = await publisher.PublishAsync(roomId, "queue.status", new { ItemId = itemId, Status = status }, cancellationToken);
+}
+
 public sealed class SignalRRoomRealtimePublisher(
     RoomRealtimeJournal journal,
     IHubContext<RoomHub> hub) : IRoomRealtimePublisher
@@ -98,12 +109,15 @@ public sealed class RoomHub(
         var identity = await authentication.ValidateAsync(token, Context.ConnectionAborted);
         if (identity.IsFailure) throw new HubException(identity.Error.Code);
         await Groups.AddToGroupAsync(Context.ConnectionId, Group(identity.Value.RoomId), Context.ConnectionAborted);
-        var currentVersion = journal.CurrentVersion(identity.Value.RoomId);
-        if (afterVersion is >= 0 && journal.TryReadAfter(identity.Value.RoomId, afterVersion.Value, out var events))
-            return new(currentVersion, null, events);
+        if (afterVersion is > 0 && journal.TryReadAfter(identity.Value.RoomId, afterVersion.Value, out var events))
+        {
+            var latestVersion = journal.CurrentVersion(identity.Value.RoomId);
+            return new(latestVersion, null, events);
+        }
         var queueResult = await queue.ListAsync(identity.Value, Context.ConnectionAborted);
         if (queueResult.IsFailure) throw new HubException(queueResult.Error.Code);
         var playbackResult = await playback.GetProgressAsync(Context.ConnectionAborted);
+        var currentVersion = journal.CurrentVersion(identity.Value.RoomId);
         var snapshot = new RoomRealtimeSnapshot(
             currentVersion,
             identity.Value.RoomId,

@@ -51,11 +51,12 @@ public sealed class PlaybackControlServiceTests
     }
 
     [Fact]
-    public async Task Skip_requires_active_playback_and_stops_the_adapter()
+    public async Task Skip_requires_active_playback_without_stopping_the_adapter()
     {
         var adapter = new RecordingPlayerAdapter(ActiveSnapshot());
         Assert.True((await new PlaybackControlService(adapter).SkipAsync()).IsSuccess);
-        Assert.Equal(1, adapter.StopCalls);
+        Assert.Equal(1, adapter.SkipCalls);
+        Assert.Equal(0, adapter.StopCalls);
     }
 
     [Fact]
@@ -104,6 +105,7 @@ public sealed class PlaybackControlServiceTests
         public int SeekCalls { get; private set; }
         public int SubtitleCalls { get; private set; }
         public int StopCalls { get; private set; }
+        public int SkipCalls { get; private set; }
         public Error? StateError { get; init; }
 
         public Task<Result<PlayerSnapshot>> GetStateAsync(CancellationToken cancellationToken = default) =>
@@ -128,6 +130,7 @@ public sealed class PlaybackControlServiceTests
         }
         public Task<Result<PlayerSnapshot>> StartAsync(CancellationToken cancellationToken = default) => Task.FromResult(Result<PlayerSnapshot>.Success(state));
         public Task<Result<PlayerSnapshot>> StopAsync(CancellationToken cancellationToken = default) { StopCalls++; return Task.FromResult(Result<PlayerSnapshot>.Success(state)); }
+        public Task<Result<PlayerSnapshot>> SkipAsync(CancellationToken cancellationToken = default) { SkipCalls++; return Task.FromResult(Result<PlayerSnapshot>.Success(state)); }
         public Task<Result<PlayerSnapshot>> LoadAsync(PlayerLoadRequest request, CancellationToken cancellationToken = default) => Task.FromResult(Result<PlayerSnapshot>.Success(state));
         public Task<Result<PlayerSnapshot>> PlayAsync(CancellationToken cancellationToken = default) => Task.FromResult(Result<PlayerSnapshot>.Success(state));
         public Task<Result<PlayerSnapshot>> PauseAsync(CancellationToken cancellationToken = default) => Task.FromResult(Result<PlayerSnapshot>.Success(state));

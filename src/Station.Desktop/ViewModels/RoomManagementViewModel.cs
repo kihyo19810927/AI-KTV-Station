@@ -18,12 +18,14 @@ public sealed class RoomManagementViewModel : ObservableObject
     private string statusMessage = "尚未开启房间";
     private string joinUrl = string.Empty;
     private byte[]? qrCodePng;
-    private int queueLimit = 10;
+    private int queueLimit = 100;
+    private readonly AsyncRelayCommand createCommand;
+    private readonly AsyncRelayCommand closeCommand;
 
     public RoomManagementViewModel(RoomLifecycleService rooms, RoomAuthenticationService authentication, HostRoomContext context, IQrCodeRenderer qrCodes, ILanAddressProvider addresses, StationOptions options)
     {
         this.rooms = rooms; this.authentication = authentication; this.context = context; this.qrCodes = qrCodes; this.addresses = addresses; port = options.Server.Port;
-        RefreshCommand = new AsyncRelayCommand(RefreshAsync); CreateCommand = new AsyncRelayCommand(CreateRoomAsync); CloseCommand = new AsyncRelayCommand(CloseAsync); SaveRulesCommand = new AsyncRelayCommand(SaveRulesAsync);
+        RefreshCommand = new AsyncRelayCommand(RefreshAsync); createCommand = new AsyncRelayCommand(CreateRoomAsync, () => Room is null); closeCommand = new AsyncRelayCommand(CloseAsync, () => Room is not null); CreateCommand = createCommand; CloseCommand = closeCommand; SaveRulesCommand = new AsyncRelayCommand(SaveRulesAsync);
         RevokeGuestCommand = new AsyncRelayCommand<RoomGuestAdminDetails>(RevokeAsync, guest => guest.Role == RoomRole.Guest && !guest.IsRevoked);
     }
 
@@ -57,7 +59,7 @@ public sealed class RoomManagementViewModel : ObservableObject
 
     private async Task AdoptAsync(RoomAdminDetails value)
     {
-        Room = value; QueueLimit = value.MaxQueuedSongsPerGuest;
+        Room = value; QueueLimit = value.MaxQueuedSongsPerGuest; createCommand.NotifyCanExecuteChanged(); closeCommand.NotifyCanExecuteChanged();
         if (context.Identity is null || context.Identity.RoomId != value.Id || context.Identity.ExpiresAt <= DateTimeOffset.UtcNow)
         {
             var host = await authentication.IssueHostAsync(value.Id, "主持人");
@@ -97,8 +99,8 @@ public sealed class RoomManagementViewModel : ObservableObject
         if (Room is null) return;
         var result = await authentication.ListGuestsAsync(Room.Id);
         if (result.IsFailure) { StatusMessage = result.Error.Message; return; }
-        Guests.Clear(); foreach (var guest in result.Value) Guests.Add(guest);
+        Guests.Clear(); foreach (var guest in result.Value.Where(x => x.Role == RoomRole.Guest)) Guests.Add(guest);
     }
 
-    private void ClearRoom() { Room = null; context.Identity = null; Guests.Clear(); JoinUrl = string.Empty; QrCodePng = null; RaisePropertyChanged(nameof(JoinCode)); StatusMessage = "尚未开启房间"; }
+    private void ClearRoom() { Room = null; context.Identity = null; Guests.Clear(); JoinUrl = string.Empty; QrCodePng = null; RaisePropertyChanged(nameof(JoinCode)); createCommand.NotifyCanExecuteChanged(); closeCommand.NotifyCanExecuteChanged(); StatusMessage = "尚未开启房间"; }
 }

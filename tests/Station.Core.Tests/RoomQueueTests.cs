@@ -24,6 +24,7 @@ public sealed class RoomQueueTests
         var queue = (await fixture.Service.ListAsync(fixture.GuestIdentity)).Value;
         Assert.Equal([first.Value.Id, second.Value.Id], queue.Select(x => x.Id));
         Assert.Equal(["Song 1", "Song 2"], queue.Select(x => x.Title));
+        Assert.All(queue, x => Assert.Equal(QueueItemStatus.Probing, x.Status));
         Assert.All(queue, x => Assert.Equal("访客", x.RequestedByNickname));
         Assert.DoesNotContain(typeof(QueueEntry).GetProperties(), x => x.Name.Contains("Path", StringComparison.OrdinalIgnoreCase));
     }
@@ -39,6 +40,21 @@ public sealed class RoomQueueTests
         Assert.True((await fixture.Service.RequestAsync(fixture.HostIdentity, fixture.Songs[2].Id)).IsSuccess);
         Assert.True((await fixture.Service.RequestAsync(fixture.HostIdentity, fixture.Songs[3].Id)).IsSuccess);
         Assert.True((await fixture.Service.RequestAsync(fixture.HostIdentity, fixture.Songs[4].Id)).IsSuccess);
+    }
+
+    [Fact]
+    public async Task Completed_request_does_not_consume_guest_queue_limit()
+    {
+        await using var fixture = await QueueFixture.CreateAsync(limit: 1);
+        var first = (await fixture.Service.RequestAsync(fixture.GuestIdentity, fixture.Songs[0].Id)).Value;
+        var stored = await fixture.Database.QueueItems.SingleAsync(x => x.Id == first.Id);
+        stored.Status = QueueItemStatus.Completed;
+        stored.CompletedAt = Now;
+        await fixture.Database.SaveChangesAsync();
+
+        var second = await fixture.Service.RequestAsync(fixture.GuestIdentity, fixture.Songs[1].Id);
+
+        Assert.True(second.IsSuccess, second.Error.Message);
     }
 
     [Fact]
@@ -82,6 +98,45 @@ public sealed class RoomQueueTests
         var end = await fixture.Service.ReorderBeforeAsync(fixture.HostIdentity, first.Id, null);
         Assert.Equal([third.Id, second.Id, first.Id], end.Value.Select(x => x.Id));
         Assert.Equal(3, end.Value.Select(x => x.Position).Distinct().Count());
+    }
+
+    [Fact]
+    public async Task Guest_can_insert_only_an_owned_queued_item()
+    {
+        await using var fixture = await QueueFixture.CreateAsync();
+        var first = (await fixture.Service.RequestAsync(fixture.GuestIdentity, fixture.Songs[0].Id)).Value;
+        var hosted = (await fixture.Service.RequestAsync(fixture.HostIdentity, fixture.Songs[1].Id)).Value;
+        var second = (await fixture.Service.RequestAsync(fixture.GuestIdentity, fixture.Songs[2].Id)).Value;
+
+        Assert.Equal("queue.forbidden", (await fixture.Service.InsertNextAsync(fixture.GuestIdentity, hosted.Id)).Error.Code);
+        Assert.True((await fixture.Service.InsertNextAsync(fixture.GuestIdentity, second.Id)).IsSuccess);
+        Assert.Equal([second.Id, first.Id, hosted.Id], (await fixture.Service.ListAsync(fixture.GuestIdentity)).Value.Select(x => x.Id));
+    }
+
+    [Fact]
+    public async Task Insert_and_move_to_top_avoid_terminal_queue_positions()
+    {
+        await using var fixture = await QueueFixture.CreateAsync();
+        var completed = (await fixture.Service.RequestAsync(fixture.GuestIdentity, fixture.Songs[0].Id)).Value;
+        var completedRow = await fixture.Database.QueueItems.SingleAsync(x => x.Id == completed.Id);
+        completedRow.Status = QueueItemStatus.Completed;
+        completedRow.CompletedAt = Now;
+        await fixture.Database.SaveChangesAsync();
+
+        var first = (await fixture.Service.RequestAsync(fixture.GuestIdentity, fixture.Songs[1].Id)).Value;
+        var second = (await fixture.Service.RequestAsync(fixture.GuestIdentity, fixture.Songs[2].Id)).Value;
+        var inserted = await fixture.Service.InsertNextAsync(fixture.GuestIdentity, second.Id);
+
+        Assert.True(inserted.IsSuccess, inserted.Error.Message);
+        Assert.True(inserted.Value.Position < first.Position);
+
+        var third = (await fixture.Service.RequestAsync(fixture.HostIdentity, fixture.Songs[3].Id)).Value;
+        var moved = await fixture.Service.MoveToTopAsync(fixture.HostIdentity, third.Id);
+        Assert.True(moved.IsSuccess, moved.Error.Message);
+        Assert.True(moved.Value.Position < inserted.Value.Position);
+
+        var positions = await fixture.Database.QueueItems.Select(x => x.Position).ToListAsync();
+        Assert.Equal(positions.Count, positions.Distinct().Count());
     }
 
     [Fact]

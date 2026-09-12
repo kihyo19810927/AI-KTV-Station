@@ -1,14 +1,14 @@
 # 项目状态
 
-更新时间：2026-09-11
+更新时间：2026-09-13
 
 ## 当前基线
 
-- 分支：`codex/KTVS-063`
-- 版本：`0.1.0-dev`
-- 阶段：Phase 8：发布准备
-- 已完成：KTVS-001 至 KTVS-057；KTVS-058 软件验证完成；KTVS-060 至 KTVS-063 用户反馈及发布一致性改进完成
-- 当前任务：KTVS-058/059 继续等待实机、许可决定与正式发布授权
+- 分支：`codex/KTVS-064`
+- 版本：`0.1.0-rc.16`（本地候选包）
+- 阶段：Phase 10：持续验收问题修复与发布准备
+- 已完成：KTVS-001 至 KTVS-057；KTVS-058 软件验证完成；KTVS-060 至 KTVS-079 用户反馈与回归修复完成
+- 当前任务：KTVS-079 与 RC16 已完成；按用户授权创建 PR
 
 ## 调查结果
 
@@ -21,6 +21,12 @@
 ## 最近验证
 
 已执行：`pwsh.exe -ExecutionPolicy Bypass -File scripts/verify-environment.ps1`；结果为 .NET `10.0.400`、Node `v24.18.0`、npm `11.16.0`、FFmpeg/ffprobe `8.1.2`、mpv `v0.41.0-dev-g41f6a6450`，夹具 `10.023s`、四轨与中文标题正确、`END_FILE=received`、`ENVIRONMENT_BASELINE=passed`。真实设备项仍未验证。
+
+本轮 KTVS-073 至 KTVS-075 回归验证：Web 30/30、Core 非 External 174/174、Desktop 15/15、TypeScript `tsc -b` 和 Vite production build 通过；真实 mpv named-pipe 集成 3/3、20 轮连续播放 20/20，重复结束事件 0、进程重启 0。首次在受限沙箱中执行 mpv 时的 named-pipe `Access denied` 已按环境限制记录，未伪报为代码失败。
+
+KTVS-078 本地候选包：`artifacts/AI-KTV-Station-0.1.0-rc.15-win-x64.zip`，579 项，大小 296,575,223 bytes，SHA-256 `24ad98043160892eb59547c64b4cb53d4178625a5bb5bc8edafdbfb45d11ed04`。包内含自包含 .NET、`tools/mpv`、`tools/ffmpeg`、Vulkan loader、许可证说明和初始 JSONL 歌库；解压启动、健康检查、窗口检测及正常退出进程清理通过。
+
+KTVS-079：导入用户提供的 2,698 条歌手字典（规范化后 2,696 位），歌手卡片使用字典头像并按“基础热度×10 + 点播×5 + 收藏×8 + 曲目数”排序；华语男/女/组合、欧美、日本、韩国和其他独立筛选，附件暂未提供韩国歌手记录。WPF 新增“电脑点歌”页，支持按歌名/歌手、歌星卡片、点歌和右侧队列插歌。队列媒体探测最多尝试 3 次，全部失败后轮到时直接失败出队并继续下一首。主动关闭 mpv 后挂起自动续播，点击播放才恢复。音量改为单 IPC 乐观更新并防止旧快照回灌；播放标题在跟踪状态滞后时回退到当前队首。软件构建、Web 31/31、Core 非外部 174/174、Desktop 16/16、ffprobe 1/1、mpv 3/3、连续播放 20/20 全部通过。RC16 共 579 项、296,692,643 bytes，SHA-256 `be529461211d80578442849d88b7ac11d88714e034f284471ac13650e4e9b48e`，包验证、隔离启动、窗口与退出清理通过；真实 NAS 失败媒体、头像网络加载和桌面视觉待实机验收。
 
 KTVS-006：`dotnet build AI-KTV-Station.slnx --configuration Release -m:1 -p:UseSharedCompilation=false` 成功，0 警告/0 错误；依赖检查输出 `PROJECT_DEPENDENCIES=passed`。沙箱内并行 MSBuild 会遇到命名管道权限限制，基线命令暂用 `-m:1` 与禁用共享编译。
 
@@ -134,7 +140,29 @@ KTVS-062：扫描器已拆分基础索引与后台 ffprobe，路径+大小+修�
 
 KTVS-063：修正 RC6 与候选验证记录、1.0.0 发布说明和 Windows 构建示例之间的版本漂移。`verify-release-readiness.ps1` 除发布说明外，现也强制验证候选记录包含当前 ZIP 文件名所表达的版本和实际 SHA-256；RC6 的 566 项 ZIP、sidecar、候选记录和发布说明复核通过。首次远端 push CI 暴露扫描状态先于 DI scope 释放的 SQLite 临时文件锁竞争；协调器现仅在 scope 释放后发布终态，主机关闭时会取消并等待活动扫描，并增加确定性回归测试。完整回归 Core 161/161、Desktop 14/14、Web 24/24，Release 构建 0 警告/错误、格式和依赖门禁通过。实机、许可和正式发布门禁不变。
 
+KTVS-064：手机端新增独立“播放”标签，将正在播放、暂停/继续、切歌、音量、原唱/伴奏和字幕控制从点歌页移入该页，并删除重复退出能力的“我的”标签。点歌 API 成功后立即将返回项合并到实时队列，服务端 SignalR 事件到达时仍按 ID/版本去重。Web 25/25 测试与生产构建通过；真实手机待实机验收。
+
+KTVS-065：新增独立队列预探测后台服务，在当前歌曲播放期间按位置顺序逐一 ffprobe 等待项并保存指纹；单首失败只记录错误，不删索引也不阻塞后续预探测，到队首时仍会尝试播放。mpv 原已使用 `--idle=yes`，用户看到的“退出”实为 `--force-window=no` 导致 EOF 后窗口消失；现改为常驻窗口。Release 构建 0 警告/错误，默认 Core 166/166、Desktop 14/14，真实 mpv 2/2 通过并确认 EOF 后进程 ID 不变。
+
+KTVS-066：曲库管理页按最新运维方式移除“添加来源/扫描/NFO”操作区及对应 WPF 命令，新增 JSON/JSONL 文件选择、115 本机挂载根目录和保留式增量导入。导入器流式读取 camelCase JSONL/JSON，支持 `artist` 字段、Unicode 与 MPG 路径，按“媒体源 + 相对路径”跳过已有记录，不删除数据库、不覆盖收藏/历史/人工修正；每 500 首落盘并释放跟踪状态，适配 72,295 首初始索引。发布脚本在本机候选文件存在时将 JSONL 放入 `initial-library` 并由 WPF 自动预选，但挂载根目录仍须用户明确填写。手机端取消互相叠加的下拉筛选，改为按歌星、语种、风格三个二级菜单；歌手按名称合并并横向图标化，图像 URL 契约为后续刮削预留。Release 构建 0 警告/错误，Core 默认 162/162、Desktop 13/13、Web 25/25 及生产构建通过。`0.1.0-rc.9` 自包含包共 567 项，SHA-256 为 `bebb9f6692bb1610938352a442a473f0bd0035bb5d55f4d0f521d4e849ed4790`，全新解压启动、内嵌服务、窗口和退出清理冒烟通过；72,295 首正式导入和手机视觉待实机验收。
+
+KTVS-067：新点歌曲目先进入“正在探测”，后台严格按队列位置逐首 ffprobe；缓存命中或探测成功后才进入“等待播放”，失败显示“探测失败”且不删除索引。SignalR 新增队列状态事件，完成、跳过和失败项目从手机已点列表即时移除；队列上限由 10 安全迁移到 100，已有数据库只升级旧默认值，不重建数据库。新增访客本人/主持人授权的插歌能力。手机二级菜单自动换行，歌手以圆形头像在上、姓名在下展示并支持精确歌手检索，点歌按钮加入即时动效且查询切换不再清空整页结果；播放页拆分播放、音量、音轨区域。严重切歌问题根因为控制层调用了会发送 `quit` 的停止操作，现新增适配器级 `SkipAsync` 并由 mpv JSON IPC 发送 `stop`，保留同一进程和房间队列。Core 默认 171/171、Desktop 13/13、Web 28/28、插歌 API 3/3、真实 mpv 2/2 以及 Release 构建均通过。`0.1.0-rc.10` 自包含包 567 项，SHA-256 为 `8589ad8f157a29a8612de892cf8a91faae2f6ad13a13fcb41a7ab936ad6f5932`，窗口、内嵌服务和正常退出清理冒烟通过；真实手机和长队列待实机验收。
+
+KTVS-068：定位并修复实时状态不刷新的根因。RoomRealtimeJournal 原先用默认 JSON 选项预序列化事件数据，导致 SignalR 的 `queue.status` 发送 `{ ItemId, Status }`，而手机 reducer 按 `{ itemId, status }` 读取；队列和播放页因此一直停在旧状态。现在事件统一使用 Web camelCase 与字符串枚举，队列新增、删除、重排、状态和播放控制事件共享同一契约，前端对旧 PascalCase 数据保留兼容读取。播放页优先消费 SignalR 播放状态，保留 2 秒 API 轮询用于断线/历史状态兜底。实时契约、API/端到端和 Web 回归通过。`0.1.0-rc.11` 自包含包 567 项，SHA-256 为 `86200e1ec5ee9950d09913445262a6465978483694ada9e51135feb501720552`，发布包校验和启动/退出清理冒烟通过；真实手机长连接待验收。
+
+KTVS-069 至 KTVS-071：完成记录问题的集中修复并提交 `4b4f2ce`。搜索增加按歌名/歌手范围和输入意图分流，中文检索不再使用短简拼前缀；新增保留式 FTS 迁移并在升级后重建索引。SignalR 快照统一使用 camelCase/字符串枚举，首次快照不再被版本 0 吞掉，前端兼容数字和旧字段。歌手页与歌曲页互斥、歌手卡片支持下钻、分页支持上一页/下一页；WPF 增加本地进度插值。主持人凭证幂等复用并隐藏于外部访客列表；mpv 关闭后下一次加载自动重启，真实 Unicode 四轨夹具验证通过。软件回归 Core 168/168、Desktop 14/14、Web 28/28，Release 构建 0 警告/错误，依赖和运维文档门禁通过。
+
+KTVS-072：发布脚本已改为从本机 `common/` 复制工具到包内 `tools/`，并强制要求许可证说明；设置页和运行时自动定位，不再要求用户填写 mpv 路径。`0.1.0-rc.12` 包含 579 个条目，大小 296,570,708 字节，SHA-256 为 `a7b9a37731d208a6857d3415ce3e96968ea1c14e47a3f7f9f2df0b966f67ce9d`。发布包验证、工具清单检查、隔离目录启动/内嵌 `/health`/窗口/正常退出清理均通过。当前包是本地候选包，不是 GitHub Release；公开发布前仍需锁定可复现工具版本并完成完整许可证材料和项目自身许可复核。
+
 KTVS-059 CI 复核：远端 push workflow #6 成功（2 分 57 秒），同时发现三个 JavaScript Action 的 Node 20 运行时弃用警告。首次统一升级 v7 后，workflow #7 的 Action 初始化、还原、格式与构建均成功，但聚合测试步骤以 exit 1 结束；未登录公开页面不提供测试日志，公开 API 仅返回步骤级失败。本机随即以相同 `scripts/test.ps1 -NoRestore` 复验 Core 153/153、Desktop 12/12、Web 24/24 全部通过。按官方 Node 24 迁移说明改用 checkout/setup-node v5，并保留 upload-artifact 当前 v7 后，workflow #8 成功（3 分 02 秒）、生成 coverage artifact 且无 Annotation，Node 20 弃用警告消失。
+
+KTVS-073：修复 WPF 播放控制台的用户可见信息与控制体验。当前队列公开 DTO 增加歌手显示，WPF 播放页显示歌名/歌手；音量滑块在播放或暂停状态下 150ms 防抖自动提交并在 ViewModel 释放时取消；移除“应用音量”按钮；跳转绑定使用即时源更新；空标题音轨使用稳定的“音轨/字幕 N”回退名称。mpv 替换文件后显式发送 `set_property pause=false`，避免上一首暂停状态导致下一首进入队列后直接跳过。Desktop 15/15，mpv 外部测试 3/3 通过。
+
+KTVS-074：修复队列终态后的唯一位置冲突，并让 `ProbeFailed` 队列项仍可在队首进入播放恢复。新点歌位置从房间全部历史队列项的最大位置递增，已播放项不再导致 SQLite 唯一键错误，也不影响收藏、历史或索引；播放存储同时选择 `Waiting` 与 `ProbeFailed`。Core 非外部回归 174/174 通过，覆盖完成项不占访客额度及失败探测队首可选取。
+
+KTVS-075：手机点歌检索改为显式提交，输入框变更只更新草稿，点击“全部/按歌名/按歌手”才提交查询；状态按房间和访客保存在当前标签页，切换“已点/播放/收藏”后回到点歌页可恢复关键字、检索范围、分页和歌星下钻上下文。歌星浏览区域加明确列表语义并与普通歌曲结果互斥，歌手卡片兼容 `id/artistId` 与头像字段，二级菜单按钮允许换行。Web 30/30，TypeScript 检查通过。
+
+本轮验证：`dotnet test tests/Station.Core.Tests/Station.Core.Tests.csproj --configuration Release --no-restore -m:1 -p:UseSharedCompilation=false --filter 'Category!=External'` 通过 174/174；`dotnet test tests/Station.Desktop.Tests/Station.Desktop.Tests.csproj --configuration Release --no-restore -m:1 -p:UseSharedCompilation=false` 通过 15/15；`npm.cmd test -- --run` 通过 30/30；`npx.cmd tsc -b` 通过；`scripts/test-media-probe.ps1` 通过 1/1；`scripts/test-mpv-adapter.ps1` 通过 3/3；`scripts/test-player-endurance.ps1 -Cycles 20` 通过 20/20，重复结束事件 0、mpv 重启 0。沙箱内 Named Pipe 连接被系统拒绝，外部脚本在授权的 Windows 进程环境中完成验证。
 
 KTVS-052：安全审查修复了配置监听地址未实际传给 Kestrel，以及扫描管理端点缺少 loopback 限制的问题。监听只接受显式 IP；开房、当前房间和扫描管理均为本机来源；API 增加禁缓存和基础浏览器安全头。令牌哈希、二维码、SignalR URL、sessionStorage、公共 DTO、日志与诊断路径边界已复核。定向安全/API 回归 18/18；完整软件测试 Core 152/152、Desktop 12/12、Web 24/24，类型检查、生产构建、.NET Release 构建、格式和依赖门禁通过。LAN HTTP 的被动监听风险已记录，严禁公网暴露。
 

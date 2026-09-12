@@ -31,7 +31,7 @@ public sealed class SongSearchPerformanceTests
                 WITH RECURSIVE sequence(value) AS (
                     SELECT 1 UNION ALL SELECT value + 1 FROM sequence WHERE value < {0}
                 )
-                INSERT INTO SongSearchDocuments(SongId, Title, NormalizedTitle, Artists, Language, Category, Quality, Year, Availability, Terms)
+                INSERT INTO SongSearchDocuments(SongId, Title, NormalizedTitle, Artists, Language, Category, Quality, Year, Availability, Terms, TitleTerms, ArtistTerms)
                 SELECT printf('00000000-0000-0000-0000-%012d', value),
                        printf('测试歌曲 %06d', value), printf('测试歌曲 %06d', value),
                        printf('歌手 %03d', value % 500),
@@ -39,7 +39,9 @@ public sealed class SongSearchPerformanceTests
                        CASE value % 2 WHEN 0 THEN '流行' ELSE '经典' END,
                        CASE value % 2 WHEN 0 THEN '4K' ELSE '1080P' END,
                        1980 + (value % 47), 'Available',
-                       printf('测试歌曲 %06d ceshiqumu%06d csqm%06d 歌手%03d geshou%03d', value, value, value, value % 500, value % 500)
+                       printf('测试歌曲 %06d ceshiqumu%06d csqm%06d 歌手%03d geshou%03d', value, value, value, value % 500, value % 500),
+                       printf('测试歌曲 %06d ceshiqumu%06d csqm%06d', value, value, value),
+                       printf('歌手%03d geshou%03d', value % 500, value % 500)
                 FROM sequence
                 """, documentCount);
             var index = new SqliteSongSearchIndex(database, new ToolGoodSearchTextNormalizer());

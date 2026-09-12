@@ -11,4 +11,7 @@
     <PackageReference Include="Microsoft.EntityFrameworkCore.Sqlite" />
     <PackageReference Include="ToolGood.Words" />
   </ItemGroup>
+  <ItemGroup>
+    <EmbeddedResource Include="Search\artists.json" />
+  </ItemGroup>
 </Project>

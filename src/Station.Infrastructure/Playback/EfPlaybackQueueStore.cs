@@ -1,22 +1,31 @@
 using Microsoft.EntityFrameworkCore;
 using Station.Application.Playback;
 using Station.Application.Media;
+using Station.Application.Queue;
 using Station.Application.Scanning;
 using Station.Domain.Models;
 using Station.Infrastructure.Persistence;
 
 namespace Station.Infrastructure.Playback;
 
-public sealed class EfPlaybackQueueStore(StationDbContext database, IMediaProbe? mediaProbe = null) : IPlaybackQueueStore
+public sealed class EfPlaybackQueueStore(StationDbContext database, IMediaProbe? mediaProbe = null, IQueueStatusNotifier? notifier = null) : IPlaybackQueueStore
 {
     public async Task<PlayableQueueItem?> GetNextAsync(Guid roomId, CancellationToken cancellationToken = default)
     {
         var item = await database.QueueItems
             .Include(x => x.Song).ThenInclude(x => x.MediaFiles).ThenInclude(x => x.MediaSource)
-            .Where(x => x.RoomSessionId == roomId && x.Status == QueueItemStatus.Waiting)
+            .Where(x => x.RoomSessionId == roomId && (x.Status == QueueItemStatus.Waiting || x.Status == QueueItemStatus.ProbeFailed))
             .OrderBy(x => x.Position)
             .FirstOrDefaultAsync(cancellationToken);
         if (item is null) return null;
+        if (item.Status == QueueItemStatus.ProbeFailed)
+        {
+            var failedMedia = item.Song.MediaFiles.OrderBy(x => x.Id).FirstOrDefault();
+            return new(item.Id, roomId, item.SongId, failedMedia?.Id ?? Guid.Empty,
+                failedMedia is null ? string.Empty : Path.Combine(failedMedia.MediaSource.RootPath, failedMedia.RelativePath),
+                new PlayerFailure(failedMedia?.LastErrorCode ?? "media_probe.failed", PlayerFailureKind.MediaLoadFailed, false,
+                    "Media probing failed after three attempts."));
+        }
         var candidates = item.Song.MediaFiles
             .Where(x => x.MediaSource.IsEnabled)
             .OrderBy(x => x.Id)
@@ -60,6 +69,7 @@ public sealed class EfPlaybackQueueStore(StationDbContext database, IMediaProbe?
         item.Status = status;
         item.CompletedAt = completedAt;
         await database.SaveChangesAsync(cancellationToken);
+        if (notifier is not null) await notifier.NotifyAsync(item.RoomSessionId, item.Id, status, cancellationToken);
     }
 
     public async Task<PlayHistory> StartHistoryAsync(PlayableQueueItem item, DateTimeOffset startedAt, CancellationToken cancellationToken = default)

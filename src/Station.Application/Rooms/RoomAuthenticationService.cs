@@ -48,6 +48,7 @@ public interface IRoomIdentityRepository
     Task<RoomSession?> FindRoomAsync(Guid roomId, CancellationToken cancellationToken = default);
     Task<Guest?> FindByTokenHashAsync(string tokenHash, CancellationToken cancellationToken = default);
     Task<Guest?> FindGuestAsync(Guid guestId, CancellationToken cancellationToken = default);
+    Task<IReadOnlyList<Guest>> ListActiveHostsAsync(Guid roomId, CancellationToken cancellationToken = default);
     Task<IReadOnlyList<Guest>> ListGuestsAsync(Guid roomId, CancellationToken cancellationToken = default);
     Task AddGuestAsync(Guest guest, CancellationToken cancellationToken = default);
     Task SaveChangesAsync(CancellationToken cancellationToken = default);
@@ -103,6 +104,20 @@ public sealed class RoomAuthenticationService(
         var room = await repository.FindRoomAsync(roomId, cancellationToken).ConfigureAwait(false);
         if (room is null || room.Status != RoomStatus.Open)
             return Failure<IssuedRoomToken>("auth.room_unavailable", "The room is not open.");
+        var now = clock.GetUtcNow();
+        var hosts = await repository.ListActiveHostsAsync(roomId, cancellationToken).ConfigureAwait(false);
+        if (hosts.Count > 0)
+        {
+            var host = hosts[0];
+            var protectedToken = tokens.Create();
+            host.Nickname = normalizedNickname;
+            host.TokenHash = protectedToken.Hash;
+            host.JoinedAt = now;
+            host.ExpiresAt = now.Add(HostLifetime);
+            foreach (var duplicate in hosts.Skip(1)) duplicate.RevokedAt = now;
+            await repository.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
+            return Result<IssuedRoomToken>.Success(new(protectedToken.Value, room.Id, host.Id, host.Nickname, RoomRole.Host, host.ExpiresAt));
+        }
         return await IssueAsync(room, normalizedNickname, RoomRole.Host, HostLifetime, cancellationToken).ConfigureAwait(false);
     }
 
@@ -125,6 +140,7 @@ public sealed class RoomAuthenticationService(
         if (guestId == Guid.Empty) return Failure<bool>("auth.invalid_guest", "Guest id is required.");
         var guest = await repository.FindGuestAsync(guestId, cancellationToken).ConfigureAwait(false);
         if (guest is null) return Failure<bool>("auth.guest_not_found", "Guest was not found.");
+        if (guest.IsHost) return Failure<bool>("auth.host_protected", "The host identity cannot be removed from the guest list.");
         if (guest.RevokedAt is null)
         {
             guest.RevokedAt = clock.GetUtcNow();

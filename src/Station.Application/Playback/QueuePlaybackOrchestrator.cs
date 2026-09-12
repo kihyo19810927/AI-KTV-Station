@@ -33,7 +33,8 @@ public sealed class QueuePlaybackOrchestrator(
     IPlayerAdapter player,
     IPlaybackQueueStore store,
     PlaybackRecoveryService recovery,
-    TimeProvider clock)
+    TimeProvider clock,
+    PlaybackContinuationGate? continuationGate = null)
 {
     private readonly SemaphoreSlim gate = new(1, 1);
     private ActivePlayback? active;
@@ -87,7 +88,7 @@ public sealed class QueuePlaybackOrchestrator(
         {
             while (!cancellationToken.IsCancellationRequested)
             {
-                if (Current.QueueItemId is null)
+                if (Current.QueueItemId is null && continuationGate?.IsSuspended != true)
                     await StartAsync(targetRoomId, cancellationToken).ConfigureAwait(false);
                 await Task.Delay(TimeSpan.FromMilliseconds(250), clock, cancellationToken).ConfigureAwait(false);
             }
@@ -131,6 +132,12 @@ public sealed class QueuePlaybackOrchestrator(
                     await StartNextCoreAsync(cancellationToken).ConfigureAwait(false);
                     break;
                 case PlaybackFailedEvent failed:
+                    if (failed.Failure.Kind == PlayerFailureKind.ProcessExited && continuationGate is not null)
+                    {
+                        await FinishCurrentAsync(QueueItemStatus.Skipped, PlaybackOutcome.Skipped, failed.Failure.Code, cancellationToken).ConfigureAwait(false);
+                        continuationGate.Suspend();
+                        break;
+                    }
                     await RecoverCoreAsync(failed.Failure, cancellationToken).ConfigureAwait(false);
                     break;
             }

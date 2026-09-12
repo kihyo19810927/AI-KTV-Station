@@ -23,6 +23,12 @@ public sealed class EfRoomIdentityRepository(StationDbContext database) : IRoomI
     public Task<Guest?> FindGuestAsync(Guid guestId, CancellationToken cancellationToken = default) =>
         database.Guests.Include(x => x.RoomSession).SingleOrDefaultAsync(x => x.Id == guestId, cancellationToken);
 
+    public async Task<IReadOnlyList<Guest>> ListActiveHostsAsync(Guid roomId, CancellationToken cancellationToken = default) =>
+        (await database.Guests.Where(x => x.RoomSessionId == roomId && x.IsHost && x.RevokedAt == null)
+            .ToListAsync(cancellationToken))
+        .OrderBy(x => x.JoinedAt)
+        .ToArray();
+
     public async Task<IReadOnlyList<Guest>> ListGuestsAsync(Guid roomId, CancellationToken cancellationToken = default) =>
         await database.Guests.AsNoTracking().Where(x => x.RoomSessionId == roomId).ToListAsync(cancellationToken);
 

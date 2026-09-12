@@ -8,7 +8,7 @@ namespace Station.Infrastructure.Queue;
 public sealed class EfRoomQueueRepository(StationDbContext database) : IRoomQueueRepository
 {
     private static readonly QueueItemStatus[] ActiveStatuses =
-        [QueueItemStatus.Waiting, QueueItemStatus.Preparing, QueueItemStatus.Playing, QueueItemStatus.Paused];
+        [QueueItemStatus.Probing, QueueItemStatus.ProbeFailed, QueueItemStatus.Waiting, QueueItemStatus.Preparing, QueueItemStatus.Playing, QueueItemStatus.Paused];
 
     public Task<RoomSession?> FindRoomAsync(Guid roomId, CancellationToken cancellationToken = default) =>
         database.RoomSessions.SingleOrDefaultAsync(x => x.Id == roomId, cancellationToken);
@@ -17,17 +17,26 @@ public sealed class EfRoomQueueRepository(StationDbContext database) : IRoomQueu
         database.Guests.SingleOrDefaultAsync(x => x.Id == guestId, cancellationToken);
 
     public Task<Song?> FindSongAsync(Guid songId, CancellationToken cancellationToken = default) =>
-        database.Songs.SingleOrDefaultAsync(x => x.Id == songId, cancellationToken);
+        database.Songs.Include(x => x.Artists).ThenInclude(x => x.Artist)
+            .SingleOrDefaultAsync(x => x.Id == songId, cancellationToken);
 
     public Task<QueueItem?> FindItemAsync(Guid itemId, CancellationToken cancellationToken = default) =>
-        database.QueueItems.Include(x => x.Song).Include(x => x.RequestedByGuest)
+        database.QueueItems.Include(x => x.Song).ThenInclude(x => x.Artists).ThenInclude(x => x.Artist)
+            .Include(x => x.RequestedByGuest)
             .SingleOrDefaultAsync(x => x.Id == itemId, cancellationToken);
 
     public async Task<IReadOnlyList<QueueItem>> ListActiveAsync(Guid roomId, CancellationToken cancellationToken = default) =>
-        await database.QueueItems.Include(x => x.Song).Include(x => x.RequestedByGuest)
+        await database.QueueItems.Include(x => x.Song).ThenInclude(x => x.Artists).ThenInclude(x => x.Artist)
+            .Include(x => x.RequestedByGuest)
             .Where(x => x.RoomSessionId == roomId && ActiveStatuses.Contains(x.Status))
             .OrderBy(x => x.Position)
             .ToListAsync(cancellationToken);
+
+    public Task<long?> GetMinPositionAsync(Guid roomId, CancellationToken cancellationToken = default) =>
+        database.QueueItems.Where(x => x.RoomSessionId == roomId).MinAsync(x => (long?)x.Position, cancellationToken);
+
+    public Task<long?> GetMaxPositionAsync(Guid roomId, CancellationToken cancellationToken = default) =>
+        database.QueueItems.Where(x => x.RoomSessionId == roomId).MaxAsync(x => (long?)x.Position, cancellationToken);
 
     public Task AddAsync(QueueItem item, CancellationToken cancellationToken = default) =>
         database.QueueItems.AddAsync(item, cancellationToken).AsTask();

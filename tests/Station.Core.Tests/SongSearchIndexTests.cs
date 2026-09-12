@@ -13,13 +13,17 @@ public sealed class SongSearchIndexTests
     {
         await using var fixture = await SearchFixture.CreateAsync();
         await fixture.AddAsync("夜曲", "周杰伦", "国语", "流行", "1080P", 2005, artistGroup: "华语男歌手");
+        await fixture.AddAsync("最佳良友", "李克勤", "粤语", "经典", "1080P", 2023, artistGroup: "华语男歌手");
         await fixture.AddAsync("月光", "王心凌", "国语", "经典", "4K", 2024, artistGroup: "华语女歌手");
         await fixture.AddAsync("海闊天空", "Beyond", "粤语", "摇滚", "1080P", 1993, artistGroup: "华语组合");
         await fixture.Index.RebuildAsync();
 
         Assert.Equal("夜曲", Assert.Single((await fixture.Search("夜曲")).Items).Title);
         Assert.Equal("夜曲", Assert.Single((await fixture.Search("zhoujie")).Items).Title);
-        Assert.Equal("夜曲", Assert.Single((await fixture.Search("zjl")).Items).Title);
+        var initials = await fixture.Search("zjl");
+        Assert.Contains(initials.Items, x => x.Title == "夜曲");
+        Assert.DoesNotContain(initials.Items, x => x.Title == "最佳良友");
+        Assert.Equal("夜曲", Assert.Single((await fixture.Search("周杰伦")).Items).Title);
         Assert.Equal("海闊天空", Assert.Single((await fixture.Search("海阔天空")).Items).Title);
         var filtered = await fixture.Index.SearchAsync(new SongSearchQuery(PageSize: 10, Language: "国语", Category: "经典", Quality: "4K", YearFrom: 2020));
         Assert.True(filtered.IsSuccess);
@@ -27,6 +31,12 @@ public sealed class SongSearchIndexTests
         var grouped = await fixture.Index.SearchAsync(new SongSearchQuery(PageSize: 10, ArtistGroup: "华语组合"));
         Assert.True(grouped.IsSuccess);
         Assert.Equal("海闊天空", Assert.Single(grouped.Value.Items).Title);
+        var artistOnly = await fixture.Index.SearchAsync(new SongSearchQuery(PageSize: 10, Artist: "周杰伦"));
+        Assert.Equal("夜曲", Assert.Single(artistOnly.Value.Items).Title);
+        var titleOnly = await fixture.Index.SearchAsync(new SongSearchQuery("周杰伦", PageSize: 10, Field: SongSearchField.Title));
+        Assert.Empty(titleOnly.Value.Items);
+        var artistField = await fixture.Index.SearchAsync(new SongSearchQuery("周杰伦", PageSize: 10, Field: SongSearchField.Artist));
+        Assert.Equal("夜曲", Assert.Single(artistField.Value.Items).Title);
         Assert.DoesNotContain(typeof(SongSearchItem).GetProperties(), x => x.Name.Contains("Path", StringComparison.OrdinalIgnoreCase));
     }
 

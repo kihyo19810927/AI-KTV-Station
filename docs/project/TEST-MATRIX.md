@@ -34,6 +34,7 @@
 | 原唱/伴奏映射 | 中英文标题、低置信歧义、自动落库、人工优先、重扫保护、非法覆盖、SQLite 往返 | 通过（8 个场景） | 真实曲库声道语义待验收 |
 | 播放故障恢复 | 退避/耗尽、进程重启分类、跳过/停止、错误净化、非法次数、SQLite 保留索引 | 通过（10 个场景） | 真实 CloudDrive 403/断挂待验收 |
 | 播放器连续耐久 | `scripts/test-player-endurance.ps1 -Cycles 50`，同一 mpv 循环加载/切轨/字幕/定位/EOF | 通过（50/50、重复结束 0、重启 0、32.339s） | 真实 50 首/电视/功放待验收；工作集增长待长测 |
+| 队列预探测与 mpv idle 窗口 | EF 等待队列 + 真实 mpv Unicode MKV | 通过（按队列位置单线程预探测；真实 mpv 2/2，EOF 后进程 ID 不变） | 真实 NAS 多曲队列待验收 |
 | 房间生命周期 | 创建/单房间、队列上限、加入码冲突、幂等关闭、SQLite 重启恢复 | 通过（6 个场景） | 无 |
 | 房间认证与授权 | 随机令牌、哈希落库、访客/主持人、到期、撤销、关闭房间、权限矩阵 | 通过（6 个场景） | 二维码/手机重连待实机验收 |
 | 点歌队列规则 | 追加/额度、本人和主持人删除、置顶、20 路并发稳定排序、离线媒体拒绝 | 通过（6 个场景） | 无 |
@@ -45,8 +46,9 @@
 | Web 加入与会话恢复 | Vitest + jsdom，真实 API 客户端请求替身 | 通过（9 个前端场景：加入、预填、恢复、退出、过期/损坏清理） | 二维码与 Android/iPhone 标签页生命周期后验收 |
 | Web 曲库搜索 | Vitest + API 请求替身 | 通过（防抖查询、筛选参数、分页追加、空状态、错误重试、离线禁用） | 大曲库滚动与手机软键盘后验收 |
 | Web 点歌与我的歌曲 | Vitest + API 请求替身 | 通过（成功点歌、重复拦截、额度提示、本人筛选、等待项删除） | 多手机并发交互随实时同步后验收 |
+| Web 播放标签与即时队列 | Vitest + SignalR/API 替身 | 通过（25/25；独立播放控制页、无“我的”入口、POST 成功后无需刷新即可查看已点） | 真实手机 WebSocket 事件时序待验收 |
 | Web SignalR 实时状态 | Vitest reducer/Hub 替身 + 服务端真实 SignalR 客户端 | 通过（版本幂等、增量、快照、播放卡片、令牌不进 URL；服务端在线/补发已覆盖） | 手机 WebSocket、Wi-Fi 切换和休眠恢复后验收 |
-| Web 收藏与分类发现 | Vitest + SQLite 搜索回归 | 通过（收藏切换/列表；固定歌星、语种、风格筛选；移除热门/最近新增入口） | 歌手分组未知数据归“其他”；多访客手机交互后验收 |
+| Web 收藏与分类发现 | Vitest + SQLite 搜索回归 | 通过（收藏切换/列表；歌星、语种、风格独立二级菜单；同名歌手聚合；无组合下拉框） | 歌手分组未知数据归“其他”；歌手图片刮削和手机交互后验收 |
 | 手机 Web 兼容基线 | Vitest 静态契约 + Vite 多浏览器目标 | 通过（320px、44px 触摸、焦点、safe-area、viewport、Chrome/Edge/Safari 构建目标） | Android Chrome 与 iPhone Safari 后验收 |
 | WPF 主控壳 | net10.0-windows xUnit + Release XAML 构建 | 通过（六目标导航、命令和属性通知 2 个场景） | Windows 缩放、多屏和视觉后验收 |
 | WPF 健康仪表盘 | xUnit + SQLite 内存库 + ViewModel 替身 | 通过（组件汇总、安全摘要、刷新状态） | CloudDrive/115 实挂待验收 |
@@ -55,7 +57,7 @@
 | 多格式/辅助文件扫描 | 临时 MPG/MPEG/MKV/KSC/RAR + SQLite | 通过（视频入库、KSC 关联、RAR 忽略、无 NFO 文件名建库） | 小批真实 115 样本待验收 |
 | 分目录增量建库 | 两个年度临时来源依次扫描 | 通过（先入库可用、后续追加、既有来源保持可用） | 全库规模随 KTVS-049 |
 | 保留式数据库升级 | 上一迁移预置数据 → 最新迁移 | 通过（歌曲、收藏、历史、人工音轨映射保留） | 正式库升级前仍需备份演练 |
-| WPF 曲库管理 | xUnit 服务替身 + Release XAML 编译 | 通过（搜索、来源列表、添加目录不自动扫描） | 真实曲库 UI/扫描验收待执行 |
+| WPF 曲库管理 | xUnit + 临时 SQLite/Unicode JSONL + Release XAML 编译 | 通过（camelCase artist、MPG、FTS、重复导入 0 新增；界面仅保留 JSON/JSONL 增量导入） | 72,295 首索引、真实挂载根目录和导入耗时待实机验收 |
 | WPF 房间与二维码 | SQLite + QRCoder PNG + ViewModel | 通过（房间、规则、访客公开投影、无令牌 URL/二维码） | 手机扫码、网卡选择和 Wi-Fi 连通待验收 |
 | 设置、日志与诊断 | 临时 JSON 设置、JSONL 日志、健康替身、WPF ViewModel | 通过（配置验证/往返、最近事件、换行净化、路径脱敏、恢复建议、重启提示） | 实际导出目录可用性随 Windows 验收 |
 | 关键业务端到端 | Unicode MPG/KSC 临时目录 + SQLite + TestServer + 可控播放器端口 | 通过（扫描、FTS、建房、加入、点歌、媒体加载、完成队列与历史） | 真实 115/mpv/电视/功放/手机不由替身结论覆盖 |
@@ -63,10 +65,10 @@
 | CloudDrive 故障注入 | 临时 SQLite/媒体 + 错误枚举器 + 可控播放器 | 通过（断挂不误删、403 离线保留、重扫恢复、超时重启并完成） | 真实 115/CloudDrive 错误文本和时延待验收 |
 | 进程与启动恢复 | SQLite 文件重开 + 三种活动队列状态 + 真实 mpv 进程终止 | 通过（重入队、旧历史闭合、幂等恢复、mpv 可重试崩溃事件） | 突然断电与磁盘写缓存待实机验收 |
 | 安全边界 | 配置验证、loopback 策略、TestServer、OpenAPI、脱敏和 Web 存储测试 | 通过（显式 IP、仅本机管理、无路径/哈希契约、安全头、令牌不进 URL/localStorage） | LAN HTTP 被动监听风险；严禁公网暴露 |
-| 依赖与许可证 | NuGet/NPM 锁文件、已还原包元数据、ffmpeg buildconf、mpv version | 通过（清单已生成；V1 禁止捆绑 mpv/FFmpeg） | 项目自身许可、未来二进制分发需用户批准 |
+| 依赖与许可证 | NuGet/NPM 锁文件、已还原包元数据、ffmpeg buildconf、mpv version、随包 notices | 进行中（工具版本和来源说明已加入；完整许可证材料需发布前复核） | 项目自身许可、公开二进制分发仍需所有者复核 |
 | Desktop 内嵌服务与后台播放 | 真实 Kestrel 临时端口、共享播放器 DI、空队列后追加歌曲 | 通过（主机健康、单播放器、延迟点歌自动加载） | LAN 手机与真实媒体待实机验收 |
 | UAT 软件就绪包 | `scripts/run-uat-readiness.ps1` | 通过（Core 150/150、Desktop 12/12、Web 24/24、生成 MKV/mpv） | 用户执行设备与小批真实库步骤 |
-| Windows 自包含发布包 | `scripts/publish-windows.ps1` + `verify-release-package.ps1` | 通过（win-x64、566 项、ZIP SHA-256、Web/说明/声明齐全） | 干净 Windows 安装待 KTVS-058；项目许可待决定 |
+| Windows 自包含发布包 | `scripts/publish-windows.ps1` + `verify-release-package.ps1` + `test-packaged-app.ps1` | RC12 通过（579 项、mpv/ffmpeg/ffprobe/Vulkan loader、许可证说明；隔离启动/健康/窗口/退出清理通过；无数据库/设置） | 干净 Windows 安装、工具版本和正式许可证复核待验收 |
 | 数据库安全升级 | 临时 SQLite + 可控迁移执行器 | 通过（无迁移不备份、备份完整、删除数据后失败自动恢复） | 正式库升级与磁盘故障待实机演练 |
 | 运维文档完整性 | `scripts/verify-operations-docs.ps1` | 通过（6 份文档、7 章节、3 条安全警告） | 操作可用性随 KTVS-058 实机验收 |
 | RC6 候选版软件验证 | UAT 就绪链 + 发布包验证 + 随机临时目录启动/退出 | 通过（Core 159、Desktop 14、Web 24、566 项 ZIP、SQLite/内嵌服务健康、进程清理） | 干净 Windows 与真实设备仍待验收 |
@@ -80,5 +82,16 @@
 | 两阶段扫描与真实十首样本 | xUnit + 限定目录 ffprobe | 通过（指纹跳过、取消续扫；远程并发1 60.03s/10成功，并发2 106.55s/5成功；本地0.68s/0.33s） | 仅十首样本，不代表全库完成时间 |
 | JSON 曲库保留式导入 | 36,601 条附件索引 + SQLite 备份 + FTS 重建 | 通过（36,601 导入、0 跳过；正式库导入前备份） | 路径只按相对路径拼接，媒体未读取或修改 |
 | RC6 进程清理 | 全新解压启动、正常关闭、进程与端口复核 | 通过（`PACKAGE_PROCESS_CLEANUP=passed`；Station 0、mpv 0、5090监听0） | WebView2只按应用进程树释放，不结束其他应用实例 |
+| 队列预探测状态与插歌 | xUnit + TestServer + SignalR reducer + Vitest | 通过（Probing/ProbeFailed/Waiting 状态转换、访客权限、插歌排序、终态即时移除；Core 171/171、Web 28/28） | 100 首真实长队列和手机 WebSocket 待实机验收 |
+| mpv 同实例切歌 | 生成 Unicode 双音轨 MKV + Windows Named Pipe JSON IPC | 通过（`stop` 产生 Stopped 事件；第二首加载及切歌前后 mpv PID 不变，2/2） | 电视输出切换观感待实机验收 |
+| RC11 进程清理 | 全新解压启动、内嵌服务健康、窗口检测、正常关闭 | 通过（567 项；`PACKAGE_PROCESS_CLEANUP=passed`；SHA-256 `86200e1e…0552`） | WebView2 和真实 mpv 同时退出待实机观察 |
+| SignalR 实时状态契约 | RoomRealtimeJournal JSON 契约测试 + TestServer/端到端 + Vitest reducer | 通过（camelCase、字符串枚举、旧字段兼容；API/端到端 8/8、Web 28/28、生产构建通过） | 真实手机 WebSocket 连接与断线重连待实机验收 |
+| KTVS-073 播放控制回归 | Desktop xUnit + Release XAML + mpv Unicode named-pipe 外部测试 | 通过（Desktop 15/15；mpv 3/3；音量自动提交、空轨道标签和下一首解除暂停已覆盖） | 真实电视/功放待实机验收 |
+| KTVS-074 队列生命周期回归 | Core xUnit + SQLite 唯一位置约束 + 队首播放存储 | 通过（Core 非外部 174/174；完成项不占限额/位置，ProbeFailed 队首可选取） | 真实 100 首长队列待实机验收 |
+| KTVS-075 手机发现状态回归 | Vitest + TypeScript + Vite | 通过（Web 30/30；显式检索、歌星互斥卡片、菜单换行和标签切换状态持久化） | 真实手机 WebSocket 与视觉待实机验收 |
+| KTVS-076 RC13 本地可执行包 | `scripts/publish-windows.ps1` + `scripts/verify-release-package.ps1` + `scripts/test-packaged-app.ps1` | 通过（579 项；自包含 .NET、mpv、FFmpeg/ffprobe/Vulkan、许可证说明；健康、窗口、正常退出和进程清理通过；SHA-256 `722415f966b38a2e5db3f629bcef6c0bc56a6c79e534a6d5fa8016dc7ae77889`） | 干净 Windows、真实媒体/设备和正式许可证复核待验收 |
+| KTVS-077 按歌星默认卡片视图 | Vitest + TypeScript + Vite + RC14 package smoke | 通过（Web 31/31；主入口直接展示全部歌手卡片，二级歌手分组保持卡片视图并刷新 artistGroup；RC14 579 项，SHA-256 `e13b6733eb0f644e48f797c3b292f9c80d1bd9c8ddee118679998bb252531529`；健康、窗口和退出清理通过） | 真实手机小屏视觉与触控待实机验收 |
+| KTVS-078 手机/WPF 插歌回归 | Core xUnit + Desktop xUnit + Web Vitest + Release 构建 + RC15 package smoke | 通过（Core 175/175、Desktop 16/16、Web 31/31；终态位置冲突、WPF 异常保护、手机队列更新覆盖；RC15 579 项，SHA-256 `24ad98043160892eb59547c64b4cb53d4178625a5bb5bc8edafdbfb45d11ed04`；健康、窗口和退出清理通过） | 真实手机操作、100 首长队列和 mpv 播放衔接待实机验收 |
+| KTVS-079 歌手/桌面点歌/探测与播放交互 | Core/Desktop/Web + mpv/ffprobe 脚本 + RC16 smoke | 通过（Core 非外部 174/174、Desktop 16/16、Web 31/31、ffprobe 1/1、mpv 3/3、耐久 20/20；RC16 579 项，SHA-256 `be529461211d80578442849d88b7ac11d88714e034f284471ac13650e4e9b48e`；包、窗口、健康与退出清理通过） | 韩国歌手数据、真实头像、NAS 失败媒体、mpv 主动关闭与 WPF 视觉待实机验收 |
 
 禁止把替身、模拟器或文档审阅结果写成真实设备通过。
