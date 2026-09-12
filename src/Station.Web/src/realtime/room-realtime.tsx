@@ -19,7 +19,7 @@ export function applyRoomEvent(state: RoomRealtimeState, event: RoomRealtimeEven
   if (event.type === 'queue.removed') { const itemId = readString(event.data, 'itemId'); return { ...state, version: event.version, queue: itemId ? state.queue.filter(item => item.id !== itemId) : state.queue } }
   if (event.type === 'queue.reordered') { const changed = normalizeQueueEntry(event.data); return changed ? { ...state, version: event.version, queue: state.queue.map(item => item.id === changed.id ? changed : item).sort((a, b) => a.position - b.position) } : { ...state, version: event.version } }
   if (event.type === 'queue.status') { const itemId = readString(event.data, 'itemId'); const status = readString(event.data, 'status') as QueueEntry['status'] | undefined; const terminal = status !== undefined && ['Completed', 'Skipped', 'Failed'].includes(status); return { ...state, version: event.version, queue: itemId && status ? terminal ? state.queue.filter(item => item.id !== itemId) : state.queue.map(item => item.id === itemId ? { ...item, status } : item) : state.queue } }
-  if (event.type === 'playback.changed') return { ...state, version: event.version, playback: event.data as PlaybackProgress }
+  if (event.type === 'playback.changed') return { ...state, version: event.version, playback: normalizePlayback(event.data) }
   return { ...state, version: event.version }
 }
 
@@ -34,6 +34,12 @@ function readString(data: unknown, name: string): string | undefined {
   return typeof value === 'string' ? value : undefined
 }
 
+function readEnumString(data: unknown, name: string, values: string[]): string | undefined {
+  const value = readValue(data, name)
+  if (typeof value === 'string') return value
+  return typeof value === 'number' && Number.isInteger(value) ? values[value] : undefined
+}
+
 function normalizeQueueEntry(data: unknown): QueueEntry | undefined {
   if (!data || typeof data !== 'object') return undefined
   const item = data as Record<string, unknown>
@@ -42,11 +48,32 @@ function normalizeQueueEntry(data: unknown): QueueEntry | undefined {
   const title = readString(data, 'title')
   const requestedByGuestId = readString(data, 'requestedByGuestId')
   const requestedByNickname = readString(data, 'requestedByNickname')
-  const status = readString(data, 'status') as QueueEntry['status'] | undefined
+  const status = readEnumString(data, 'status', ['Probing', 'ProbeFailed', 'Waiting', 'Preparing', 'Playing', 'Paused', 'Completed', 'Skipped', 'Failed']) as QueueEntry['status'] | undefined
   const position = readValue(data, 'position')
   const requestedAt = readString(data, 'requestedAt')
   if (!id || !songId || !title || !requestedByGuestId || !requestedByNickname || !status || typeof position !== 'number' || !requestedAt) return undefined
   return { id, songId, title, requestedByGuestId, requestedByNickname, position, status, requestedAt }
+}
+
+function normalizePlayback(data: unknown): PlaybackProgress | undefined {
+  if (!data || typeof data !== 'object') return undefined
+  const state = readEnumString(data, 'state', ['Stopped', 'Idle', 'Preparing', 'Playing', 'Paused', 'Ended', 'Failed'])
+  const position = readValue(data, 'position')
+  if (!state || (typeof position !== 'string' && typeof position !== 'number')) return undefined
+  const playbackId = readString(data, 'playbackId')
+  const duration = readValue(data, 'duration')
+  return { playbackId, state, position: String(position), duration: typeof duration === 'string' || typeof duration === 'number' ? String(duration) : undefined }
+}
+
+function normalizeSnapshot(data: unknown): RoomRealtimeSnapshot | undefined {
+  if (!data || typeof data !== 'object') return undefined
+  const version = readValue(data, 'version')
+  const roomId = readString(data, 'roomId')
+  const queueValue = readValue(data, 'queue')
+  if (typeof version !== 'number' || !roomId || !Array.isArray(queueValue)) return undefined
+  const queue = queueValue.map(normalizeQueueEntry).filter((item): item is QueueEntry => item !== undefined)
+  const playbackValue = readValue(data, 'playback')
+  return { version, roomId, queue, playback: playbackValue == null ? undefined : normalizePlayback(playbackValue) }
 }
 
 export function RoomRealtimeProvider({ children }: PropsWithChildren) {
@@ -61,7 +88,7 @@ export function RoomRealtimeProvider({ children }: PropsWithChildren) {
     let disposed = false
     let connection: HubConnection
     const accept = (event: RoomRealtimeEvent) => setState(current => { const next = applyRoomEvent(current, event); version.current = next.version; return next })
-    const subscribe = async () => { const sync = await connection.invoke<RoomRealtimeSync>('Subscribe', session.token, version.current || null); if (disposed) return; setState(current => { let next = sync.snapshot ? { version: sync.snapshot.version, queue: sync.snapshot.queue, playback: sync.snapshot.playback } : current; for (const event of sync.events) next = applyRoomEvent(next, event); version.current = Math.max(sync.version, next.version); return { ...next, version: version.current } }); setConnectionStatus('connected') }
+    const subscribe = async () => { const sync = await connection.invoke<RoomRealtimeSync>('Subscribe', session.token, version.current || null); if (disposed) return; const snapshot = normalizeSnapshot(sync.snapshot); setState(current => { let next = snapshot ? { version: snapshot.version, queue: snapshot.queue, playback: snapshot.playback } : current; for (const event of sync.events) next = applyRoomEvent(next, event); version.current = Math.max(sync.version, next.version); return { ...next, version: version.current } }); setConnectionStatus('connected') }
     connection = new HubConnectionBuilder().withUrl('/hubs/room').withAutomaticReconnect([0, 1000, 3000, 10000]).configureLogging(LogLevel.Warning).build()
     connection.on('roomEvent', accept)
     connection.onreconnecting(() => setConnectionStatus('reconnecting'))

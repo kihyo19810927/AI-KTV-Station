@@ -131,11 +131,12 @@ public static class StationApiEndpoints
         int? yearFrom = null,
         int? yearTo = null,
         SongSearchSort sort = SongSearchSort.Relevance,
+        SongSearchField field = SongSearchField.Any,
         CancellationToken cancellationToken = default)
     {
         var identity = await AuthorizeAsync(context, authentication, RoomPermission.ViewCatalog, cancellationToken);
         if (identity.IsFailure) return Problem(identity.Error);
-        var result = await search.SearchAsync(new(text, page, pageSize, language, category, quality, yearFrom, yearTo, sort, artistGroup, artist), cancellationToken);
+        var result = await search.SearchAsync(new(text, page, pageSize, language, category, quality, yearFrom, yearTo, sort, artistGroup, artist, field), cancellationToken);
         return result.IsSuccess ? Results.Ok(result.Value) : Problem(result.Error);
     }
 

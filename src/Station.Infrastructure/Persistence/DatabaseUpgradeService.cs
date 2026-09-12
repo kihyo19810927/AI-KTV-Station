@@ -1,5 +1,6 @@
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
+using Station.Application.Search;
 
 namespace Station.Infrastructure.Persistence;
 
@@ -29,7 +30,8 @@ public sealed class DatabaseUpgradeException(string backupPath, Exception innerE
 public sealed class DatabaseUpgradeService(
     StationDbContext database,
     IDatabaseMigrationExecutor migrationExecutor,
-    TimeProvider timeProvider)
+    TimeProvider timeProvider,
+    ISongSearchIndex? searchIndex = null)
 {
     public async Task<DatabaseUpgradeResult> UpgradeAsync(CancellationToken cancellationToken = default)
     {
@@ -44,6 +46,7 @@ public sealed class DatabaseUpgradeService(
         try
         {
             await migrationExecutor.MigrateAsync(database, cancellationToken);
+            if (searchIndex is not null) await searchIndex.RebuildAsync(cancellationToken);
             return new(pending, backupPath, true);
         }
         catch (Exception migrationError) when (backupPath is not null)

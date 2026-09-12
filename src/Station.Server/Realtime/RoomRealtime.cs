@@ -109,12 +109,15 @@ public sealed class RoomHub(
         var identity = await authentication.ValidateAsync(token, Context.ConnectionAborted);
         if (identity.IsFailure) throw new HubException(identity.Error.Code);
         await Groups.AddToGroupAsync(Context.ConnectionId, Group(identity.Value.RoomId), Context.ConnectionAborted);
-        var currentVersion = journal.CurrentVersion(identity.Value.RoomId);
-        if (afterVersion is >= 0 && journal.TryReadAfter(identity.Value.RoomId, afterVersion.Value, out var events))
-            return new(currentVersion, null, events);
+        if (afterVersion is > 0 && journal.TryReadAfter(identity.Value.RoomId, afterVersion.Value, out var events))
+        {
+            var latestVersion = journal.CurrentVersion(identity.Value.RoomId);
+            return new(latestVersion, null, events);
+        }
         var queueResult = await queue.ListAsync(identity.Value, Context.ConnectionAborted);
         if (queueResult.IsFailure) throw new HubException(queueResult.Error.Code);
         var playbackResult = await playback.GetProgressAsync(Context.ConnectionAborted);
+        var currentVersion = journal.CurrentVersion(identity.Value.RoomId);
         var snapshot = new RoomRealtimeSnapshot(
             currentVersion,
             identity.Value.RoomId,

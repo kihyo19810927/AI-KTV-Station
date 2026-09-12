@@ -14,6 +14,7 @@ public sealed class PlaybackConsoleViewModel : ObservableObject
     private double positionSeconds;
     private double durationSeconds = 1;
     private string statusMessage = "播放器尚未启动";
+    private DateTimeOffset lastProgressUpdate = DateTimeOffset.UtcNow;
 
     public PlaybackConsoleViewModel(PlaybackControlService controls)
     {
@@ -52,6 +53,17 @@ public sealed class PlaybackConsoleViewModel : ObservableObject
         Apply(snapshot.Value);
     }
 
+    public void AdvanceLocalProgress()
+    {
+        if (State != PlayerLifecycleState.Playing) { lastProgressUpdate = DateTimeOffset.UtcNow; return; }
+        var now = DateTimeOffset.UtcNow;
+        var elapsed = Math.Clamp((now - lastProgressUpdate).TotalSeconds, 0, 1);
+        lastProgressUpdate = now;
+        if (elapsed <= 0 || PositionSeconds >= DurationSeconds) return;
+        PositionSeconds = Math.Min(DurationSeconds, PositionSeconds + elapsed);
+        RaisePropertyChanged(nameof(PositionText));
+    }
+
     private async Task ApplyAsync(Task<Result<PlayerSnapshot>> operation)
     {
         var result = await operation;
@@ -63,6 +75,7 @@ public sealed class PlaybackConsoleViewModel : ObservableObject
     {
         State = snapshot.State; Volume = snapshot.Volume; PositionSeconds = snapshot.Position.TotalSeconds;
         DurationSeconds = snapshot.Duration?.TotalSeconds ?? 1; RaisePropertyChanged(nameof(PositionText));
+        lastProgressUpdate = DateTimeOffset.UtcNow;
         Replace(AudioTracks, snapshot.Tracks.Where(x => x.Type == MediaTrackType.Audio));
         Replace(SubtitleTracks, snapshot.Tracks.Where(x => x.Type == MediaTrackType.Subtitle));
         StatusMessage = snapshot.PlaybackId is null ? "当前没有播放任务" : snapshot.State switch { PlayerLifecycleState.Playing => "正在播放", PlayerLifecycleState.Paused => "已暂停", _ => snapshot.State.ToString() };

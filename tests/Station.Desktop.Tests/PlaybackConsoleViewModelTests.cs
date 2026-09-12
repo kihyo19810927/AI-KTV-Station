@@ -36,6 +36,20 @@ public sealed class PlaybackConsoleViewModelTests
         Assert.Equal(55, adapter.State.Volume);
     }
 
+    [Fact]
+    public async Task Local_progress_interpolates_between_authoritative_refreshes()
+    {
+        var viewModel = new PlaybackConsoleViewModel(new PlaybackControlService(new FakePlayer(Snapshot())));
+        await viewModel.RefreshAsync();
+        var before = viewModel.PositionSeconds;
+
+        await Task.Delay(120);
+        viewModel.AdvanceLocalProgress();
+
+        Assert.InRange(viewModel.PositionSeconds - before, 0.05, 0.5);
+        Assert.Contains("/ 00:10", viewModel.PositionText);
+    }
+
     private static PlayerSnapshot Snapshot() => new(PlayerLifecycleState.Playing, Guid.NewGuid(), TimeSpan.FromSeconds(3), TimeSpan.FromSeconds(10), 80, 1, 2,
         [new PlayerTrack(1, MediaTrackType.Audio, "aac", null, "伴奏", true), new PlayerTrack(2, MediaTrackType.Subtitle, "subrip", "zho", "歌词", true)]);
 

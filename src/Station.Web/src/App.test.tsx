@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 import { beforeEach, vi } from 'vitest'
 import { App } from './App'
@@ -40,9 +40,9 @@ describe('mobile application shell', () => {
     let searches = 0; vi.mocked(fetch).mockImplementation(async url => { const path = String(url); if (path.startsWith('/api/library/favorites')) return new Response(JSON.stringify([]), { status: 200, headers: { 'Content-Type': 'application/json' } }); if (path === '/api/playback') return new Response(JSON.stringify({ state: 'Idle', volume: 80, tracks: [] }), { status: 200, headers: { 'Content-Type': 'application/json' } }); searches++; return searches === 1 ? new Response(JSON.stringify({ title: '曲库不可用', code: 'catalog.offline' }), { status: 503 }) : new Response(JSON.stringify({ items: [], total: 0, page: 1, pageSize: 20 }), { status: 200, headers: { 'Content-Type': 'application/json' } }) })
     sessionStorage.setItem('ai-ktv-station.room-session.v1', JSON.stringify(validSession)); renderApp('/room/discover'); expect(await screen.findByRole('alert')).toHaveTextContent('曲库不可用'); fireEvent.click(screen.getByRole('button', { name: '重试' })); expect(await screen.findByText('没有找到歌曲')).toBeInTheDocument()
   })
-  it('appends the next catalog page', async () => {
+  it('navigates between catalog pages', async () => {
     vi.mocked(fetch).mockImplementation(async url => { const page = new URL(String(url), 'http://station').searchParams.get('page'); const item = page === '2' ? { songId: 'song-2', title: '第二首', artists: '歌手乙', availability: 'Available' } : { songId: 'song-1', title: '第一首', artists: '歌手甲', availability: 'Available' }; return new Response(JSON.stringify({ items: [item], total: 2, page: Number(page), pageSize: 1 }), { status: 200, headers: { 'Content-Type': 'application/json' } }) })
-    sessionStorage.setItem('ai-ktv-station.room-session.v1', JSON.stringify(validSession)); renderApp('/room/discover'); await screen.findByText('第一首'); fireEvent.click(screen.getByRole('button', { name: /继续加载/ })); await screen.findByText('第二首'); expect(screen.getByText('第一首')).toBeInTheDocument()
+    sessionStorage.setItem('ai-ktv-station.room-session.v1', JSON.stringify(validSession)); renderApp('/room/discover'); await screen.findByText('第一首'); fireEvent.click(screen.getByRole('button', { name: '下一页' })); await screen.findByText('第二首'); expect(screen.queryByText('第一首')).not.toBeInTheDocument()
   })
   it('requests a song and reports duplicate requests', async () => {
     const song = { songId: 'song-1', title: '夜曲', artists: '周杰伦', availability: 'Available' }
@@ -78,7 +78,7 @@ describe('mobile application shell', () => {
   })
   it('shows singer cards and searches all songs by the selected exact artist', async () => {
     vi.mocked(fetch).mockImplementation(async url => String(url).startsWith('/api/catalog/artists') ? new Response(JSON.stringify([{ artistId: 'artist-1', name: '周杰伦', songCount: 2 }]), { status: 200, headers: { 'Content-Type': 'application/json' } }) : new Response(JSON.stringify({ items: [], total: 0, page: 1, pageSize: 20 }), { status: 200, headers: { 'Content-Type': 'application/json' } }))
-    sessionStorage.setItem('ai-ktv-station.room-session.v1', JSON.stringify(validSession)); renderApp('/room/discover'); await screen.findByRole('button', { name: '按歌星' }); fireEvent.click(screen.getByRole('button', { name: '按歌星' })); fireEvent.click(screen.getByRole('button', { name: '全部' })); fireEvent.click(await screen.findByRole('button', { name: '周杰伦' }));
+    sessionStorage.setItem('ai-ktv-station.room-session.v1', JSON.stringify(validSession)); renderApp('/room/discover'); await screen.findByRole('button', { name: '按歌星' }); fireEvent.click(screen.getByRole('button', { name: '按歌星' })); const catalogMenu = within(screen.getByRole('region', { name: '曲库分类' })); fireEvent.click(catalogMenu.getByRole('button', { name: '全部' })); fireEvent.click(await screen.findByRole('button', { name: '周杰伦' }));
     await waitFor(() => expect(vi.mocked(fetch).mock.calls.some(([url]) => String(url).includes(`artist=${encodeURIComponent('周杰伦')}`))).toBe(true))
   })
   it('inserts an owned queued song without a full page refresh', async () => {

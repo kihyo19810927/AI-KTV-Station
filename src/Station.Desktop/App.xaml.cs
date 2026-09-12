@@ -42,6 +42,7 @@ public partial class App : System.Windows.Application
     private ServiceProvider? services;
     private WebApplication? embeddedServer;
     private System.Windows.Threading.DispatcherTimer? refreshTimer;
+    private System.Windows.Threading.DispatcherTimer? progressTimer;
     private bool refreshing;
 
     protected override async void OnStartup(System.Windows.StartupEventArgs e)
@@ -100,7 +101,7 @@ public partial class App : System.Windows.Application
         collection.AddSingleton<IStationHealthService, StationHealthService>();
         collection.AddSingleton<IPlayerAdapter>(_ => new MpvPlayerAdapter(new PlayerOptions
         {
-            ExecutablePath = string.IsNullOrWhiteSpace(options.Player.ExecutablePath) ? ExternalToolLocator.Find("mpv.exe") ?? "mpv.exe" : options.Player.ExecutablePath,
+            ExecutablePath = ExternalToolLocator.Find("mpv.exe") ?? "mpv.exe",
             CommandTimeoutSeconds = options.Player.CommandTimeoutSeconds,
         }));
         collection.AddSingleton<PlaybackControlService>();
@@ -161,7 +162,6 @@ public partial class App : System.Windows.Application
                 [$"{StationOptions.SectionName}:Server:BindAddress"] = serverOptions.Server.BindAddress,
                 [$"{StationOptions.SectionName}:Server:Port"] = serverOptions.Server.Port.ToString(System.Globalization.CultureInfo.InvariantCulture),
                 [$"{StationOptions.SectionName}:Storage:DataDirectory"] = serverOptions.Storage.DataDirectory,
-                [$"{StationOptions.SectionName}:Player:ExecutablePath"] = serverOptions.Player.ExecutablePath,
                 [$"{StationOptions.SectionName}:Player:CommandTimeoutSeconds"] = serverOptions.Player.CommandTimeoutSeconds.ToString(System.Globalization.CultureInfo.InvariantCulture),
             });
         }, services.GetRequiredService<IPlayerAdapter>(), Path.Combine(AppContext.BaseDirectory, "wwwroot"));
@@ -186,11 +186,15 @@ public partial class App : System.Windows.Application
             finally { refreshing = false; }
         };
         refreshTimer.Start();
+        progressTimer = new System.Windows.Threading.DispatcherTimer { Interval = TimeSpan.FromMilliseconds(100) };
+        progressTimer.Tick += (_, _) => services?.GetRequiredService<PlaybackConsoleViewModel>().AdvanceLocalProgress();
+        progressTimer.Start();
     }
 
     protected override void OnExit(System.Windows.ExitEventArgs e)
     {
         refreshTimer?.Stop();
+        progressTimer?.Stop();
         // WPF is tearing down its dispatcher here; perform async host disposal off the UI context.
         Task.Run(DisposeResourcesAsync).GetAwaiter().GetResult();
         base.OnExit(e);
@@ -199,6 +203,7 @@ public partial class App : System.Windows.Application
     private async Task DisposeResourcesAsync()
     {
         refreshTimer?.Stop(); refreshTimer = null;
+        progressTimer?.Stop(); progressTimer = null;
         var server = embeddedServer; embeddedServer = null;
         if (server is not null)
         {

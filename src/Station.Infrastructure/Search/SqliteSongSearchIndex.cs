@@ -52,7 +52,7 @@ public sealed class SqliteSongSearchIndex(StationDbContext database, ISearchText
     {
         var validation = Validate(query);
         if (validation is not null) return Result<SongSearchPage>.Failure(validation);
-        var match = CompileMatch(query.Text);
+        var match = CompileMatch(query.Text, query.Field);
         var where = new List<string>();
         if (match is not null) where.Add("SongSearchFts MATCH @match");
         if (!string.IsNullOrWhiteSpace(query.Language)) where.Add("d.Language = @language COLLATE NOCASE");
@@ -101,18 +101,20 @@ public sealed class SqliteSongSearchIndex(StationDbContext database, ISearchText
     {
         var artists = song.Artists.OrderBy(x => x.Order).Select(x => x.Artist).ToArray();
         var artistDisplay = string.Join(" / ", artists.Select(x => x.Name));
-        var terms = string.Join('\n', new[]
+        var titleTerms = BuildTerms(new[]
         {
             song.Title, song.NormalizedTitle, song.SimplifiedTitle, song.TraditionalTitle, song.TitlePinyin, song.TitleInitials, song.CompactTitle,
-        }.Concat(artists.SelectMany(ArtistTerms)).Where(x => !string.IsNullOrWhiteSpace(x)).Distinct(StringComparer.OrdinalIgnoreCase));
+        });
+        var artistTerms = BuildTerms(artists.SelectMany(ArtistTerms));
+        var terms = string.Join('\n', new[] { titleTerms, artistTerms }.Where(x => !string.IsNullOrWhiteSpace(x)));
         await using var command = transaction.Connection!.CreateCommand();
         command.Transaction = transaction;
         command.CommandText = """
-            INSERT INTO SongSearchDocuments (SongId, Title, NormalizedTitle, Artists, Language, Category, ArtistGroup, Quality, Year, Availability, Terms, AddedAt)
-            VALUES (@id, @title, @normalizedTitle, @artists, @language, @category, @artistGroup, @quality, @year, @availability, @terms, @addedAt)
+            INSERT INTO SongSearchDocuments (SongId, Title, NormalizedTitle, Artists, Language, Category, ArtistGroup, Quality, Year, Availability, Terms, TitleTerms, ArtistTerms, AddedAt)
+            VALUES (@id, @title, @normalizedTitle, @artists, @language, @category, @artistGroup, @quality, @year, @availability, @terms, @titleTerms, @artistTerms, @addedAt)
             ON CONFLICT(SongId) DO UPDATE SET Title=excluded.Title, NormalizedTitle=excluded.NormalizedTitle, Artists=excluded.Artists,
               Language=excluded.Language, Category=excluded.Category, ArtistGroup=excluded.ArtistGroup, Quality=excluded.Quality, Year=excluded.Year,
-              Availability=excluded.Availability, Terms=excluded.Terms, AddedAt=excluded.AddedAt
+              Availability=excluded.Availability, Terms=excluded.Terms, TitleTerms=excluded.TitleTerms, ArtistTerms=excluded.ArtistTerms, AddedAt=excluded.AddedAt
             """;
         Add(command, "@id", song.Id.ToString("D"));
         Add(command, "@title", song.Title);
@@ -125,6 +127,8 @@ public sealed class SqliteSongSearchIndex(StationDbContext database, ISearchText
         Add(command, "@year", song.Year);
         Add(command, "@availability", song.Availability.ToString());
         Add(command, "@terms", terms);
+        Add(command, "@titleTerms", titleTerms);
+        Add(command, "@artistTerms", artistTerms);
         Add(command, "@addedAt", song.MediaFiles.Count == 0 ? null : song.MediaFiles.Max(x => x.LastWriteTime).UtcDateTime.ToString("O", System.Globalization.CultureInfo.InvariantCulture));
         await command.ExecuteNonQueryAsync(cancellationToken);
     }
@@ -141,15 +145,40 @@ public sealed class SqliteSongSearchIndex(StationDbContext database, ISearchText
     private static IEnumerable<string> ArtistTerms(Artist artist) =>
         [artist.Name, artist.NormalizedName, artist.SimplifiedName, artist.TraditionalName, artist.Pinyin ?? string.Empty, artist.Initials ?? string.Empty, artist.CompactName];
 
-    private string? CompileMatch(string? text)
+    private string? CompileMatch(string? text, SongSearchField field)
     {
         if (string.IsNullOrWhiteSpace(text)) return null;
-        var keys = normalizer.CreateKeys(text);
-        var terms = new[] { keys.Normalized, keys.Simplified, keys.Traditional, keys.Pinyin, keys.Initials, keys.Compact }
+        var trimmed = text.Trim();
+        var keys = normalizer.CreateKeys(trimmed);
+        var hasCjk = trimmed.Any(c => c is >= '\u4e00' and <= '\u9fff');
+        var isPureAlpha = trimmed.All(c => char.IsAsciiLetter(c) || char.IsWhiteSpace(c));
+        var candidates = hasCjk
+            ? new[] { keys.Normalized, keys.Simplified, keys.Traditional, keys.Compact, keys.Pinyin }
+            : isPureAlpha
+                ? new[] { keys.Normalized, keys.Initials, keys.Pinyin }
+                : new[] { keys.Normalized, keys.Simplified, keys.Traditional, keys.Compact };
+        var column = field switch
+        {
+            SongSearchField.Title => "TitleTerms",
+            SongSearchField.Artist => "ArtistTerms",
+            _ => null,
+        };
+        var terms = candidates
             .Where(x => !string.IsNullOrWhiteSpace(x) && SearchTextNormalization.Compact(x).Length > 0)
-            .Distinct(StringComparer.OrdinalIgnoreCase).Select(x => $"\"{x.Replace("\"", "\"\"")}\"*").ToArray();
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .Select(x =>
+            {
+                var escaped = x.Replace("\"", "\"\"");
+                var suffix = isPureAlpha && x.Length <= 4 ? string.Empty : "*";
+                return column is null ? $"\"{escaped}\"{suffix}" : $"{column} : \"{escaped}\"{suffix}";
+            })
+            .ToArray();
         return terms.Length == 0 ? "\"__no_search_terms__\"" : $"({string.Join(" OR ", terms)})";
     }
+
+    private static string BuildTerms(IEnumerable<string?> values) => string.Join('\n', values
+        .Where(x => !string.IsNullOrWhiteSpace(x))
+        .Distinct(StringComparer.OrdinalIgnoreCase));
 
     private static Error? Validate(SongSearchQuery query)
     {

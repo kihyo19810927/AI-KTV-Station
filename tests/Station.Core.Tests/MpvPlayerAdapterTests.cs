@@ -114,6 +114,33 @@ public sealed class MpvPlayerAdapterTests
         Assert.Equal(PlayerLifecycleState.Failed, state.Value.State);
     }
 
+    [Fact]
+    [Trait("Category", "External")]
+    public async Task Loading_after_an_unexpected_exit_restarts_mpv_and_keeps_the_adapter_usable()
+    {
+        var executable = Environment.GetEnvironmentVariable("KTV_STATION_MPV");
+        var media = Environment.GetEnvironmentVariable("KTV_STATION_MEDIA_FIXTURE");
+        Assert.False(string.IsNullOrWhiteSpace(executable));
+        Assert.False(string.IsNullOrWhiteSpace(media));
+        await using var player = new MpvPlayerAdapter(new PlayerOptions { ExecutablePath = executable!, CommandTimeoutSeconds = 10 });
+        Assert.True((await player.StartAsync()).IsSuccess);
+        var firstProcessId = Assert.IsType<int>(player.ProcessId);
+        using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(15));
+        var failureTask = WaitForFailureAsync(player, timeout.Token);
+        using (var ownedProcess = Process.GetProcessById(firstProcessId))
+        {
+            ownedProcess.Kill(entireProcessTree: true);
+            await ownedProcess.WaitForExitAsync(timeout.Token);
+        }
+        await failureTask;
+
+        var loaded = await player.LoadAsync(new PlayerLoadRequest(Guid.NewGuid(), media!), timeout.Token);
+        Assert.True(loaded.IsSuccess, loaded.Error.Code);
+        Assert.NotEqual(firstProcessId, player.ProcessId);
+        Assert.Equal(PlayerLifecycleState.Playing, loaded.Value.State);
+        Assert.True((await player.StopAsync(timeout.Token)).IsSuccess);
+    }
+
     private static async Task<PlaybackEndedEvent> WaitForEndedAsync(IPlayerAdapter player, Guid playbackId, CancellationToken cancellationToken)
     {
         await foreach (var item in player.WatchEventsAsync(cancellationToken))
