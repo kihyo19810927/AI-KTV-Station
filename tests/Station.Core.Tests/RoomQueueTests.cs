@@ -114,6 +114,32 @@ public sealed class RoomQueueTests
     }
 
     [Fact]
+    public async Task Insert_and_move_to_top_avoid_terminal_queue_positions()
+    {
+        await using var fixture = await QueueFixture.CreateAsync();
+        var completed = (await fixture.Service.RequestAsync(fixture.GuestIdentity, fixture.Songs[0].Id)).Value;
+        var completedRow = await fixture.Database.QueueItems.SingleAsync(x => x.Id == completed.Id);
+        completedRow.Status = QueueItemStatus.Completed;
+        completedRow.CompletedAt = Now;
+        await fixture.Database.SaveChangesAsync();
+
+        var first = (await fixture.Service.RequestAsync(fixture.GuestIdentity, fixture.Songs[1].Id)).Value;
+        var second = (await fixture.Service.RequestAsync(fixture.GuestIdentity, fixture.Songs[2].Id)).Value;
+        var inserted = await fixture.Service.InsertNextAsync(fixture.GuestIdentity, second.Id);
+
+        Assert.True(inserted.IsSuccess, inserted.Error.Message);
+        Assert.True(inserted.Value.Position < first.Position);
+
+        var third = (await fixture.Service.RequestAsync(fixture.HostIdentity, fixture.Songs[3].Id)).Value;
+        var moved = await fixture.Service.MoveToTopAsync(fixture.HostIdentity, third.Id);
+        Assert.True(moved.IsSuccess, moved.Error.Message);
+        Assert.True(moved.Value.Position < inserted.Value.Position);
+
+        var positions = await fixture.Database.QueueItems.Select(x => x.Position).ToListAsync();
+        Assert.Equal(positions.Count, positions.Distinct().Count());
+    }
+
+    [Fact]
     public async Task Concurrent_requests_are_serialized_without_duplicate_positions()
     {
         await using var fixture = await QueueFixture.CreateAsync(limit: 30, songCount: 20);

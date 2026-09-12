@@ -21,6 +21,8 @@
 - [x] RC13 包含 `tools/mpv`、`tools/ffmpeg`、`tools/licenses`，隔离启动、内嵌服务健康、窗口和退出清理通过
 - [x] RC14 候选包已生成：579 项，包含 KTVS-077 歌手卡片入口修复；SHA-256 `e13b6733eb0f644e48f797c3b292f9c80d1bd9c8ddee118679998bb252531529`
 - [x] RC14 包含 `tools/mpv`、`tools/ffmpeg`、`tools/licenses`，隔离启动、内嵌服务健康、窗口和退出清理通过
+- [x] RC15 候选包已生成：579 项，包含 KTVS-078 插歌位置冲突和 WPF 异常保护修复；SHA-256 `24ad98043160892eb59547c64b4cb53d4178625a5bb5bc8edafdbfb45d11ed04`
+- [x] RC15 包含 `tools/mpv`、`tools/ffmpeg`、`tools/licenses`，隔离启动、内嵌服务健康、窗口和退出清理通过
 - [x] RC6 全新解压启动及正常关闭通过，退出后无 Station/mpv 残留且 5090 已释放
 - [x] `1.0.0` Release Notes 与候选校验验证脚本已准备
 - [ ] `v1.0.0` Tag 与 GitHub Release 已在全部门禁通过并经所有者授权后创建

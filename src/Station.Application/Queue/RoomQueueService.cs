@@ -32,6 +32,7 @@ public interface IRoomQueueRepository
     Task<Song?> FindSongAsync(Guid songId, CancellationToken cancellationToken = default);
     Task<QueueItem?> FindItemAsync(Guid itemId, CancellationToken cancellationToken = default);
     Task<IReadOnlyList<QueueItem>> ListActiveAsync(Guid roomId, CancellationToken cancellationToken = default);
+    Task<long?> GetMinPositionAsync(Guid roomId, CancellationToken cancellationToken = default);
     Task<long?> GetMaxPositionAsync(Guid roomId, CancellationToken cancellationToken = default);
     Task AddAsync(QueueItem item, CancellationToken cancellationToken = default);
     Task SaveChangesAsync(CancellationToken cancellationToken = default);
@@ -151,7 +152,9 @@ public sealed class RoomQueueService(
         var first = active.Where(x => IsQueued(x.Status)).OrderBy(x => x.Position).First();
         if (first.Id != item.Id)
         {
-            item.Position = checked(first.Position - PositionStep);
+            var position = await PositionBeforeAsync(identity.RoomId, 1, cancellationToken).ConfigureAwait(false);
+            if (position.IsFailure) return Result<QueueEntry>.Failure(position.Error);
+            item.Position = position.Value;
             await repository.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
         }
         return Result<QueueEntry>.Success(Map(item));
@@ -178,7 +181,9 @@ public sealed class RoomQueueService(
         var targetIndex = beforeItemId is null ? waiting.Count : waiting.FindIndex(x => x.Id == beforeItemId);
         if (targetIndex < 0) return Failure<IReadOnlyList<QueueEntry>>("queue.target_not_found", "Queue reorder target was not found.");
         waiting.Insert(targetIndex, moving);
-        for (var index = 0; index < waiting.Count; index++) waiting[index].Position = checked((index + 1L) * PositionStep);
+        var startPosition = await PositionBeforeAsync(identity.RoomId, waiting.Count, cancellationToken).ConfigureAwait(false);
+        if (startPosition.IsFailure) return Result<IReadOnlyList<QueueEntry>>.Failure(startPosition.Error);
+        for (var index = 0; index < waiting.Count; index++) waiting[index].Position = checked(startPosition.Value + index * PositionStep);
         await repository.SaveReorderAsync(waiting, cancellationToken).ConfigureAwait(false);
         var nonWaiting = active.Where(x => !IsQueued(x.Status));
         return Result<IReadOnlyList<QueueEntry>>.Success(nonWaiting.Concat(waiting).OrderBy(x => x.Position).Select(Map).ToArray());
@@ -202,7 +207,9 @@ public sealed class RoomQueueService(
         var first = active.Where(x => IsQueued(x.Status)).OrderBy(x => x.Position).First();
         if (first.Id != item.Id)
         {
-            item.Position = checked(first.Position - PositionStep);
+            var position = await PositionBeforeAsync(identity.RoomId, 1, cancellationToken).ConfigureAwait(false);
+            if (position.IsFailure) return Result<QueueEntry>.Failure(position.Error);
+            item.Position = position.Value;
             await repository.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
         }
         return Result<QueueEntry>.Success(Map(item));
@@ -243,6 +250,19 @@ public sealed class RoomQueueService(
         string.Join(" / ", item.Song.Artists.OrderBy(x => x.Order).Select(x => x.Artist.Name)));
 
     private static bool IsQueued(QueueItemStatus status) => status is QueueItemStatus.Probing or QueueItemStatus.ProbeFailed or QueueItemStatus.Waiting;
+
+    private async Task<Result<long>> PositionBeforeAsync(Guid roomId, int count, CancellationToken cancellationToken)
+    {
+        try
+        {
+            var minimum = await repository.GetMinPositionAsync(roomId, cancellationToken).ConfigureAwait(false) ?? 0;
+            return Result<long>.Success(checked(minimum - (long)count * PositionStep));
+        }
+        catch (OverflowException)
+        {
+            return Failure<long>("queue.position_exhausted", "Queue positions are exhausted; restart the room before reordering.");
+        }
+    }
 
     private static Result<T> Failure<T>(string code, string message) => Result<T>.Failure(new Error(code, message));
 }

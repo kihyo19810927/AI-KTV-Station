@@ -30,13 +30,30 @@ public sealed class QueueManagementViewModelTests
         Assert.DoesNotContain(typeof(QueueEntry).GetProperties(), x => x.Name.Contains("Path", StringComparison.OrdinalIgnoreCase));
     }
 
+    [Fact]
+    public async Task Insert_failure_is_reported_without_escaping_the_view_model()
+    {
+        var identity = new RoomIdentity(Guid.NewGuid(), Guid.NewGuid(), "主持人", RoomRole.Host, DateTimeOffset.UtcNow.AddHours(1));
+        var context = new HostRoomContext { Identity = identity };
+        var entry = Entry("插播歌曲", 1024);
+        var service = new FakeQueue { Entries = [entry], ThrowOnMoveTop = true };
+        var viewModel = new QueueManagementViewModel(service, context);
+
+        await viewModel.RefreshAsync();
+        await viewModel.MoveTopAsync(entry);
+
+        Assert.Contains("操作未完成", viewModel.StatusMessage);
+        Assert.Single(viewModel.Items);
+    }
+
     private static QueueEntry Entry(string title, long position) => new(Guid.NewGuid(), Guid.NewGuid(), title, Guid.NewGuid(), "访客", position, QueueItemStatus.Waiting, DateTimeOffset.UtcNow);
     private sealed class FakeQueue : IRoomQueueService
     {
         public IReadOnlyList<QueueEntry> Entries { get; set; } = [];
+        public bool ThrowOnMoveTop { get; set; }
         public Task<Result<IReadOnlyList<QueueEntry>>> ListAsync(RoomIdentity identity, CancellationToken cancellationToken = default) => Task.FromResult(Result<IReadOnlyList<QueueEntry>>.Success(Entries));
         public Task<Result<bool>> RemoveAsync(RoomIdentity identity, Guid itemId, CancellationToken cancellationToken = default) => Task.FromResult(Result<bool>.Success(true));
-        public Task<Result<QueueEntry>> MoveToTopAsync(RoomIdentity identity, Guid itemId, CancellationToken cancellationToken = default) => Task.FromResult(Result<QueueEntry>.Success(Entries.Single(x => x.Id == itemId)));
+        public Task<Result<QueueEntry>> MoveToTopAsync(RoomIdentity identity, Guid itemId, CancellationToken cancellationToken = default) => ThrowOnMoveTop ? Task.FromException<Result<QueueEntry>>(new InvalidOperationException("simulated queue conflict")) : Task.FromResult(Result<QueueEntry>.Success(Entries.Single(x => x.Id == itemId)));
         public Task<Result<QueueEntry>> InsertNextAsync(RoomIdentity identity, Guid itemId, CancellationToken cancellationToken = default) => Task.FromResult(Result<QueueEntry>.Success(Entries.Single(x => x.Id == itemId)));
         public Task<Result<IReadOnlyList<QueueEntry>>> ReorderBeforeAsync(RoomIdentity identity, Guid itemId, Guid? beforeItemId, CancellationToken cancellationToken = default) => Task.FromResult(Result<IReadOnlyList<QueueEntry>>.Success(Entries));
     }

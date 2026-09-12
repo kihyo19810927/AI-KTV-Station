@@ -24,19 +24,28 @@ public sealed class QueueManagementViewModel : ObservableObject
         this.queue = queue;
         this.roomContext = roomContext;
         RefreshCommand = new AsyncRelayCommand(RefreshAsync);
-        RemoveCommand = new AsyncRelayCommand<QueueEntry>(item => MutateAsync(queue.RemoveAsync(RequireIdentity(), item.Id)));
-        MoveTopCommand = new AsyncRelayCommand<QueueEntry>(item => MutateAsync(queue.MoveToTopAsync(RequireIdentity(), item.Id)));
+        RemoveCommand = new AsyncRelayCommand<QueueEntry>(item => MutateAsync(() => queue.RemoveAsync(RequireIdentity(), item.Id)));
+        MoveTopCommand = new AsyncRelayCommand<QueueEntry>(MoveTopAsync);
         MoveUpCommand = new AsyncRelayCommand<QueueEntry>(MoveUpAsync);
         MoveDownCommand = new AsyncRelayCommand<QueueEntry>(MoveDownAsync);
     }
 
     public async Task RefreshAsync()
     {
-        if (roomContext.Identity is null) { Items.Clear(); StatusMessage = "请先在“房间与二维码”中开启房间"; return; }
-        var result = await queue.ListAsync(roomContext.Identity);
-        if (result.IsFailure) { ShowError(result.Error); return; }
-        Replace(result.Value);
+        try
+        {
+            if (roomContext.Identity is null) { Items.Clear(); StatusMessage = "请先在“房间与二维码”中开启房间"; return; }
+            var result = await queue.ListAsync(roomContext.Identity);
+            if (result.IsFailure) { ShowError(result.Error); return; }
+            Replace(result.Value);
+        }
+        catch (Exception)
+        {
+            ShowUnexpectedError();
+        }
     }
+
+    public Task MoveTopAsync(QueueEntry item) => MutateAsync(() => queue.MoveToTopAsync(RequireIdentity(), item.Id));
 
     private async Task MoveUpAsync(QueueEntry item)
     {
@@ -53,25 +62,40 @@ public sealed class QueueManagementViewModel : ObservableObject
 
     private async Task ReorderAsync(Guid itemId, Guid? beforeId)
     {
-        var result = await queue.ReorderBeforeAsync(RequireIdentity(), itemId, beforeId);
-        if (result.IsFailure) { ShowError(result.Error); return; }
-        Replace(result.Value);
+        try
+        {
+            var result = await queue.ReorderBeforeAsync(RequireIdentity(), itemId, beforeId);
+            if (result.IsFailure) { ShowError(result.Error); return; }
+            Replace(result.Value);
+        }
+        catch (Exception)
+        {
+            ShowUnexpectedError();
+        }
     }
 
     public Task MoveBeforeAsync(QueueEntry item, QueueEntry? before) => ReorderAsync(item.Id, before?.Id);
 
-    private async Task MutateAsync<T>(Task<Result<T>> operation)
+    private async Task MutateAsync<T>(Func<Task<Result<T>>> operation)
     {
-        var result = await operation;
-        if (result.IsFailure)
+        try
         {
-            ShowError(result.Error);
-            return;
+            var result = await operation();
+            if (result.IsFailure)
+            {
+                ShowError(result.Error);
+                return;
+            }
+            await RefreshAsync();
         }
-        await RefreshAsync();
+        catch (Exception)
+        {
+            ShowUnexpectedError();
+        }
     }
 
     private Station.Application.Rooms.RoomIdentity RequireIdentity() => roomContext.Identity ?? throw new InvalidOperationException("No active host room.");
     private void Replace(IEnumerable<QueueEntry> items) { Items.Clear(); foreach (var item in items) Items.Add(item); StatusMessage = Items.Count == 0 ? "队列为空" : $"等待队列：{Items.Count} 首"; }
     private void ShowError(Error error) => StatusMessage = $"操作未完成：{error.Message}";
+    private void ShowUnexpectedError() => StatusMessage = "操作未完成：队列状态已变化，请刷新后重试。";
 }

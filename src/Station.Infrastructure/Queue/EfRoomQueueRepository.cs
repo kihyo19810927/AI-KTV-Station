@@ -32,6 +32,9 @@ public sealed class EfRoomQueueRepository(StationDbContext database) : IRoomQueu
             .OrderBy(x => x.Position)
             .ToListAsync(cancellationToken);
 
+    public Task<long?> GetMinPositionAsync(Guid roomId, CancellationToken cancellationToken = default) =>
+        database.QueueItems.Where(x => x.RoomSessionId == roomId).MinAsync(x => (long?)x.Position, cancellationToken);
+
     public Task<long?> GetMaxPositionAsync(Guid roomId, CancellationToken cancellationToken = default) =>
         database.QueueItems.Where(x => x.RoomSessionId == roomId).MaxAsync(x => (long?)x.Position, cancellationToken);
 
