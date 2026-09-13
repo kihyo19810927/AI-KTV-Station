@@ -63,6 +63,7 @@ public sealed class QueueManagementViewModelTests
     private static QueueEntry Entry(string title, long position) => new(Guid.NewGuid(), Guid.NewGuid(), title, Guid.NewGuid(), "访客", position, QueueItemStatus.Waiting, DateTimeOffset.UtcNow);
     private sealed class FakeQueue : IRoomQueueService
     {
+        public Task<Result<QueueEntry>> RequestAsync(RoomIdentity identity, Guid songId, CancellationToken cancellationToken = default) => throw new NotSupportedException();
         public IReadOnlyList<QueueEntry> Entries { get; set; } = [];
         public bool ThrowOnMoveTop { get; set; }
         public Task<Result<IReadOnlyList<QueueEntry>>> ListAsync(RoomIdentity identity, CancellationToken cancellationToken = default) => Task.FromResult(Result<IReadOnlyList<QueueEntry>>.Success(Entries));

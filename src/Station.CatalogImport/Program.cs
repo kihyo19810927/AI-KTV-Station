@@ -22,18 +22,26 @@ if (args is ["--upgrade-database", var upgradeDatabasePath])
 
 if (args is ["--snapshot-database", var snapshotSourcePath, var snapshotDestinationPath])
 {
-    var sourcePath = Path.GetFullPath(snapshotSourcePath);
-    var destinationPath = Path.GetFullPath(snapshotDestinationPath);
-    if (!File.Exists(sourcePath)) { Console.Error.WriteLine("Source database is unavailable."); return 3; }
-    if (File.Exists(destinationPath)) { Console.Error.WriteLine("Snapshot destination already exists."); return 4; }
-    Directory.CreateDirectory(Path.GetDirectoryName(destinationPath)!);
-    await using var source = new SqliteConnection($"Data Source={sourcePath};Mode=ReadOnly");
-    await using var destination = new SqliteConnection($"Data Source={destinationPath};Mode=ReadWriteCreate");
-    await source.OpenAsync();
-    await destination.OpenAsync();
-    source.BackupDatabase(destination);
-    Console.WriteLine("DATABASE_SNAPSHOT_COMPLETE=true");
-    return 0;
+    try
+    {
+        var sourcePath = Path.GetFullPath(snapshotSourcePath);
+        var destinationPath = Path.GetFullPath(snapshotDestinationPath);
+        if (!File.Exists(sourcePath)) { Console.Error.WriteLine("Source database is unavailable."); return 3; }
+        if (File.Exists(destinationPath)) { Console.Error.WriteLine("Snapshot destination already exists."); return 4; }
+        Directory.CreateDirectory(Path.GetDirectoryName(destinationPath)!);
+        await using var source = new SqliteConnection($"Data Source={sourcePath};Mode=ReadOnly");
+        await using var destination = new SqliteConnection($"Data Source={destinationPath};Mode=ReadWriteCreate");
+        await source.OpenAsync();
+        await destination.OpenAsync();
+        source.BackupDatabase(destination);
+        Console.WriteLine("DATABASE_SNAPSHOT_COMPLETE=true");
+        return 0;
+    }
+    catch (SqliteException)
+    {
+        Console.Error.WriteLine("Database snapshot could not be created. Check that the source is accessible and the destination is writable.");
+        return 5;
+    }
 }
 
 if (args.Length != 3)

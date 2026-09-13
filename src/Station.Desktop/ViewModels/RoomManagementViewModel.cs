@@ -8,8 +8,8 @@ namespace Station.Desktop.ViewModels;
 
 public sealed class RoomManagementViewModel : ObservableObject
 {
-    private readonly RoomLifecycleService rooms;
-    private readonly RoomAuthenticationService authentication;
+    private readonly IRoomLifecycleService rooms;
+    private readonly IRoomHostAdministration authentication;
     private readonly HostRoomContext context;
     private readonly IQrCodeRenderer qrCodes;
     private readonly ILanAddressProvider addresses;
@@ -22,7 +22,7 @@ public sealed class RoomManagementViewModel : ObservableObject
     private readonly AsyncRelayCommand createCommand;
     private readonly AsyncRelayCommand closeCommand;
 
-    public RoomManagementViewModel(RoomLifecycleService rooms, RoomAuthenticationService authentication, HostRoomContext context, IQrCodeRenderer qrCodes, ILanAddressProvider addresses, StationOptions options)
+    public RoomManagementViewModel(IRoomLifecycleService rooms, IRoomHostAdministration authentication, HostRoomContext context, IQrCodeRenderer qrCodes, ILanAddressProvider addresses, StationOptions options)
     {
         this.rooms = rooms; this.authentication = authentication; this.context = context; this.qrCodes = qrCodes; this.addresses = addresses; port = options.Server.Port;
         RefreshCommand = new AsyncRelayCommand(RefreshAsync); createCommand = new AsyncRelayCommand(CreateRoomAsync, () => Room is null); closeCommand = new AsyncRelayCommand(CloseAsync, () => Room is not null); CreateCommand = createCommand; CloseCommand = closeCommand; SaveRulesCommand = new AsyncRelayCommand(SaveRulesAsync);

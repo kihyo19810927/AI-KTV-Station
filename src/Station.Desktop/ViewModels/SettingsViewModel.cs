@@ -11,6 +11,7 @@ public sealed class SettingsViewModel : ObservableObject
     private string bindAddress;
     private int port;
     private string dataDirectory;
+    private string mediaMountRoot;
     private int commandTimeoutSeconds;
     private string statusMessage = "设置保存在当前 Windows 用户目录";
     private StationOptions current;
@@ -18,7 +19,7 @@ public sealed class SettingsViewModel : ObservableObject
     public SettingsViewModel(IStationSettingsStore store, IDiagnosticExportService diagnostics, ILocalDiagnosticLog log, StationOptions options)
     {
         this.store = store; this.diagnostics = diagnostics; this.log = log; current = options;
-        bindAddress = options.Server.BindAddress; port = options.Server.Port; dataDirectory = options.Storage.DataDirectory; commandTimeoutSeconds = options.Player.CommandTimeoutSeconds;
+        bindAddress = options.Server.BindAddress; port = options.Server.Port; dataDirectory = options.Storage.DataDirectory; mediaMountRoot = options.Storage.MediaMountRoot; commandTimeoutSeconds = options.Player.CommandTimeoutSeconds;
         SaveCommand = new AsyncRelayCommand(SaveAsync); ExportDiagnosticsCommand = new AsyncRelayCommand(ExportDiagnosticsAsync);
     }
 
@@ -27,15 +28,16 @@ public sealed class SettingsViewModel : ObservableObject
     public string BindAddress { get => bindAddress; set => SetProperty(ref bindAddress, value); }
     public int Port { get => port; set => SetProperty(ref port, value); }
     public string DataDirectory { get => dataDirectory; set => SetProperty(ref dataDirectory, value); }
+    public string MediaMountRoot { get => mediaMountRoot; set => SetProperty(ref mediaMountRoot, value); }
     public int CommandTimeoutSeconds { get => commandTimeoutSeconds; set => SetProperty(ref commandTimeoutSeconds, value); }
     public string StatusMessage { get => statusMessage; private set => SetProperty(ref statusMessage, value); }
 
     public async Task SaveAsync()
     {
-        var next = new StationOptions { Server = new() { BindAddress = BindAddress, Port = Port }, Storage = new() { DataDirectory = DataDirectory }, Player = new() { CommandTimeoutSeconds = CommandTimeoutSeconds }, Scanning = current.Scanning };
+        var next = new StationOptions { Server = new() { BindAddress = BindAddress, Port = Port }, Storage = new() { DataDirectory = DataDirectory, MediaMountRoot = MediaMountRoot }, Player = new() { CommandTimeoutSeconds = CommandTimeoutSeconds }, Scanning = current.Scanning };
         var result = await store.SaveAsync(next);
         if (result.IsFailure) { StatusMessage = result.Error.Message; return; }
-        current = next; await log.WriteAsync("Information", "settings.saved", "Local settings were saved; restart may be required."); StatusMessage = "设置已保存；端口、目录或播放器变更将在重启后生效";
+        current = next; await log.WriteAsync("Information", "settings.saved", "Local settings were saved; restart may be required."); StatusMessage = "设置已保存；挂载路径会在下次 JSON 增量导入时作为曲库映射生效，其他设置重启后生效";
     }
 
     public async Task ExportDiagnosticsAsync()

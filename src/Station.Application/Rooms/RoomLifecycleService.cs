@@ -25,7 +25,7 @@ public interface IRoomJoinCodeGenerator
     string Create();
 }
 
-public sealed class RoomLifecycleService(IRoomRepository repository, IRoomJoinCodeGenerator joinCodeGenerator)
+public sealed class RoomLifecycleService(IRoomRepository repository, IRoomJoinCodeGenerator joinCodeGenerator) : IRoomLifecycleService
 {
     private const int JoinCodeAttempts = 8;
 

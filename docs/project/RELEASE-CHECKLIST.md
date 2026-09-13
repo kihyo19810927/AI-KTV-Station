@@ -27,6 +27,8 @@
 - [x] RC18 包含 `tools/mpv`、`tools/ffmpeg`、`tools/licenses`；隔离启动、内嵌服务健康、窗口和退出清理通过
 - [x] RC21 候选包已生成：580 项、单个预迁移 `data/station.db`、无 SQLite WAL/SHM、SHA-256 `8af1d98e4893facb73871cc2d893f1f7e6cae618b3e087ace728872acdc7e8d8`
 - [x] RC21 包含 `tools/mpv`、`tools/ffmpeg`、`tools/licenses`；隔离启动、内嵌服务健康、窗口和退出清理通过；因包含真实曲库数据，仅限本地验收，禁止推送/公开发布
+- [x] RC22 候选包已生成：580 项、单个预迁移 `data/station.db`、无 SQLite WAL/SHM、SHA-256 `6483940b5cd42a4ebc91263041a35c7a3228908fa7eca04671e6d5afa4b3edf4`
+- [x] RC22 包含 `tools/mpv`、`tools/ffmpeg`、`tools/licenses`；隔离启动、内嵌服务健康、窗口和退出清理通过；因包含真实曲库数据，仅限本地验收，禁止推送/公开发布
 - [x] RC6 全新解压启动及正常关闭通过，退出后无 Station/mpv 残留且 5090 已释放
 - [x] `1.0.0` Release Notes 与候选校验验证脚本已准备
 - [ ] `v1.0.0` Tag 与 GitHub Release 已在全部门禁通过并经所有者授权后创建

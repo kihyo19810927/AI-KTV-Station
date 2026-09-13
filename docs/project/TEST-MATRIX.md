@@ -97,5 +97,7 @@
 | KTVS-081 至 KTVS-086 账户/歌单、桌面体验与队列语义 | SQLite migration + Core xUnit + Desktop xUnit + Vitest + Release build + format | 通过（追加式账户/歌单迁移、ProfileLibrary 2 场景、严格歌手下钻、当前播放后插播；Release 0 警告/错误，Core 非外部 178/178、Desktop 17/17、Web 31/31、format verify） | 真实家庭成员切换、远程头像、3,000 歌手鼠标手感、手机长连接及 mpv/长队列待验收 |
 | RC18 本地验收包 | `publish-windows` + ZIP 校验 + 隔离启动/关闭 | 通过（579 项、296,718,483 bytes、SHA-256 `3b4f9f5ea29544159783f2353f373806ada39c677259f097c008089104b079c1`；健康、窗口和退出清理通过） | 干净 Windows、真实媒体/设备与长期内存观察待验收 |
 | KTVS-087 / RC21 含初始库候选包 | SQLite Backup API 快照 + 预迁移/FTS 重建 + ZIP 单库校验 + 隔离启动/关闭 | 通过（580 项、353,069,922 bytes、SHA-256 `8af1d98e4893facb73871cc2d893f1f7e6cae618b3e087ace728872acdc7e8d8`；仅 `data/station.db`，无 WAL/SHM；健康、窗口和退出清理通过） | 源库与包含真实曲库数据，仅限本地验收；干净 Windows、真实媒体/设备与长期内存观察待验收 |
+| KTVS-088 桌面作用域与歌手浏览缓存 | Core/桌面 xUnit + RC21 数据库只读快照基准 | 通过（Core 178/178、Desktop 18/18；72,295 首库 SQL 冷加载 672.03ms，缓存查询 P50 0.213ms/P95 0.370ms；并发加载合并、写入失效、换盘增量导入覆盖） | 真实 WPF 鼠标手感、内存和目标电脑盘符切换待验收 |
+| RC22 WPF 收尾本地验收包 | 自包含发布 + SQLite 只读快照 + ZIP/隔离启动/退出 | 通过（580 项、353,069,531 bytes、SHA-256 `6483940b5cd42a4ebc91263041a35c7a3228908fa7eca04671e6d5afa4b3edf4`；仅 `data/station.db`，无 WAL/SHM；健康、窗口与退出清理通过） | 包含真实曲库数据，仅本地验收；真实 WPF 手感、挂载映射和设备待验收 |
 
 禁止把替身、模拟器或文档审阅结果写成真实设备通过。

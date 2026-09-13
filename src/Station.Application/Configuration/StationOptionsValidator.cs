@@ -11,6 +11,12 @@ public static class StationOptionsValidator
             return Invalid("server bind address must be an IP address");
         if (options.Server.Port is < 1 or > 65535) return Invalid("server port must be between 1 and 65535");
         if (string.IsNullOrWhiteSpace(options.Storage.DataDirectory)) return Invalid("data directory is required");
+        if (!string.IsNullOrWhiteSpace(options.Storage.MediaMountRoot))
+        {
+            try { _ = Path.GetFullPath(options.Storage.MediaMountRoot); }
+            catch (Exception exception) when (exception is ArgumentException or NotSupportedException or PathTooLongException)
+            { return Invalid("media mount root is invalid"); }
+        }
         if (options.Player.CommandTimeoutSeconds is < 1 or > 120) return Invalid("player timeout must be between 1 and 120 seconds");
         if (options.Scanning.ProbeConcurrency is < 1 or > 4) return Invalid("probe concurrency must be between 1 and 4");
         return Result<StationOptions>.Success(options);

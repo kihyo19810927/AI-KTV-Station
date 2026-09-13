@@ -94,11 +94,7 @@ public partial class App : System.Windows.Application
         collection.AddSingleton(options.Scanning);
         collection.AddSingleton<IStationSettingsStore>(settingsStore);
         collection.AddSingleton(TimeProvider.System);
-        var databaseOptions = new DbContextOptionsBuilder<StationDbContext>().UseSqlite($"Data Source={Path.Combine(dataDirectory, "station.db")}").Options;
-        collection.AddSingleton(new StationDbContext(databaseOptions));
-        collection.AddSingleton<IDatabaseMigrationExecutor, EfDatabaseMigrationExecutor>();
-        collection.AddSingleton<DatabaseUpgradeService>();
-        collection.AddSingleton<IStationHealthService, StationHealthService>();
+
         collection.AddSingleton<IPlayerAdapter>(_ => new MpvPlayerAdapter(new PlayerOptions
         {
             ExecutablePath = ExternalToolLocator.Find("mpv.exe") ?? "mpv.exe",
@@ -106,12 +102,16 @@ public partial class App : System.Windows.Application
         }));
         collection.AddSingleton<PlaybackContinuationGate>();
         collection.AddSingleton<PlaybackControlService>();
-        collection.AddSingleton<IPlaybackStartupRecoveryStore, EfPlaybackStartupRecoveryStore>();
-        collection.AddSingleton<PlaybackStartupRecoveryService>();
-        collection.AddSingleton<IRoomQueueRepository, EfRoomQueueRepository>();
-        collection.AddSingleton<IRoomQueueLock, InProcessRoomQueueLock>();
-        collection.AddSingleton<RoomQueueService>();
-        collection.AddSingleton<IRoomQueueService>(provider => provider.GetRequiredService<RoomQueueService>());
+
+        collection.AddSingleton<DesktopDataFacade>(_ => new DesktopDataFacade(() => embeddedServer!.Services));
+        collection.AddSingleton<IRoomQueueService>(p => p.GetRequiredService<DesktopDataFacade>());
+        collection.AddSingleton<IRoomLifecycleService>(p => p.GetRequiredService<DesktopDataFacade>());
+        collection.AddSingleton<IRoomHostAdministration>(p => p.GetRequiredService<DesktopDataFacade>());
+        collection.AddSingleton<ISongSearchIndex>(p => p.GetRequiredService<DesktopDataFacade>());
+        collection.AddSingleton<IArtistBrowseService>(p => p.GetRequiredService<DesktopDataFacade>());
+        collection.AddSingleton<ICatalogAdminService>(p => p.GetRequiredService<DesktopDataFacade>());
+        collection.AddSingleton<ICatalogJsonImportService>(p => p.GetRequiredService<DesktopDataFacade>());
+        collection.AddSingleton<IStationHealthService>(p => p.GetRequiredService<DesktopDataFacade>());
         collection.AddSingleton<HostRoomContext>();
         collection.AddSingleton<PlaybackConsoleViewModel>(provider => new PlaybackConsoleViewModel(
             provider.GetRequiredService<PlaybackControlService>(),
@@ -119,31 +119,12 @@ public partial class App : System.Windows.Application
             provider.GetRequiredService<HostRoomContext>()));
         collection.AddSingleton<QueueManagementViewModel>();
         collection.AddSingleton<DesktopSongRequestViewModel>();
-        collection.AddSingleton<IMediaSourceRepository, EfMediaSourceRepository>();
-        collection.AddSingleton<IMediaPathInspector, FileSystemMediaPathInspector>();
-        collection.AddSingleton<IMediaSourceService, MediaSourceService>();
-        collection.AddSingleton<ISearchTextNormalizer, ToolGoodSearchTextNormalizer>();
-        collection.AddSingleton<ISongSearchIndex, SqliteSongSearchIndex>();
-        collection.AddSingleton<ArtistLexicon>();
-        collection.AddSingleton<IArtistBrowseService, EfArtistBrowseService>();
-        collection.AddSingleton<ICatalogAdminRepository, EfCatalogAdminRepository>();
-        collection.AddSingleton<ICatalogAdminService, CatalogAdminService>();
-        collection.AddSingleton<ICatalogJsonImportService, CatalogJsonImportService>();
+
         collection.AddSingleton<Station.Desktop.Services.ICatalogImportFilePicker, Station.Desktop.Services.CatalogImportFilePicker>();
-        collection.AddSingleton<IMediaScanRepository, EfMediaScanRepository>();
-        collection.AddSingleton<IMediaFileEnumerator, FileSystemMediaFileEnumerator>();
-        collection.AddSingleton<IMediaFilenameParser, KtvFilenameParser>();
-        collection.AddSingleton<INfoMetadataReader, NfoXmlMetadataReader>();
-        collection.AddSingleton<IMediaProbe>(_ => new FfprobeMediaProbe(ExternalToolLocator.Find("ffprobe.exe") ?? "ffprobe.exe", TimeSpan.FromSeconds(30)));
-        collection.AddSingleton<IMediaScanRunner, MediaScanService>();
+
         collection.AddSingleton<ICatalogScanService>(_ => new BackgroundCatalogScanService(embeddedServer!.Services.GetRequiredService<IServiceScopeFactory>()));
         collection.AddSingleton<CatalogManagementViewModel>();
-        collection.AddSingleton<IRoomRepository, EfRoomRepository>();
-        collection.AddSingleton<IRoomJoinCodeGenerator, SecureRoomJoinCodeGenerator>();
-        collection.AddSingleton<RoomLifecycleService>();
-        collection.AddSingleton<IRoomIdentityRepository, EfRoomIdentityRepository>();
-        collection.AddSingleton<IRoomTokenProtector, Sha256RoomTokenProtector>();
-        collection.AddSingleton<RoomAuthenticationService>();
+
         collection.AddSingleton<IQrCodeRenderer, QrCodeRenderer>();
         collection.AddSingleton<ILanAddressProvider, LanAddressProvider>();
         collection.AddSingleton<RoomManagementViewModel>();
@@ -154,17 +135,20 @@ public partial class App : System.Windows.Application
         collection.AddSingleton<MainWindow>();
         services = collection.BuildServiceProvider(new ServiceProviderOptions { ValidateOnBuild = true, ValidateScopes = true });
         await services.GetRequiredService<ILocalDiagnosticLog>().WriteAsync("Information", "desktop.starting", "AI-KTV Station desktop is starting.");
-        await services.GetRequiredService<DatabaseUpgradeService>().UpgradeAsync();
-        await services.GetRequiredService<PlaybackStartupRecoveryService>().RecoverAsync();
         var serverOptions = new StationOptions
         {
             Server = options.Server,
-            Storage = new StorageOptions { DataDirectory = dataDirectory },
+            Storage = new StorageOptions { DataDirectory = dataDirectory, MediaMountRoot = options.Storage.MediaMountRoot },
             Player = options.Player,
         };
         embeddedServer = StationServerHost.Build([], builder =>
         {
             builder.Services.AddSingleton(options.Scanning);
+            builder.Services.AddSingleton(options);
+            builder.Services.AddScoped<IStationHealthService, StationHealthService>();
+            builder.Services.AddScoped<ICatalogAdminRepository, EfCatalogAdminRepository>();
+            builder.Services.AddScoped<ICatalogAdminService, CatalogAdminService>();
+            builder.Services.AddScoped<ICatalogJsonImportService, CatalogJsonImportService>();
             builder.Configuration.AddInMemoryCollection(new Dictionary<string, string?>
             {
                 [$"{StationOptions.SectionName}:Server:BindAddress"] = serverOptions.Server.BindAddress,
@@ -173,7 +157,7 @@ public partial class App : System.Windows.Application
                 [$"{StationOptions.SectionName}:Player:CommandTimeoutSeconds"] = serverOptions.Player.CommandTimeoutSeconds.ToString(System.Globalization.CultureInfo.InvariantCulture),
             });
         }, services.GetRequiredService<IPlayerAdapter>(), Path.Combine(AppContext.BaseDirectory, "wwwroot"));
-        await StationServerHost.InitializeAsync(embeddedServer.Services);
+        await Task.Run(() => StationServerHost.InitializeAsync(embeddedServer.Services));
         await embeddedServer.StartAsync();
         await services.GetRequiredService<ILocalDiagnosticLog>().WriteAsync("Information", "server.started", "The embedded room service started.");
         MainWindow = services.GetRequiredService<MainWindow>();
@@ -192,6 +176,10 @@ public partial class App : System.Windows.Application
                 await services.GetRequiredService<PlaybackConsoleViewModel>().RefreshAsync();
                 await services.GetRequiredService<QueueManagementViewModel>().RefreshAsync();
                 await services.GetRequiredService<DesktopSongRequestViewModel>().RefreshQueueSummaryAsync();
+            }
+            catch (Exception exception)
+            {
+                await services.GetRequiredService<ILocalDiagnosticLog>().WriteAsync("Error", "desktop.refresh_failed", exception.GetType().Name);
             }
             finally { refreshing = false; }
         };

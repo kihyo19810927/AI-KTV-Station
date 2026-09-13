@@ -18,6 +18,7 @@ public sealed record QueueEntry(
 
 public interface IRoomQueueService
 {
+    Task<Result<QueueEntry>> RequestAsync(RoomIdentity identity, Guid songId, CancellationToken cancellationToken = default);
     Task<Result<IReadOnlyList<QueueEntry>>> ListAsync(RoomIdentity identity, CancellationToken cancellationToken = default);
     Task<Result<bool>> RemoveAsync(RoomIdentity identity, Guid itemId, CancellationToken cancellationToken = default);
     Task<Result<QueueEntry>> MoveToTopAsync(RoomIdentity identity, Guid itemId, CancellationToken cancellationToken = default);

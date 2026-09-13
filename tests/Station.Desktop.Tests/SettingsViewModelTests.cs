@@ -10,9 +10,9 @@ public sealed class SettingsViewModelTests
     public async Task Save_validates_through_store_and_reports_restart_boundary()
     {
         var store = new FakeStore(); var log = new FakeLog();
-        var viewModel = new SettingsViewModel(store, new FakeDiagnostics(), log, new StationOptions()) { Port = 5098, DataDirectory = "new-data" };
+        var viewModel = new SettingsViewModel(store, new FakeDiagnostics(), log, new StationOptions()) { Port = 5098, DataDirectory = "new-data", MediaMountRoot = @"F:\CloudDrive\115" };
         await viewModel.SaveAsync();
-        Assert.Equal(5098, store.Saved!.Server.Port); Assert.Contains("重启后生效", viewModel.StatusMessage);
+        Assert.Equal(5098, store.Saved!.Server.Port); Assert.Equal(@"F:\CloudDrive\115", store.Saved.Storage.MediaMountRoot); Assert.Contains("重启后生效", viewModel.StatusMessage);
         Assert.Contains("settings.saved", log.Codes);
     }
 

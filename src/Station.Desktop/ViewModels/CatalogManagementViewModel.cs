@@ -3,6 +3,7 @@ using System.IO;
 using System.Windows.Input;
 using Station.Application.Catalog;
 using Station.Application.Search;
+using Station.Application.Configuration;
 using Station.Desktop.Services;
 
 namespace Station.Desktop.ViewModels;
@@ -25,7 +26,7 @@ public sealed class CatalogManagementViewModel : ObservableObject
     private string importMountRoot = string.Empty;
     private bool isImporting;
 
-    public CatalogManagementViewModel(ISongSearchIndex search, ICatalogAdminService catalog, ICatalogJsonImportService importer, ICatalogImportFilePicker importFilePicker)
+    public CatalogManagementViewModel(ISongSearchIndex search, ICatalogAdminService catalog, ICatalogJsonImportService importer, ICatalogImportFilePicker importFilePicker, StationOptions options)
     {
         this.search = search; this.catalog = catalog; this.importer = importer; this.importFilePicker = importFilePicker;
         SearchCommand = new AsyncRelayCommand(SearchAsync);
@@ -33,6 +34,7 @@ public sealed class CatalogManagementViewModel : ObservableObject
         SaveMetadataCommand = new AsyncRelayCommand(SaveMetadataAsync);
         var bundledIndex = Path.Combine(AppContext.BaseDirectory, "initial-library", "ktv_songs_index.jsonl");
         if (File.Exists(bundledIndex)) importFilePath = bundledIndex;
+        importMountRoot = options.Storage.MediaMountRoot;
         SelectImportFileCommand = new RelayCommand<object?>(_ => SelectImportFile());
         ImportCatalogCommand = new AsyncRelayCommand(ImportCatalogAsync, () => !IsImporting);
     }

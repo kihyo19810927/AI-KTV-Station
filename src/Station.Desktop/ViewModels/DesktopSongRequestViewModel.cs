@@ -14,7 +14,7 @@ public sealed class DesktopSongRequestViewModel : ObservableObject
     private const int ArtistPageSize = 24;
     private readonly ISongSearchIndex search;
     private readonly IArtistBrowseService artistBrowse;
-    private readonly RoomQueueService queue;
+    private readonly IRoomQueueService queue;
     private readonly HostRoomContext room;
     private string searchText = string.Empty;
     private string statusMessage = "输入关键字后选择按歌名或按歌手搜索，也可以按歌星浏览";
@@ -23,8 +23,9 @@ public sealed class DesktopSongRequestViewModel : ObservableObject
     private string artistGroup = string.Empty;
     private IReadOnlyList<ArtistBrowseItem> allArtists = [];
     private int artistPage = 1;
+    private int browseVersion;
 
-    public DesktopSongRequestViewModel(ISongSearchIndex search, IArtistBrowseService artistBrowse, RoomQueueService queue,
+    public DesktopSongRequestViewModel(ISongSearchIndex search, IArtistBrowseService artistBrowse, IRoomQueueService queue,
         HostRoomContext room, QueueManagementViewModel queueManagement)
     {
         this.search = search; this.artistBrowse = artistBrowse; this.queue = queue; this.room = room;
@@ -68,16 +69,20 @@ public sealed class DesktopSongRequestViewModel : ObservableObject
 
     private async Task SearchAsync(SongSearchField field)
     {
+        var version = ++browseVersion;
         var result = await search.SearchAsync(new SongSearchQuery(SearchText.Trim(), 1, 100, Sort: SongSearchSort.Relevance, Field: field));
+        if (version != browseVersion) return;
         if (result.IsFailure) { StatusMessage = $"搜索失败：{result.Error.Message}"; return; }
         Replace(Songs, result.Value.Items); ShowingArtists = false; StatusMessage = $"找到 {result.Value.Total:N0} 首歌曲";
     }
 
     private async Task SearchArtistAsync(string artist)
     {
+        var version = ++browseVersion;
         SearchText = artist;
         var result = await search.SearchAsync(new SongSearchQuery(
             artist, 1, 100, Sort: SongSearchSort.Relevance, Artist: artist, Field: SongSearchField.Artist));
+        if (version != browseVersion) return;
         if (result.IsFailure) { StatusMessage = $"搜索失败：{result.Error.Message}"; return; }
         Replace(Songs, result.Value.Items);
         ShowingArtists = false;
@@ -86,8 +91,11 @@ public sealed class DesktopSongRequestViewModel : ObservableObject
 
     private async Task LoadArtistsAsync(string group)
     {
+        var version = ++browseVersion;
         ArtistGroup = group == "全部" ? string.Empty : group;
-        allArtists = await artistBrowse.ListAsync(ArtistGroup, 3_000);
+        var loaded = await artistBrowse.ListAsync(ArtistGroup, 3_000);
+        if (version != browseVersion) return;
+        allArtists = loaded;
         artistPage = 1;
         ShowArtistPage();
         ShowingArtists = true;

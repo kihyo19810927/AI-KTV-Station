@@ -57,6 +57,7 @@ public static class StationServerHost
         var host = address.AddressFamily == AddressFamily.InterNetworkV6 ? $"[{address}]" : address.ToString();
         builder.WebHost.UseUrls($"http://{host}:{options.Server.Port}");
         var dataDirectory = Path.GetFullPath(options.Storage.DataDirectory, builder.Environment.ContentRootPath); Directory.CreateDirectory(dataDirectory);
+        builder.Services.AddSingleton<ArtistBrowseCache>();
         builder.Services.AddDbContext<StationDbContext>(db => db.UseSqlite($"Data Source={Path.Combine(dataDirectory, "station.db")}"));
         AddServices(builder.Services, options, sharedPlayer);
         var app = builder.Build(); MapPipeline(app); return app;

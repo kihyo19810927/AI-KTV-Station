@@ -1,10 +1,31 @@
 using Microsoft.EntityFrameworkCore;
 using Station.Domain.Models;
+using Station.Infrastructure.Search;
 
 namespace Station.Infrastructure.Persistence;
 
-public sealed class StationDbContext(DbContextOptions<StationDbContext> options) : DbContext(options)
+public sealed class StationDbContext(DbContextOptions<StationDbContext> options, ArtistBrowseCache? artistCache = null) : DbContext(options)
 {
+    private bool ChangesArtistStatistics() => ChangeTracker.Entries().Any(x =>
+        (x.State is EntityState.Added or EntityState.Modified or EntityState.Deleted) &&
+        (x.Entity is Song or Artist or SongArtist or Favorite or Station.Domain.Models.PlayHistory or ProfilePlaylistItem or ProfilePlaylist));
+
+    public override int SaveChanges(bool acceptAllChangesOnSuccess)
+    {
+        var invalidate = artistCache is not null && ChangesArtistStatistics();
+        var result = base.SaveChanges(acceptAllChangesOnSuccess);
+        if (invalidate) artistCache?.Invalidate(Database.GetConnectionString()!);
+        return result;
+    }
+
+    public override async Task<int> SaveChangesAsync(bool acceptAllChangesOnSuccess, CancellationToken cancellationToken = default)
+    {
+        var invalidate = artistCache is not null && ChangesArtistStatistics();
+        var result = await base.SaveChangesAsync(acceptAllChangesOnSuccess, cancellationToken).ConfigureAwait(false);
+        if (invalidate) artistCache?.Invalidate(Database.GetConnectionString()!);
+        return result;
+    }
+
     public DbSet<Song> Songs => Set<Song>();
     public DbSet<Artist> Artists => Set<Artist>();
     public DbSet<SongArtist> SongArtists => Set<SongArtist>();

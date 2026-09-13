@@ -85,7 +85,8 @@ public sealed class PlaybackConsoleViewModel : ObservableObject, IDisposable
     {
         if (State != PlayerLifecycleState.Playing) { lastProgressUpdate = DateTimeOffset.UtcNow; return; }
         var now = DateTimeOffset.UtcNow;
-        var elapsed = Math.Clamp((now - lastProgressUpdate).TotalSeconds, 0, 1);
+        // A stalled Dispatcher must not make the progress bar visibly jump.
+        var elapsed = Math.Clamp((now - lastProgressUpdate).TotalSeconds, 0, 0.5);
         lastProgressUpdate = now;
         if (elapsed <= 0 || PositionSeconds >= DurationSeconds) return;
         PositionSeconds = Math.Min(DurationSeconds, PositionSeconds + elapsed);
@@ -124,7 +125,7 @@ public sealed class PlaybackConsoleViewModel : ObservableObject, IDisposable
         var result = await queue.ListAsync(roomContext.Identity).ConfigureAwait(true);
         if (result.IsFailure) return;
         var current = result.Value.FirstOrDefault(x => x.Status is QueueItemStatus.Playing or QueueItemStatus.Paused or QueueItemStatus.Preparing);
-        if (current is null && State is PlayerLifecycleState.Playing or PlayerLifecycleState.Paused or PlayerLifecycleState.Preparing)
+        if (current is null && (State is PlayerLifecycleState.Playing or PlayerLifecycleState.Paused or PlayerLifecycleState.Preparing))
             current = result.Value.FirstOrDefault();
         CurrentSongTitle = current?.Title ?? "暂无歌曲";
         CurrentSongArtists = current?.Artists ?? string.Empty;
