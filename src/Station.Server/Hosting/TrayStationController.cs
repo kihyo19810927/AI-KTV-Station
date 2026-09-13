@@ -59,13 +59,13 @@ public sealed class TrayStationController(ITrayStationRuntime runtime, IPlayerAd
 
     public async Task<bool> StartAsync(CancellationToken cancellationToken = default)
     {
-        await gate.WaitAsync(cancellationToken);
+        await gate.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
         {
             ThrowIfDisposed();
             if (started) return true;
-            await runtime.InitializeAsync(cancellationToken);
-            await runtime.StartAsync(cancellationToken);
+            await runtime.InitializeAsync(cancellationToken).ConfigureAwait(false);
+            await runtime.StartAsync(cancellationToken).ConfigureAwait(false);
             started = true;
             return edge.TryOpen(desktopUri);
         }
@@ -81,13 +81,13 @@ public sealed class TrayStationController(ITrayStationRuntime runtime, IPlayerAd
 
     public async Task StopAsync(CancellationToken cancellationToken = default)
     {
-        await gate.WaitAsync(cancellationToken);
+        await gate.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
         {
             if (!started) return;
-            try { await player.StopAsync(cancellationToken); }
+            try { await player.StopAsync(cancellationToken).ConfigureAwait(false); }
             catch { /* Host shutdown continues so the adapter can dispose its owned process. */ }
-            await runtime.StopAsync(cancellationToken);
+            await runtime.StopAsync(cancellationToken).ConfigureAwait(false);
             started = false;
         }
         finally { gate.Release(); }
@@ -100,7 +100,7 @@ public sealed class TrayStationController(ITrayStationRuntime runtime, IPlayerAd
         finally
         {
             disposed = true;
-            await runtime.DisposeAsync();
+            await runtime.DisposeAsync().ConfigureAwait(false);
             gate.Dispose();
         }
     }

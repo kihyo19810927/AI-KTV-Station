@@ -65,6 +65,8 @@ public sealed class QueuePlaybackOrchestrator(
             running = true;
             halted = false;
             lastErrorCode = null;
+            if (continuationGate?.IsSuspended == true)
+                return Result<PlaybackOrchestrationState>.Success(Current);
             var state = await player.GetStateAsync(cancellationToken).ConfigureAwait(false);
             if (state.IsFailure) return Failure(state.Error.Code, state.Error.Message);
             if (state.Value.State == PlayerLifecycleState.Stopped)

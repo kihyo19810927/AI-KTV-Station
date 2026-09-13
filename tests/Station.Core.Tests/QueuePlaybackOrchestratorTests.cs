@@ -135,6 +135,7 @@ public sealed class QueuePlaybackOrchestratorTests
         var gate = new PlaybackContinuationGate();
         var service = new QueuePlaybackOrchestrator(player, store, new PlaybackRecoveryService(new MemoryFailureStore(),
             new PlaybackRecoveryPolicy(2, TimeSpan.Zero, TimeSpan.Zero)), TimeProvider.System, gate);
+        gate.Resume();
         await service.StartAsync(store.RoomId);
         var playbackId = service.Current.PlaybackId;
 
@@ -145,6 +146,31 @@ public sealed class QueuePlaybackOrchestratorTests
         Assert.Null(service.Current.QueueItemId);
         Assert.Single(player.Loads);
         Assert.Equal(QueueItemStatus.Skipped, store.Statuses[store.Items[0].QueueItemId]);
+    }
+
+    [Fact]
+    public async Task Cold_start_with_continuation_gate_does_not_start_player_or_consume_saved_queue()
+    {
+        var player = new FakePlayer();
+        var store = new MemoryPlaybackStore(Item(1));
+        var gate = new PlaybackContinuationGate();
+        var service = new QueuePlaybackOrchestrator(player, store, new PlaybackRecoveryService(new MemoryFailureStore(),
+            new PlaybackRecoveryPolicy(0, TimeSpan.Zero, TimeSpan.Zero)), TimeProvider.System, gate);
+
+        var idle = await service.StartAsync(store.RoomId);
+
+        Assert.True(idle.IsSuccess);
+        Assert.True(gate.IsSuspended);
+        Assert.Equal(0, player.StartCount);
+        Assert.Empty(player.Loads);
+        Assert.Null(service.Current.QueueItemId);
+
+        gate.Resume();
+        var resumed = await service.StartAsync(store.RoomId);
+
+        Assert.True(resumed.IsSuccess);
+        Assert.Equal(1, player.StartCount);
+        Assert.Single(player.Loads);
     }
 
     private static QueuePlaybackOrchestrator Create(

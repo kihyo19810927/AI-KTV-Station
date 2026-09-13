@@ -6,6 +6,9 @@ internal sealed class TrayApplicationContext : ApplicationContext
 {
     private readonly NotifyIcon notifyIcon;
     private readonly TrayStationController controller;
+    private bool shuttingDown;
+    private TimeSpan? smokeExitDelay;
+    private System.Threading.Timer? smokeExitTimer;
 
     public TrayApplicationContext(TrayStationController controller)
     {
@@ -26,10 +29,26 @@ internal sealed class TrayApplicationContext : ApplicationContext
 
     protected override void ExitThreadCore()
     {
-        notifyIcon.Visible = false;
-        controller.DisposeAsync().AsTask().GetAwaiter().GetResult();
-        notifyIcon.Dispose();
-        base.ExitThreadCore();
+        if (shuttingDown)
+        {
+            base.ExitThreadCore();
+            return;
+        }
+
+        BeginShutdown();
+    }
+
+    public void ScheduleSmokeExit(TimeSpan delay) => smokeExitDelay = delay;
+
+    private void ExitAfter(TimeSpan delay)
+    {
+        // Startup completion may resume on a worker thread. A Forms.Timer then
+        // has no message pump, so use a thread-pool timer for smoke-only exit.
+        smokeExitTimer = new System.Threading.Timer(static state =>
+        {
+            var context = (TrayApplicationContext)state!;
+            context.BeginShutdown();
+        }, this, delay, Timeout.InfiniteTimeSpan);
     }
 
     private async Task StartAsync()
@@ -38,11 +57,40 @@ internal sealed class TrayApplicationContext : ApplicationContext
         {
             var opened = await controller.StartAsync();
             if (!opened) notifyIcon.ShowBalloonTip(5000, "AI-KTV Station", "服务已启动；未能自动打开 Edge，请从托盘菜单打开桌面点歌。", ToolTipIcon.Info);
+            if (smokeExitDelay is { } delay) ExitAfter(delay);
         }
         catch (Exception exception)
         {
             notifyIcon.ShowBalloonTip(8000, "AI-KTV Station 启动失败", $"{exception.GetType().Name}。请查看本机诊断。", ToolTipIcon.Error);
         }
+    }
+
+    private async Task StopThenExitAsync()
+    {
+        try
+        {
+            var shutdown = controller.DisposeAsync().AsTask();
+            if (await Task.WhenAny(shutdown, Task.Delay(TimeSpan.FromSeconds(10))) == shutdown)
+                await shutdown;
+        }
+        finally
+        {
+            notifyIcon.Dispose();
+            // The notification-area message pump can be in an exit transition
+            // already. Do not leave this process alive if that pump ignores a
+            // cross-thread ExitThread request after the controlled shutdown.
+            Environment.Exit(0);
+        }
+    }
+
+    private void BeginShutdown()
+    {
+        if (shuttingDown) return;
+        shuttingDown = true;
+        smokeExitTimer?.Dispose();
+        smokeExitTimer = null;
+        notifyIcon.Visible = false;
+        _ = StopThenExitAsync();
     }
 
     private async Task OpenDesktopAsync()

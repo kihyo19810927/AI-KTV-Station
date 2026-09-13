@@ -10,9 +10,7 @@
 
 1. 核对 ZIP 旁 `.sha256` 文件与本机 `Get-FileHash <zip> -Algorithm SHA256` 一致。
 2. 将 ZIP 解压到用户可写的固定目录，例如 `%LOCALAPPDATA%\Programs\AI-KTV-Station`。不要从 ZIP 内直接运行。
-3. 当前候选包启动 `Station.Desktop.exe`。首次启动会在程序目录的 `data` 子目录创建 SQLite 数据库，并在 `%LOCALAPPDATA%\AI-KTV Station` 保存设置、日志和脱敏诊断。
-
-> 后续 Web 桌面端候选包将改由 `Station.Tray.exe` 启动：它驻留通知区、启动本机 Server 并打开 Edge App 窗口。退出托盘菜单会仅停止本程序所创建的 mpv 实例，不会结束其他 mpv 进程。
+3. 当前 Server/桌面候选包启动 `Station.Tray.exe`。它驻留通知区、启动本机 Server 并打开 Edge App 窗口。退出托盘菜单会仅停止本程序所创建的 mpv 实例，不会结束其他 mpv 进程。首次启动会在程序目录的 `data` 子目录创建 SQLite 数据库，并在 `%LOCALAPPDATA%\AI-KTV Station` 保存设置、日志和脱敏诊断。不要将 `Station.Server` 的开发命令当作日常入口：它没有托盘，也不会自行创建房间。
 4. 如需手机访问，在设置中选择明确的局域网 IP；服务默认监听 `0.0.0.0:5090`，房间二维码使用可达的局域网地址。不得映射公网端口。
 5. 先添加一个小批测试目录，确认后手动扫描；添加来源不会自动扫描，更不得直接选择庞大的挂载根目录。
 
@@ -23,13 +21,13 @@
 从干净源码使用 PowerShell 7：
 
 ```powershell
-pwsh.exe -ExecutionPolicy Bypass -File scripts/publish-windows.ps1 -Version 0.1.0-rc.12
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/publish-windows.ps1 -Version 0.1.0-rc.12
 ```
 
 若要将已验收的歌曲索引、收藏和人工修正作为新安装的初始数据一并发布，关闭正在使用该数据库的 Station 实例后显式传入数据库快照；路径不会写入仓库或安装包配置：
 
 ```powershell
-pwsh.exe -ExecutionPolicy Bypass -File scripts/publish-windows.ps1 -Version 0.1.0-rc.19 -SeedDatabasePath 'D:\Applications\AI-KTV-Station\data\station.db'
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/publish-windows.ps1 -Version 0.1.0-rc.19 -SeedDatabasePath 'D:\Applications\AI-KTV-Station\data\station.db'
 ```
 
 发布脚本只接受名为 `station.db` 的非空文件。它通过 SQLite 只读备份 API 生成一致快照，因此即使源库带有 `-wal`/`-shm` 旁写日志也不会漏掉已提交数据；随后只对发布暂存副本应用待迁移并重建搜索索引，源数据库不会被修改。安装包中的初始库位于 `data/station.db`；升级已有安装时，不会覆盖目标目录中已有的数据库。

@@ -49,6 +49,10 @@ public static class StationServerHost
         builder.Configuration.AddJsonFile(runtimePaths.SettingsFile, optional: true, reloadOnChange: false);
         configure?.Invoke(builder);
         builder.Logging.ClearProviders();
+        // The Server may run from a visible console during development. EF's
+        // polling queries are not user-facing progress and must not flood it.
+        builder.Logging.AddFilter("Microsoft.EntityFrameworkCore.Database.Command", LogLevel.Warning);
+        builder.Logging.AddFilter("Microsoft.AspNetCore", LogLevel.Warning);
         builder.Logging.AddJsonConsole();
         builder.Services.AddOptions<StationOptions>().BindConfiguration(StationOptions.SectionName).Validate(x => StationOptionsValidator.Validate(x).IsSuccess, "Station configuration is invalid.").ValidateOnStart();
         builder.Services.ConfigureHttpJsonOptions(x => x.SerializerOptions.Converters.Add(new JsonStringEnumConverter()));

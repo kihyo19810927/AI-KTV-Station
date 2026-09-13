@@ -150,6 +150,7 @@
 | KTVS-087 | 已验收数据库的安全随包快照 | KTVS-076,086 | Done | 发布脚本以 SQLite Backup API 读取可带 WAL 的源库，在暂存副本预迁移并重建 FTS；ZIP 仅保留单个 `data/station.db`，不含 WAL/SHM 或设置 | 含真实曲库数据的候选包仅限所有者本地验收，不得推送或公开分发 |
 | KTVS-088 | WPF 数据作用域、歌手统计缓存与收尾视觉修复 | KTVS-087 | Done | 每次桌面用例使用独立 Server scope 且读取不跟踪；歌手统计 SQL 聚合/30 秒缓存/写入失效；紧凑刷新按钮、可读迷你状态条；JSON 曲库挂载路径配置重映射且不重复导入 | RC22 含真实曲库数据仅本地验收；PR 通过后才开始 Web 桌面端 |
 | KTVS-089 | Server 本机管理能力与托盘启动器 | KTVS-088 | Done | 本机设置、JSON/JSONL 导入、健康和脱敏诊断由 Server 提供 loopback-only API；通知区启动器启动 Server、打开 Edge App 并受控停止其播放器 | `/desk` 视觉页由下一任务实现；托盘/Edge 真实 Windows 交互待验收 |
+| KTVS-090 | 托盘版可执行包与冷启动安全 | KTVS-089 | Done | 默认交付 `Station.Tray.exe`；Windows PowerShell 5.1 可发布；历史队列冷启动保持待机、不拉起 MPV；通知区受控退出不残留自身进程 | `/desk` 主控建房界面与真实通知区交互待验收 |
 
 ## 后续阶段门禁
 
