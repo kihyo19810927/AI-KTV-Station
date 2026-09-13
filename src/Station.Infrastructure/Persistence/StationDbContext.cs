@@ -1,10 +1,31 @@
 using Microsoft.EntityFrameworkCore;
 using Station.Domain.Models;
+using Station.Infrastructure.Search;
 
 namespace Station.Infrastructure.Persistence;
 
-public sealed class StationDbContext(DbContextOptions<StationDbContext> options) : DbContext(options)
+public sealed class StationDbContext(DbContextOptions<StationDbContext> options, ArtistBrowseCache? artistCache = null) : DbContext(options)
 {
+    private bool ChangesArtistStatistics() => ChangeTracker.Entries().Any(x =>
+        (x.State is EntityState.Added or EntityState.Modified or EntityState.Deleted) &&
+        (x.Entity is Song or Artist or SongArtist or Favorite or Station.Domain.Models.PlayHistory or ProfilePlaylistItem or ProfilePlaylist));
+
+    public override int SaveChanges(bool acceptAllChangesOnSuccess)
+    {
+        var invalidate = artistCache is not null && ChangesArtistStatistics();
+        var result = base.SaveChanges(acceptAllChangesOnSuccess);
+        if (invalidate) artistCache?.Invalidate(Database.GetConnectionString()!);
+        return result;
+    }
+
+    public override async Task<int> SaveChangesAsync(bool acceptAllChangesOnSuccess, CancellationToken cancellationToken = default)
+    {
+        var invalidate = artistCache is not null && ChangesArtistStatistics();
+        var result = await base.SaveChangesAsync(acceptAllChangesOnSuccess, cancellationToken).ConfigureAwait(false);
+        if (invalidate) artistCache?.Invalidate(Database.GetConnectionString()!);
+        return result;
+    }
+
     public DbSet<Song> Songs => Set<Song>();
     public DbSet<Artist> Artists => Set<Artist>();
     public DbSet<SongArtist> SongArtists => Set<SongArtist>();
@@ -19,6 +40,10 @@ public sealed class StationDbContext(DbContextOptions<StationDbContext> options)
     public DbSet<PlayHistory> PlayHistory => Set<PlayHistory>();
     public DbSet<ScanRun> ScanRuns => Set<ScanRun>();
     public DbSet<PlaybackError> PlaybackErrors => Set<PlaybackError>();
+    public DbSet<UserProfile> UserProfiles => Set<UserProfile>();
+    public DbSet<ProfileDevice> ProfileDevices => Set<ProfileDevice>();
+    public DbSet<ProfilePlaylist> ProfilePlaylists => Set<ProfilePlaylist>();
+    public DbSet<ProfilePlaylistItem> ProfilePlaylistItems => Set<ProfilePlaylistItem>();
 
     protected override void OnModelCreating(ModelBuilder model)
     {
@@ -63,5 +88,28 @@ public sealed class StationDbContext(DbContextOptions<StationDbContext> options)
         model.Entity<PlayHistory>().Property(x => x.Outcome).HasConversion<string>();
         model.Entity<ScanRun>().Property(x => x.Status).HasConversion<string>();
         model.Entity<PlaybackError>().Property(x => x.ErrorCode).HasMaxLength(100);
+        model.Entity<UserProfile>(e =>
+        {
+            e.Property(x => x.DisplayName).HasMaxLength(80);
+            e.Property(x => x.AvatarUrl).HasMaxLength(1024);
+            e.Property(x => x.PinHash).HasMaxLength(1024);
+            e.HasIndex(x => new { x.IsArchived, x.LastUsedAt });
+        });
+        model.Entity<ProfileDevice>(e =>
+        {
+            e.Property(x => x.TokenHash).HasMaxLength(64);
+            e.HasIndex(x => x.TokenHash).IsUnique();
+        });
+        model.Entity<ProfilePlaylist>(e =>
+        {
+            e.Property(x => x.Name).HasMaxLength(120);
+            e.Property(x => x.Kind).HasConversion<string>();
+            e.HasIndex(x => new { x.UserProfileId, x.Kind, x.Name }).IsUnique();
+        });
+        model.Entity<ProfilePlaylistItem>(e =>
+        {
+            e.HasKey(x => new { x.ProfilePlaylistId, x.SongId });
+            e.HasIndex(x => new { x.ProfilePlaylistId, x.Position }).IsUnique();
+        });
     }
 }

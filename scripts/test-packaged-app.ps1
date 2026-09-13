@@ -1,4 +1,7 @@
-param([Parameter(Mandatory)][string]$Package)
+param(
+    [Parameter(Mandatory)][string]$Package,
+    [switch]$RequireSeedDatabase
+)
 
 $ErrorActionPreference = 'Stop'
 $packagePath = (Resolve-Path -LiteralPath $Package).Path
@@ -17,6 +20,10 @@ try {
     Expand-Archive -LiteralPath $packagePath -DestinationPath $extractRoot
     $executable = Get-ChildItem -LiteralPath $extractRoot -Filter Station.Desktop.exe -File -Recurse | Select-Object -First 1
     if (-not $executable) { throw 'Station.Desktop.exe is missing from extracted package.' }
+    $seedDatabase = Join-Path $executable.DirectoryName 'data\station.db'
+    if ($RequireSeedDatabase -and -not (Test-Path -LiteralPath $seedDatabase -PathType Leaf)) {
+        throw 'Packaged seed database is missing before the application starts.'
+    }
 
     $settings = @{
         Server = @{ BindAddress = '127.0.0.1'; Port = $port }
@@ -27,7 +34,8 @@ try {
     $env:AI_KTV_STATION_SETTINGS_ROOT = $settingsRoot
     $process = Start-Process -FilePath $executable.FullName -WorkingDirectory $executable.DirectoryName -WindowStyle Hidden -PassThru
 
-    $deadline = [DateTimeOffset]::UtcNow.AddSeconds(20)
+    $startupTimeoutSeconds = if ($RequireSeedDatabase) { 90 } else { 20 }
+    $deadline = [DateTimeOffset]::UtcNow.AddSeconds($startupTimeoutSeconds)
     $healthy = $false
     while ([DateTimeOffset]::UtcNow -lt $deadline -and -not $process.HasExited) {
         try {
@@ -44,7 +52,7 @@ try {
         } else { ' No diagnostic log was created.' }
         throw "Packaged desktop did not expose a healthy embedded service.$exitDetail$logDetail"
     }
-    if (-not (Test-Path -LiteralPath (Join-Path $executable.DirectoryName 'data\station.db'))) { throw 'Packaged desktop did not initialize its isolated database.' }
+    if (-not (Test-Path -LiteralPath $seedDatabase)) { throw 'Packaged desktop did not initialize its isolated database.' }
     # /health may respond before XAML is instantiated; validate that the desktop really opened.
     $windowDeadline = [DateTimeOffset]::UtcNow.AddSeconds(10)
     do {

@@ -31,6 +31,20 @@ public sealed class QueueManagementViewModelTests
     }
 
     [Fact]
+    public async Task Refresh_with_unchanged_queue_keeps_existing_items_for_smooth_rendering()
+    {
+        var identity = new RoomIdentity(Guid.NewGuid(), Guid.NewGuid(), "主持人", RoomRole.Host, DateTimeOffset.UtcNow.AddHours(1));
+        var entry = Entry("不重绘歌曲", 1024);
+        var viewModel = new QueueManagementViewModel(new FakeQueue { Entries = [entry] }, new HostRoomContext { Identity = identity });
+
+        await viewModel.RefreshAsync();
+        var projected = viewModel.Items.Single();
+        await viewModel.RefreshAsync();
+
+        Assert.Same(projected, viewModel.Items.Single());
+    }
+
+    [Fact]
     public async Task Insert_failure_is_reported_without_escaping_the_view_model()
     {
         var identity = new RoomIdentity(Guid.NewGuid(), Guid.NewGuid(), "主持人", RoomRole.Host, DateTimeOffset.UtcNow.AddHours(1));
@@ -49,6 +63,7 @@ public sealed class QueueManagementViewModelTests
     private static QueueEntry Entry(string title, long position) => new(Guid.NewGuid(), Guid.NewGuid(), title, Guid.NewGuid(), "访客", position, QueueItemStatus.Waiting, DateTimeOffset.UtcNow);
     private sealed class FakeQueue : IRoomQueueService
     {
+        public Task<Result<QueueEntry>> RequestAsync(RoomIdentity identity, Guid songId, CancellationToken cancellationToken = default) => throw new NotSupportedException();
         public IReadOnlyList<QueueEntry> Entries { get; set; } = [];
         public bool ThrowOnMoveTop { get; set; }
         public Task<Result<IReadOnlyList<QueueEntry>>> ListAsync(RoomIdentity identity, CancellationToken cancellationToken = default) => Task.FromResult(Result<IReadOnlyList<QueueEntry>>.Success(Entries));

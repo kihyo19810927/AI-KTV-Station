@@ -13,7 +13,7 @@ public sealed class CatalogManagementViewModelTests
     public async Task Initialization_searches_existing_index_without_importing()
     {
         var search = new FakeSearch(); var importer = new FakeImporter();
-        var viewModel = new CatalogManagementViewModel(search, new FakeCatalog(), importer, new FakePicker(null));
+        var viewModel = new CatalogManagementViewModel(search, new FakeCatalog(), importer, new FakePicker(null), new Station.Application.Configuration.StationOptions());
 
         await viewModel.InitializeAsync();
 
@@ -24,7 +24,7 @@ public sealed class CatalogManagementViewModelTests
     public async Task Import_uses_selected_json_and_mount_root_then_refreshes_search()
     {
         var search = new FakeSearch(); var importer = new FakeImporter();
-        var viewModel = new CatalogManagementViewModel(search, new FakeCatalog(), importer, new FakePicker(@"D:\fixture\曲库.jsonl")) { ImportMountRoot = @"E:\KTV_TEST" };
+        var viewModel = new CatalogManagementViewModel(search, new FakeCatalog(), importer, new FakePicker(@"D:\fixture\曲库.jsonl"), new Station.Application.Configuration.StationOptions()) { ImportMountRoot = @"E:\KTV_TEST" };
         viewModel.SelectImportFileCommand.Execute(null);
 
         viewModel.ImportCatalogCommand.Execute(null);

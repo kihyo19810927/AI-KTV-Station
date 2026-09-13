@@ -16,6 +16,7 @@ public sealed class CatalogJsonImportService(
     ISongSearchIndex searchIndex,
     ArtistLexicon? artistLexicon = null) : ICatalogJsonImportService
 {
+    private const string ImportedCatalogSourceName = "115 JSON 曲库";
     private static readonly JsonSerializerOptions JsonOptions = new() { PropertyNameCaseInsensitive = true };
 
     public async Task<Result<CatalogImportResult>> ImportAsync(string indexPath, string mountRoot,
@@ -29,14 +30,30 @@ public sealed class CatalogJsonImportService(
         {
             return Failure("catalog.import_root_invalid", "Mounted media root is invalid.");
         }
-        var source = await database.MediaSources.FirstOrDefaultAsync(x => x.RootPath == root, cancellationToken);
+        // The JSON contains portable relative paths.  Its one logical 115 source
+        // must survive a drive-letter or CloudDrive mount change without creating
+        // another copy of every song.
+        var sources = await database.MediaSources.Where(x => x.Name == ImportedCatalogSourceName)
+            .OrderBy(x => x.Id).ToListAsync(cancellationToken);
+        var source = sources.FirstOrDefault(x => string.Equals(x.RootPath, root, StringComparison.OrdinalIgnoreCase));
+        if (source is null && sources.Count > 0)
+        {
+            source = sources[0];
+            foreach (var item in sources)
+            {
+                item.RootPath = root;
+                item.Availability = Directory.Exists(root) ? AvailabilityStatus.Available : AvailabilityStatus.Offline;
+            }
+            await database.SaveChangesAsync(cancellationToken);
+        }
         if (source is null)
         {
-            source = new MediaSource { Name = "115 JSON 曲库", RootPath = root, Availability = Directory.Exists(root) ? AvailabilityStatus.Available : AvailabilityStatus.Offline };
+            source = new MediaSource { Name = ImportedCatalogSourceName, RootPath = root, Availability = Directory.Exists(root) ? AvailabilityStatus.Available : AvailabilityStatus.Offline };
             database.MediaSources.Add(source); await database.SaveChangesAsync(cancellationToken);
         }
         var sourceId = source.Id;
-        var existing = (await database.MediaFiles.Where(x => x.MediaSourceId == source.Id)
+        var sourceIds = sources.Select(x => x.Id).Append(source.Id).Distinct().ToArray();
+        var existing = (await database.MediaFiles.Where(x => sourceIds.Contains(x.MediaSourceId))
             .Select(x => x.RelativePath).ToListAsync(cancellationToken)).ToHashSet(StringComparer.OrdinalIgnoreCase);
         long read = 0, added = 0, skipped = 0, errors = 0;
         await foreach (var record in ReadAsync(indexPath, cancellationToken))

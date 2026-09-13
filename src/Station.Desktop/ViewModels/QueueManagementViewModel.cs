@@ -16,6 +16,7 @@ public sealed class QueueManagementViewModel : ObservableObject
     public ICommand RefreshCommand { get; }
     public ICommand RemoveCommand { get; }
     public ICommand MoveTopCommand { get; }
+    public ICommand InsertNextCommand { get; }
     public ICommand MoveUpCommand { get; }
     public ICommand MoveDownCommand { get; }
 
@@ -26,6 +27,7 @@ public sealed class QueueManagementViewModel : ObservableObject
         RefreshCommand = new AsyncRelayCommand(RefreshAsync);
         RemoveCommand = new AsyncRelayCommand<QueueEntry>(item => MutateAsync(() => queue.RemoveAsync(RequireIdentity(), item.Id)));
         MoveTopCommand = new AsyncRelayCommand<QueueEntry>(MoveTopAsync);
+        InsertNextCommand = new AsyncRelayCommand<QueueEntry>(InsertNextAsync);
         MoveUpCommand = new AsyncRelayCommand<QueueEntry>(MoveUpAsync);
         MoveDownCommand = new AsyncRelayCommand<QueueEntry>(MoveDownAsync);
     }
@@ -46,6 +48,10 @@ public sealed class QueueManagementViewModel : ObservableObject
     }
 
     public Task MoveTopAsync(QueueEntry item) => MutateAsync(() => queue.MoveToTopAsync(RequireIdentity(), item.Id));
+
+    public Task InsertNextAsync(QueueEntry item) => MutateAsync(
+        () => queue.InsertNextAsync(RequireIdentity(), item.Id),
+        $"已将《{item.Title}》插入当前播放后的下一首");
 
     private async Task MoveUpAsync(QueueEntry item)
     {
@@ -76,7 +82,7 @@ public sealed class QueueManagementViewModel : ObservableObject
 
     public Task MoveBeforeAsync(QueueEntry item, QueueEntry? before) => ReorderAsync(item.Id, before?.Id);
 
-    private async Task MutateAsync<T>(Func<Task<Result<T>>> operation)
+    private async Task MutateAsync<T>(Func<Task<Result<T>>> operation, string? successMessage = null)
     {
         try
         {
@@ -87,6 +93,7 @@ public sealed class QueueManagementViewModel : ObservableObject
                 return;
             }
             await RefreshAsync();
+            if (!string.IsNullOrWhiteSpace(successMessage)) StatusMessage = successMessage;
         }
         catch (Exception)
         {
@@ -95,7 +102,18 @@ public sealed class QueueManagementViewModel : ObservableObject
     }
 
     private Station.Application.Rooms.RoomIdentity RequireIdentity() => roomContext.Identity ?? throw new InvalidOperationException("No active host room.");
-    private void Replace(IEnumerable<QueueEntry> items) { Items.Clear(); foreach (var item in items) Items.Add(item); StatusMessage = Items.Count == 0 ? "队列为空" : $"等待队列：{Items.Count} 首"; }
+    private void Replace(IEnumerable<QueueEntry> items)
+    {
+        var next = items.ToArray();
+        if (!Items.SequenceEqual(next))
+        {
+            Items.Clear();
+            foreach (var item in next) Items.Add(item);
+        }
+        var current = Items.FirstOrDefault(x => x.Status is Station.Domain.Models.QueueItemStatus.Playing or Station.Domain.Models.QueueItemStatus.Paused or Station.Domain.Models.QueueItemStatus.Preparing);
+        var waiting = Items.Count(x => x.Status is Station.Domain.Models.QueueItemStatus.Probing or Station.Domain.Models.QueueItemStatus.Waiting or Station.Domain.Models.QueueItemStatus.ProbeFailed);
+        StatusMessage = current is null ? (Items.Count == 0 ? "队列为空" : $"等待队列：{waiting} 首") : $"正在播放《{current.Title}》 · 等待 {waiting} 首";
+    }
     private void ShowError(Error error) => StatusMessage = $"操作未完成：{error.Message}";
     private void ShowUnexpectedError() => StatusMessage = "操作未完成：队列状态已变化，请刷新后重试。";
 }

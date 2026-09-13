@@ -128,15 +128,33 @@ public sealed class RoomQueueTests
         var inserted = await fixture.Service.InsertNextAsync(fixture.GuestIdentity, second.Id);
 
         Assert.True(inserted.IsSuccess, inserted.Error.Message);
-        Assert.True(inserted.Value.Position < first.Position);
+        Assert.True(inserted.Value.Position > completedRow.Position);
 
         var third = (await fixture.Service.RequestAsync(fixture.HostIdentity, fixture.Songs[3].Id)).Value;
         var moved = await fixture.Service.MoveToTopAsync(fixture.HostIdentity, third.Id);
         Assert.True(moved.IsSuccess, moved.Error.Message);
-        Assert.True(moved.Value.Position < inserted.Value.Position);
+        Assert.True(moved.Value.Position > inserted.Value.Position);
 
         var positions = await fixture.Database.QueueItems.Select(x => x.Position).ToListAsync();
         Assert.Equal(positions.Count, positions.Distinct().Count());
+    }
+
+    [Fact]
+    public async Task Insert_next_stays_after_current_playback_and_before_waiting_items()
+    {
+        await using var fixture = await QueueFixture.CreateAsync();
+        var current = (await fixture.Service.RequestAsync(fixture.HostIdentity, fixture.Songs[0].Id)).Value;
+        var firstWaiting = (await fixture.Service.RequestAsync(fixture.HostIdentity, fixture.Songs[1].Id)).Value;
+        var insert = (await fixture.Service.RequestAsync(fixture.HostIdentity, fixture.Songs[2].Id)).Value;
+        var currentRow = await fixture.Database.QueueItems.SingleAsync(x => x.Id == current.Id);
+        currentRow.Status = QueueItemStatus.Playing;
+        await fixture.Database.SaveChangesAsync();
+
+        var result = await fixture.Service.InsertNextAsync(fixture.HostIdentity, insert.Id);
+        var ordered = (await fixture.Service.ListAsync(fixture.HostIdentity)).Value;
+
+        Assert.True(result.IsSuccess, result.Error.Message);
+        Assert.Equal([current.Id, insert.Id, firstWaiting.Id], ordered.Select(x => x.Id));
     }
 
     [Fact]

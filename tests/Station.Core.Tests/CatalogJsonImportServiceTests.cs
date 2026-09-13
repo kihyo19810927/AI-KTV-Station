@@ -52,6 +52,15 @@ public sealed class CatalogJsonImportServiceTests
             Assert.Equal(0, second.Value.Added);
             Assert.Equal(3, second.Value.Skipped);
             Assert.Equal(3, await database.Songs.CountAsync());
+
+            var remountedRoot = Path.Combine(root, "remounted-115");
+            Directory.CreateDirectory(remountedRoot);
+            var remounted = await importer.ImportAsync(indexPath, remountedRoot);
+            Assert.True(remounted.IsSuccess, remounted.Error.Code);
+            Assert.Equal(0, remounted.Value.Added);
+            Assert.Equal(3, remounted.Value.Skipped);
+            var source = Assert.Single(await database.MediaSources.ToListAsync());
+            Assert.Equal(Path.GetFullPath(remountedRoot), source.RootPath);
         }
         finally
         {

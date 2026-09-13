@@ -24,4 +24,12 @@
 pwsh.exe -ExecutionPolicy Bypass -File scripts/publish-windows.ps1 -Version 0.1.0-rc.12
 ```
 
+若要将已验收的歌曲索引、收藏和人工修正作为新安装的初始数据一并发布，关闭正在使用该数据库的 Station 实例后显式传入数据库快照；路径不会写入仓库或安装包配置：
+
+```powershell
+pwsh.exe -ExecutionPolicy Bypass -File scripts/publish-windows.ps1 -Version 0.1.0-rc.19 -SeedDatabasePath 'D:\Applications\AI-KTV-Station\data\station.db'
+```
+
+发布脚本只接受名为 `station.db` 的非空文件。它通过 SQLite 只读备份 API 生成一致快照，因此即使源库带有 `-wal`/`-shm` 旁写日志也不会漏掉已提交数据；随后只对发布暂存副本应用待迁移并重建搜索索引，源数据库不会被修改。安装包中的初始库位于 `data/station.db`；升级已有安装时，不会覆盖目标目录中已有的数据库。
+
 输出位于 `artifacts`，包含 ZIP 和 SHA-256 文件。脚本以锁定依赖构建 Web 与 .NET 自包含 `win-x64` 包，复制 `common/` 中经版本核对的运行工具及许可证说明，生成逐文件清单，并拒绝数据库或用户设置进入包。若工具或许可证说明缺失，发布脚本会失败，不生成不完整包。

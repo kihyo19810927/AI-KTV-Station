@@ -57,6 +57,7 @@ public static class StationServerHost
         var host = address.AddressFamily == AddressFamily.InterNetworkV6 ? $"[{address}]" : address.ToString();
         builder.WebHost.UseUrls($"http://{host}:{options.Server.Port}");
         var dataDirectory = Path.GetFullPath(options.Storage.DataDirectory, builder.Environment.ContentRootPath); Directory.CreateDirectory(dataDirectory);
+        builder.Services.AddSingleton<ArtistBrowseCache>();
         builder.Services.AddDbContext<StationDbContext>(db => db.UseSqlite($"Data Source={Path.Combine(dataDirectory, "station.db")}"));
         AddServices(builder.Services, options, sharedPlayer);
         var app = builder.Build(); MapPipeline(app); return app;
@@ -77,7 +78,7 @@ public static class StationServerHost
         if (sharedPlayer is null) services.AddSingleton<IPlayerAdapter>(_ => new MpvPlayerAdapter(new PlayerOptions { ExecutablePath = ExternalToolLocator.Find("mpv.exe") ?? "mpv.exe", CommandTimeoutSeconds = options.Player.CommandTimeoutSeconds })); else services.AddSingleton(sharedPlayer);
         services.AddScoped<PlaybackControlService>(); services.AddScoped<IPlaybackStartupRecoveryStore, EfPlaybackStartupRecoveryStore>(); services.AddScoped<PlaybackStartupRecoveryService>();
         services.AddScoped<IPlaybackQueueStore, EfPlaybackQueueStore>(); services.AddScoped<IQueuePreflightService, EfQueuePreflightService>(); services.AddScoped<IPlaybackFailureStore, EfPlaybackFailureStore>(); services.AddSingleton(new PlaybackRecoveryPolicy()); services.AddSingleton<PlaybackContinuationGate>(); services.AddScoped<PlaybackRecoveryService>(); services.AddScoped<QueuePlaybackOrchestrator>(); services.AddHostedService<RoomPlaybackHostedService>(); services.AddHostedService<QueuePreflightHostedService>();
-        services.AddScoped<IRoomLibraryRepository, EfRoomLibraryRepository>(); services.AddScoped<RoomLibraryService>(); services.AddSingleton<ArtistLexicon>(); services.AddScoped<IArtistBrowseService, EfArtistBrowseService>(); services.AddSingleton<RoomRealtimeJournal>(); services.AddSingleton<IRoomRealtimePublisher, SignalRRoomRealtimePublisher>(); services.AddSingleton<IQueueStatusNotifier, SignalRQueueStatusNotifier>();
+        services.AddScoped<IRoomLibraryRepository, EfRoomLibraryRepository>(); services.AddScoped<RoomLibraryService>(); services.AddScoped<IProfileLibraryRepository, EfProfileLibraryRepository>(); services.AddScoped<ProfileLibraryService>(); services.AddSingleton<ArtistLexicon>(); services.AddScoped<IArtistBrowseService, EfArtistBrowseService>(); services.AddSingleton<RoomRealtimeJournal>(); services.AddSingleton<IRoomRealtimePublisher, SignalRRoomRealtimePublisher>(); services.AddSingleton<IQueueStatusNotifier, SignalRQueueStatusNotifier>();
     }
 
     private static void MapPipeline(WebApplication app)

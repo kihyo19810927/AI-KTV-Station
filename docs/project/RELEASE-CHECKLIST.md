@@ -12,7 +12,7 @@
 - [x] 候选包清单不含密钥、Token、Cookie、真实路径或个人数据
 - [ ] mpv/FFmpeg/前后端依赖及许可证已审查；随包工具的完整许可证文本、源码对应关系和版权材料待最终复核
 - [ ] Station 项目自身许可或保留权利声明已由所有者确定
-- [x] 发布脚本自动确认不含数据库或用户设置，并强制要求随包 mpv/FFmpeg/ffprobe 和许可证说明
+- [x] 发布脚本默认不含数据库或用户设置，并强制要求随包 mpv/FFmpeg/ffprobe 和许可证说明；显式 `-SeedDatabasePath` 仅供所有者生成本地含初始库验收包
 - [x] 已选择捆绑媒体工具的技术方案，版本/来源记录在 `common/licenses/`；公开发布前仍需完整材料复核
 - [x] 本地候选 ZIP、逐文件清单和 ZIP SHA-256 可生成并验证
 - [x] RC12 候选包已生成：579 项，SHA-256 `a7b9a37731d208a6857d3415ce3e96968ea1c14e47a3f7f9f2df0b966f67ce9d`
@@ -23,6 +23,12 @@
 - [x] RC14 包含 `tools/mpv`、`tools/ffmpeg`、`tools/licenses`，隔离启动、内嵌服务健康、窗口和退出清理通过
 - [x] RC15 候选包已生成：579 项，包含 KTVS-078 插歌位置冲突和 WPF 异常保护修复；SHA-256 `24ad98043160892eb59547c64b4cb53d4178625a5bb5bc8edafdbfb45d11ed04`
 - [x] RC15 包含 `tools/mpv`、`tools/ffmpeg`、`tools/licenses`，隔离启动、内嵌服务健康、窗口和退出清理通过
+- [x] RC18 候选包已生成：579 项，SHA-256 `3b4f9f5ea29544159783f2353f373806ada39c677259f097c008089104b079c1`
+- [x] RC18 包含 `tools/mpv`、`tools/ffmpeg`、`tools/licenses`；隔离启动、内嵌服务健康、窗口和退出清理通过
+- [x] RC21 候选包已生成：580 项、单个预迁移 `data/station.db`、无 SQLite WAL/SHM、SHA-256 `8af1d98e4893facb73871cc2d893f1f7e6cae618b3e087ace728872acdc7e8d8`
+- [x] RC21 包含 `tools/mpv`、`tools/ffmpeg`、`tools/licenses`；隔离启动、内嵌服务健康、窗口和退出清理通过；因包含真实曲库数据，仅限本地验收，禁止推送/公开发布
+- [x] RC22 候选包已生成：580 项、单个预迁移 `data/station.db`、无 SQLite WAL/SHM、SHA-256 `6483940b5cd42a4ebc91263041a35c7a3228908fa7eca04671e6d5afa4b3edf4`
+- [x] RC22 包含 `tools/mpv`、`tools/ffmpeg`、`tools/licenses`；隔离启动、内嵌服务健康、窗口和退出清理通过；因包含真实曲库数据，仅限本地验收，禁止推送/公开发布
 - [x] RC6 全新解压启动及正常关闭通过，退出后无 Station/mpv 残留且 5090 已释放
 - [x] `1.0.0` Release Notes 与候选校验验证脚本已准备
 - [ ] `v1.0.0` Tag 与 GitHub Release 已在全部门禁通过并经所有者授权后创建

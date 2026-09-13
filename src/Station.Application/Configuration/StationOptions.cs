@@ -25,6 +25,8 @@ public sealed class ServerOptions
 public sealed class StorageOptions
 {
     public string DataDirectory { get; init; } = "data";
+    /// <summary>Local mount used to resolve relative paths from the portable JSON catalog.</summary>
+    public string MediaMountRoot { get; init; } = string.Empty;
 }
 
 public sealed class PlayerOptions

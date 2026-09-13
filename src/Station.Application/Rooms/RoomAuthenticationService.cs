@@ -67,7 +67,7 @@ public static class RoomAuthorizationPolicy
 public sealed class RoomAuthenticationService(
     IRoomIdentityRepository repository,
     IRoomTokenProtector tokens,
-    TimeProvider clock)
+    TimeProvider clock) : IRoomHostAdministration
 {
     private static readonly TimeSpan GuestLifetime = TimeSpan.FromHours(12);
     private static readonly TimeSpan HostLifetime = TimeSpan.FromHours(8);

@@ -1,10 +1,17 @@
 param(
     [string]$Version = '0.1.0-dev',
-    [string]$OutputDirectory = 'artifacts'
+    [string]$OutputDirectory = 'artifacts',
+    [string]$SeedDatabasePath
 )
 
 $ErrorActionPreference = 'Stop'
 if ($Version -notmatch '^[0-9]+\.[0-9]+\.[0-9]+(?:-[0-9A-Za-z.-]+)?$') { throw "Invalid version: $Version" }
+if (-not [string]::IsNullOrWhiteSpace($SeedDatabasePath)) {
+    $SeedDatabasePath = (Resolve-Path -LiteralPath $SeedDatabasePath -ErrorAction Stop).Path
+    if ([IO.Path]::GetFileName($SeedDatabasePath) -ine 'station.db') { throw 'Seed database must be named station.db.' }
+    if ((Get-Item -LiteralPath $SeedDatabasePath).Length -eq 0) { throw 'Seed database must not be empty.' }
+
+}
 
 $root = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
 $dotnet = 'C:\Program Files\dotnet\dotnet.exe'
@@ -37,6 +44,33 @@ try {
         New-Item -ItemType Directory -Path $initialLibraryRoot -Force | Out-Null
         Copy-Item -LiteralPath $initialLibrary -Destination (Join-Path $initialLibraryRoot 'ktv_songs_index.jsonl')
     }
+    if (-not [string]::IsNullOrWhiteSpace($SeedDatabasePath)) {
+        $dataRoot = Join-Path $publishRoot 'data'
+        $packagedDatabase = Join-Path $dataRoot 'station.db'
+        New-Item -ItemType Directory -Path $dataRoot -Force | Out-Null
+        # SQLite's backup API creates a consistent read-only snapshot even when
+        # the source has active WAL sidecars. Never copy the primary file alone.
+        $catalogImportProject = Join-Path $root 'src\Station.CatalogImport\Station.CatalogImport.csproj'
+        & $dotnet run --project $catalogImportProject --configuration Release --no-restore -- --snapshot-database $SeedDatabasePath $packagedDatabase
+        if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+        # Upgrade only the copied snapshot. This prebuilds the FTS index so a new
+        # installation does not stall while opening a large existing library.
+        & $dotnet run --project $catalogImportProject --configuration Release --no-restore -- --upgrade-database $packagedDatabase
+        if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+        # The upgrade may leave a WAL pair in the staging directory. Take a
+        # second SQLite backup so the distribution contains one self-contained
+        # database file and no sidecar recovery files.
+        $normalizedDatabase = Join-Path $dataRoot 'station-final.db'
+        & $dotnet run --project $catalogImportProject --configuration Release --no-restore -- --snapshot-database $packagedDatabase $normalizedDatabase
+        if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+        foreach ($stagingFile in @($packagedDatabase, "$packagedDatabase-wal", "$packagedDatabase-shm")) {
+            if (Test-Path -LiteralPath $stagingFile) { Remove-Item -LiteralPath $stagingFile -Force }
+        }
+        Move-Item -LiteralPath $normalizedDatabase -Destination $packagedDatabase
+        $stagingBackups = Join-Path $dataRoot 'backups'
+        if (Test-Path -LiteralPath $stagingBackups) { Remove-Item -LiteralPath $stagingBackups -Recurse -Force }
+    }
 
     $toolFiles = @(
         @{ Source = 'mpv\mpv.exe'; Destination = 'tools\mpv\mpv.exe' },
@@ -61,7 +95,7 @@ try {
     New-Item -ItemType Directory -Path $licenseDestination -Force | Out-Null
     Get-ChildItem -LiteralPath $licenseSource -File | Copy-Item -Destination $licenseDestination -Force
 
-    $forbidden = @('station.db', 'settings.json')
+    $forbidden = @('settings.json', 'station.db-wal', 'station.db-shm')
     $packagedNames = Get-ChildItem -LiteralPath $publishRoot -File -Recurse | ForEach-Object Name
     foreach ($name in $forbidden) {
         if ($packagedNames -contains $name) { throw "Forbidden file in package: $name" }
@@ -84,7 +118,7 @@ try {
     $zipHash = (Get-FileHash -LiteralPath $zipPath -Algorithm SHA256).Hash.ToLowerInvariant()
     "$zipHash  $([IO.Path]::GetFileName($zipPath))" | Set-Content -LiteralPath $checksumPath -Encoding ascii
 
-    & (Join-Path $PSScriptRoot 'verify-release-package.ps1') -Package $zipPath
+    & (Join-Path $PSScriptRoot 'verify-release-package.ps1') -Package $zipPath -RequireSeedDatabase:(-not [string]::IsNullOrWhiteSpace($SeedDatabasePath))
     if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
     Write-Output "PACKAGE=$zipPath"
     Write-Output "SHA256=$zipHash"

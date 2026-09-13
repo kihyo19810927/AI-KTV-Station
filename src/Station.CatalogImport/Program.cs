@@ -7,9 +7,46 @@ using Station.Domain.Models;
 using Station.Infrastructure.Persistence;
 using Station.Infrastructure.Search;
 
+if (args is ["--upgrade-database", var upgradeDatabasePath])
+{
+    var upgradePath = Path.GetFullPath(upgradeDatabasePath);
+    if (!File.Exists(upgradePath)) { Console.Error.WriteLine("Database is unavailable."); return 3; }
+    var upgradeOptions = new DbContextOptionsBuilder<StationDbContext>().UseSqlite($"Data Source={upgradePath}").Options;
+    await using var upgradeDatabase = new StationDbContext(upgradeOptions);
+    var upgradeNormalizer = new ToolGoodSearchTextNormalizer();
+    var searchIndex = new SqliteSongSearchIndex(upgradeDatabase, upgradeNormalizer);
+    var result = await new DatabaseUpgradeService(upgradeDatabase, new EfDatabaseMigrationExecutor(), TimeProvider.System, searchIndex).UpgradeAsync();
+    Console.WriteLine($"DATABASE_UPGRADE_COMPLETE={result.Migrated};PENDING={result.PendingMigrations.Count};BACKUP={result.BackupPath ?? string.Empty}");
+    return 0;
+}
+
+if (args is ["--snapshot-database", var snapshotSourcePath, var snapshotDestinationPath])
+{
+    try
+    {
+        var sourcePath = Path.GetFullPath(snapshotSourcePath);
+        var destinationPath = Path.GetFullPath(snapshotDestinationPath);
+        if (!File.Exists(sourcePath)) { Console.Error.WriteLine("Source database is unavailable."); return 3; }
+        if (File.Exists(destinationPath)) { Console.Error.WriteLine("Snapshot destination already exists."); return 4; }
+        Directory.CreateDirectory(Path.GetDirectoryName(destinationPath)!);
+        await using var source = new SqliteConnection($"Data Source={sourcePath};Mode=ReadOnly");
+        await using var destination = new SqliteConnection($"Data Source={destinationPath};Mode=ReadWriteCreate");
+        await source.OpenAsync();
+        await destination.OpenAsync();
+        source.BackupDatabase(destination);
+        Console.WriteLine("DATABASE_SNAPSHOT_COMPLETE=true");
+        return 0;
+    }
+    catch (SqliteException)
+    {
+        Console.Error.WriteLine("Database snapshot could not be created. Check that the source is accessible and the destination is writable.");
+        return 5;
+    }
+}
+
 if (args.Length != 3)
 {
-    Console.Error.WriteLine("Usage: Station.CatalogImport <index.json> <mount-root> <station.db>");
+    Console.Error.WriteLine("Usage: Station.CatalogImport <index.json> <mount-root> <station.db> | --upgrade-database <station.db> | --snapshot-database <source.db> <snapshot.db>");
     return 2;
 }
 var jsonPath = Path.GetFullPath(args[0]); var mountRoot = Path.GetFullPath(args[1]); var databasePath = Path.GetFullPath(args[2]);
