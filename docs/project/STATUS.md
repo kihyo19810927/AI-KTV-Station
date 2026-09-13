@@ -38,13 +38,14 @@
 - 桌面页启动后自动恢复本地主持房间；歌手卡片按歌手字段检索，队列显示探测/播放状态并提供插播，播放控制复用现有 `/api/playback/*` 接口。
 - `scripts/test-packaged-app.ps1` 同步修复了包冒烟测试的 `Station` 配置层级，并覆盖随机端口；修复托盘启动任务与 smoke 退出调度的竞态，避免托盘进程残留。
 - RC32：`artifacts/AI-KTV-Station-0.1.0-rc.32-win-x64.zip`，450 项，SHA-256 `9198c5ec476e257e38aa5ed576b5802f455541a6012b4995e5c79619a353b5ee`。包含 `/desk`、自包含 .NET、mpv/FFmpeg、许可证材料和 `data/station.db`；隔离启动健康、冷启动不拉起 mpv、托盘生命周期和进程清理通过。因当前机不存在此前指定的外部数据库目录，本包使用 RC30 已验收包中的只读数据库快照。
-- 当前验证：Web TypeScript `tsc -b`、Vitest `34/34`、Vite production build、Server/Tray Release build、嵌入宿主管理路由测试 `1/1`、Desktop `18/18`、Core 非外部 `181/181`、格式门禁和 RC32 包冒烟均通过。真实 Edge App 视觉、触控、局域网手机和长列表体验仍需用户验收。
+- KTVS-091 基线验证：Web TypeScript `tsc -b`、Vitest `34/34`、Vite production build、Server/Tray Release build、嵌入宿主管理路由测试 `1/1`、Desktop `18/18`、Core 非外部 `181/181`、格式门禁和 RC32 包冒烟均通过。真实 Edge App 视觉、触控、局域网手机和长列表体验仍需用户验收。
 
 ## KTVS-092 已完成
 
 - `/desk` 继续直接沿用批准的 Demo 结构和视觉变量，不回退到 WPF/XAML；右侧播控补齐播放/暂停、切歌、进度拖动、音量滑动、原唱/伴奏切换和字幕选择。
 - 桌面端增加 `TimeSpan`/数字进度统一换算，避免 `00:01:05` 被 `Number()` 当成无效值；音量更新使用 160ms 防抖并乐观更新，避免拖动时高频请求阻塞 UI。
 - Vitest 新增桌面播控接口回归，覆盖音量、进度、音轨和字幕请求；当前 Web 测试为 `35/35`，TypeScript 和 Vite production build 通过。
+- RC33：`artifacts/AI-KTV-Station-0.1.0-rc.33-win-x64.zip`，450 项，339,239,970 bytes，SHA-256 `afff3a89be2d85c893910b86e7c9496ec2f9ee63e210e4575bbd76b708d9adba`。包含批准 Demo `/desk`、自包含 .NET、mpv/FFmpeg、许可证材料及 `data/station.db` 只读快照；发布校验、冷启动不拉起 mpv、托盘生命周期和进程清理通过。
 
 ## 最近验证
 
