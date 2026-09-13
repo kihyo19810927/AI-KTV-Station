@@ -103,5 +103,6 @@
 
 | KTVS-091 Demo 桌面 Web 主控页 | Vitest + TypeScript + Vite production build + Server embedded host + Desktop/Core 回归 + RC32 package smoke | 通过（Web 34/34、TypeScript、Vite、Server/Tray Release、嵌入宿主 `1/1`、Desktop 18/18、Core 非外部 181/181、RC32 冷启动/托盘生命周期/进程清理） | 真实 Edge App 视觉、触控、局域网手机、长列表与实际媒体待验收 |
 | KTVS-092 Demo 桌面播控闭环 | Vitest + TypeScript + Vite production build | 通过（Web 35/35；进度 `TimeSpan` 换算、音量防抖、进度跳转、音轨和字幕 API 控制） | 真实 Edge App、触控、局域网手机和实际媒体待验收 |
+| KTVS-093 Demo 歌手卡片分页性能 | Vitest + TypeScript + Vite production build | 通过（Web 36/36；25 位歌手数据分页为 24/1 张 `.ktv-artist`，避免一次性创建整批卡片） | 真实 Edge App、触控和超大歌手库待验收 |
 
 禁止把替身、模拟器或文档审阅结果写成真实设备通过。

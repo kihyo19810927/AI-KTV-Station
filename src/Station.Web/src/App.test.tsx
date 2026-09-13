@@ -46,6 +46,24 @@ describe('mobile application shell', () => {
     fireEvent.click(screen.getByRole('tab', { name: '歌星' }))
     expect(await screen.findByRole('button', { name: /周杰伦/ })).toBeInTheDocument()
   })
+  it('keeps the desktop artist visual tree bounded with 24-card pages', async () => {
+    const artists = Array.from({ length: 25 }, (_, index) => ({ id: `artist-${index}`, name: `歌手 ${String(index + 1).padStart(2, '0')}`, songCount: 1 }))
+    vi.mocked(fetch).mockImplementation(async url => {
+      const path = String(url)
+      if (path === '/api/manage/room/ensure') return new Response(JSON.stringify({ room: { id: 'room-1', joinCode: 'KTV826', maxQueuedSongsPerGuest: 100 }, host: { token: 'host-token', roomId: 'room-1', guestId: 'host-1', nickname: '主持人', role: 'Host', expiresAt: '2099-01-01T00:00:00Z' }, joinUrl: 'http://192.168.1.20:5090/join?code=KTV826' }), { status: 200, headers: { 'Content-Type': 'application/json' } })
+      if (path.startsWith('/api/catalog/artists')) return new Response(JSON.stringify(artists), { status: 200, headers: { 'Content-Type': 'application/json' } })
+      if (path.startsWith('/api/library/favorites')) return new Response(JSON.stringify([]), { status: 200, headers: { 'Content-Type': 'application/json' } })
+      return new Response(JSON.stringify({ items: [], total: 0, page: 1, pageSize: 20 }), { status: 200, headers: { 'Content-Type': 'application/json' } })
+    })
+    renderApp('/desk')
+    await screen.findByRole('heading', { name: '电脑点歌' })
+    fireEvent.click(screen.getByRole('tab', { name: '歌星' }))
+    await screen.findByRole('button', { name: /歌手 01/ })
+    expect(document.querySelectorAll('.ktv-artist')).toHaveLength(24)
+    fireEvent.click(screen.getByRole('button', { name: '下一页' }))
+    await screen.findByRole('button', { name: /歌手 25/ })
+    expect(document.querySelectorAll('.ktv-artist')).toHaveLength(1)
+  })
   it('shows realtime desktop queue state and sends playback controls', async () => {
     realtime.snapshot = { version: 3, roomId: 'room-1', queue: [
       { id: 'item-playing', songId: 'song-playing', title: '海阔天空', artists: 'Beyond', requestedByGuestId: 'host-1', requestedByNickname: '主持人', position: 1, status: 'Playing', requestedAt: '2099-01-01T00:00:00Z' },

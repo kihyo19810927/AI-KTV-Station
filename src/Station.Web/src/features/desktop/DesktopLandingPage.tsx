@@ -110,6 +110,7 @@ function DesktopRoomPage({ room, joinUrl: preferredJoinUrl }: { room: HostRoomRe
   const [language, setLanguage] = useState('')
   const [style, setStyle] = useState('')
   const [artistGroup, setArtistGroup] = useState('')
+  const [artistPage, setArtistPage] = useState(1)
   const [page, setPage] = useState(1)
   const [result, setResult] = useState<SongSearchPage | null>(null)
   const [artists, setArtists] = useState<ArtistItem[]>([])
@@ -132,6 +133,9 @@ function DesktopRoomPage({ room, joinUrl: preferredJoinUrl }: { room: HostRoomRe
   const waitingQueue = useMemo(() => queue.filter(item => !['Completed', 'Skipped', 'Failed', 'Playing', 'Paused'].includes(item.status)).sort((a, b) => a.position - b.position), [queue])
   const currentSong = useMemo(() => queue.find(item => item.status === 'Playing' || item.status === 'Paused') ?? queue.find(item => item.status === 'Preparing'), [queue])
   const totalPages = result ? Math.max(1, Math.ceil(result.total / result.pageSize)) : 1
+  const artistPageSize = 24
+  const artistTotalPages = Math.max(1, Math.ceil(artists.length / artistPageSize))
+  const visibleArtists = artists.slice((artistPage - 1) * artistPageSize, artistPage * artistPageSize)
   const joinUrl = preferredJoinUrl ?? `${window.location.origin}/join?code=${encodeURIComponent(room.joinCode)}`
   const filterOptions = view === 'artists' ? singerGroups : view === 'language' ? languages : view === 'style' ? styles : []
 
@@ -169,7 +173,7 @@ function DesktopRoomPage({ room, joinUrl: preferredJoinUrl }: { room: HostRoomRe
     const query = artistGroup ? `?artistGroup=${encodeURIComponent(artistGroup)}` : ''
     setArtistLoading(true)
     api.get<ArtistItem[]>(`/api/catalog/artists${query}`, controller.signal)
-      .then(items => setArtists(items ?? []))
+      .then(items => { setArtists(items ?? []); setArtistPage(1) })
       .catch(value => { if (!(value instanceof DOMException && value.name === 'AbortError')) setError('歌手列表暂时无法访问。') })
       .finally(() => { if (!controller.signal.aborted) setArtistLoading(false) })
     return () => controller.abort()
@@ -193,12 +197,12 @@ function DesktopRoomPage({ room, joinUrl: preferredJoinUrl }: { room: HostRoomRe
 
   function selectView(next: DesktopView) {
     setView(next); setError(''); setPage(1)
-    if (next === 'artists') setArtistGroup('')
+    if (next === 'artists') { setArtistGroup(''); setArtistPage(1) }
     if (next === 'songs') { setLanguage(''); setStyle('') }
   }
 
   function selectFilter(value: string) {
-    if (view === 'artists') setArtistGroup(value === '全部' ? '' : value)
+    if (view === 'artists') { setArtistGroup(value === '全部' ? '' : value); setArtistPage(1) }
     else if (view === 'language') { setLanguage(value === '全部' ? '' : value); setStyle(''); setPage(1) }
     else if (view === 'style') { setStyle(value === '全部' ? '' : value); setLanguage(''); setPage(1) }
   }
@@ -271,7 +275,7 @@ function DesktopRoomPage({ room, joinUrl: preferredJoinUrl }: { room: HostRoomRe
 
   const songs = view === 'favorites' ? favorites : result?.items ?? []
   const resultTitle = view === 'artists' ? (artistGroup || '全部') + '歌手' : view === 'favorites' ? '我的收藏' : view === 'language' && language ? `${language}歌曲` : view === 'style' && style ? `${style}歌曲` : searchField === 'Artist' && submittedText ? `${submittedText}的歌曲` : '搜索结果'
-  const resultCount = view === 'artists' ? `${artists.length} 位歌手` : view === 'favorites' ? `${favorites.length} 首` : result ? `找到 ${result.total} 首 · 第 ${page} / ${totalPages} 页` : loading ? '加载中…' : '暂无结果'
+  const resultCount = view === 'artists' ? `${artists.length} 位歌手 · 第 ${artistPage} / ${artistTotalPages} 页` : view === 'favorites' ? `${favorites.length} 首` : result ? `找到 ${result.total} 首 · 第 ${page} / ${totalPages} 页` : loading ? '加载中…' : '暂无结果'
   const connectionText = { connecting: '连接中', connected: '服务在线', reconnecting: '重新连接中', offline: '连接断开' }[connectionStatus]
   const playbackState = playback?.state ?? playerState?.state
   const playbackPosition = playerState?.position ?? playback?.position
@@ -323,10 +327,10 @@ function DesktopRoomPage({ room, joinUrl: preferredJoinUrl }: { room: HostRoomRe
 
             <div className="ktv-section-head"><strong>{resultTitle}</strong><span>{resultCount}</span></div>
 
-            {view === 'artists' ? <div className="ktv-artist-grid" aria-label="歌手列表">{artistLoading ? <p className="ktv-empty">正在加载歌手…</p> : artists.length === 0 ? <p className="ktv-empty">该分类下暂无歌手数据</p> : artists.map(artist => {
+            {view === 'artists' ? <><div className="ktv-artist-grid" aria-label="歌手列表">{artistLoading ? <p className="ktv-empty">正在加载歌手…</p> : artists.length === 0 ? <p className="ktv-empty">该分类下暂无歌手数据</p> : visibleArtists.map(artist => {
               const image = artist.imageUrl ?? artist.avatarUrl
               return <button type="button" className="ktv-artist" key={artist.artistId ?? artist.id ?? artist.name} onClick={() => chooseArtist(artist)}><span className="ktv-avatar" style={{ background: image ? 'transparent' : `linear-gradient(145deg, ${avatarColor(artist.name)}, #24133f)` }}>{image ? <img src={image} alt="" onError={event => { event.currentTarget.style.display = 'none' }} /> : artist.name.trim().slice(0, 1)}</span><span>{artist.name}</span><small>{artist.songCount} 首</small></button>
-            })}</div> : <div className="ktv-song-list" aria-label="歌曲列表">{loading && !result && <p className="ktv-empty">正在搜索曲库…</p>}{!loading && songs.length === 0 && <p className="ktv-empty">没有找到歌曲</p>}{songs.map((song, index) => <div className="ktv-song-row" key={song.songId}><span className="ktv-song-index">{String((page - 1) * 20 + index + 1).padStart(2, '0')}</span><span className="ktv-song-copy"><strong>{song.title}</strong><small>{song.artists || '未知歌手'}{('language' in song && song.language) ? ` · ${song.language}` : ''}{('category' in song && song.category) ? ` · ${song.category}` : ''}</small></span>{'quality' in song && song.quality && <span className="ktv-quality">{song.quality}</span>}<button type="button" className={queue.some(item => item.songId === song.songId) ? 'ktv-request queued' : 'ktv-request'} disabled={requestingId === song.songId || ('availability' in song && song.availability !== 'Available')} onClick={() => void requestSong(song)}>{requestingId === song.songId ? '…' : queue.some(item => item.songId === song.songId) ? '已点' : '点歌'}</button></div>)}{view !== 'favorites' && result && <div className="ktv-pagination"><button type="button" disabled={loading || page <= 1} onClick={() => setPage(value => Math.max(1, value - 1))}>上一页</button><span>第 {page} / {totalPages} 页</span><button type="button" disabled={loading || page >= totalPages} onClick={() => setPage(value => Math.min(totalPages, value + 1))}>下一页</button></div>}</div>}
+            })}</div>{artists.length > artistPageSize && <div className="ktv-pagination ktv-artist-pagination"><button type="button" disabled={artistPage <= 1} onClick={() => setArtistPage(value => Math.max(1, value - 1))}>上一页</button><span>第 {artistPage} / {artistTotalPages} 页</span><button type="button" disabled={artistPage >= artistTotalPages} onClick={() => setArtistPage(value => Math.min(artistTotalPages, value + 1))}>下一页</button></div>}</> : <div className="ktv-song-list" aria-label="歌曲列表">{loading && !result && <p className="ktv-empty">正在搜索曲库…</p>}{!loading && songs.length === 0 && <p className="ktv-empty">没有找到歌曲</p>}{songs.map((song, index) => <div className="ktv-song-row" key={song.songId}><span className="ktv-song-index">{String((page - 1) * 20 + index + 1).padStart(2, '0')}</span><span className="ktv-song-copy"><strong>{song.title}</strong><small>{song.artists || '未知歌手'}{('language' in song && song.language) ? ` · ${song.language}` : ''}{('category' in song && song.category) ? ` · ${song.category}` : ''}</small></span>{'quality' in song && song.quality && <span className="ktv-quality">{song.quality}</span>}<button type="button" className={queue.some(item => item.songId === song.songId) ? 'ktv-request queued' : 'ktv-request'} disabled={requestingId === song.songId || ('availability' in song && song.availability !== 'Available')} onClick={() => void requestSong(song)}>{requestingId === song.songId ? '…' : queue.some(item => item.songId === song.songId) ? '已点' : '点歌'}</button></div>)}{view !== 'favorites' && result && <div className="ktv-pagination"><button type="button" disabled={loading || page <= 1} onClick={() => setPage(value => Math.max(1, value - 1))}>上一页</button><span>第 {page} / {totalPages} 页</span><button type="button" disabled={loading || page >= totalPages} onClick={() => setPage(value => Math.min(totalPages, value + 1))}>下一页</button></div>}</div>}
             {notice && <p className="ktv-notice" role="status">{notice}</p>}
           </section>
 

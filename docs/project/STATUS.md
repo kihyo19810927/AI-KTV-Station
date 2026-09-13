@@ -1,14 +1,14 @@
 # 项目状态
 
-更新时间：2026-09-13
+更新时间：2026-09-14
 
 ## 当前基线
 
 - 分支：`codex/KTVS-090-tray-package`
-- 版本：`0.1.0-rc.33`（含已验收曲库数据库的本地候选包）
+- 版本：`0.1.0-rc.34`（含已验收曲库数据库的本地候选包）
 - 阶段：Phase 10：持续验收问题修复、托盘启动与 Web 桌面主控
-- 已完成：KTVS-001 至 KTVS-057；KTVS-058 软件验证完成；KTVS-060 至 KTVS-090 用户反馈与回归修复完成
-- 当前任务：KTVS-092 已完成：在批准 Demo `/desk` 视觉上补齐真实桌面播控，待用户实机验收
+- 已完成：KTVS-001 至 KTVS-057；KTVS-058 软件验证完成；KTVS-060 至 KTVS-090 用户反馈与回归修复完成；KTVS-091 至 KTVS-093 Web 桌面主控软件实现完成
+- 当前任务：KTVS-093 已完成：在批准 Demo `/desk` 视觉上限制歌手卡片渲染上限，待用户实机验收
 
 ## 调查结果
 
@@ -46,6 +46,14 @@
 - 桌面端增加 `TimeSpan`/数字进度统一换算，避免 `00:01:05` 被 `Number()` 当成无效值；音量更新使用 160ms 防抖并乐观更新，避免拖动时高频请求阻塞 UI。
 - Vitest 新增桌面播控接口回归，覆盖音量、进度、音轨和字幕请求；当前 Web 测试为 `35/35`，TypeScript 和 Vite production build 通过。
 - RC33：`artifacts/AI-KTV-Station-0.1.0-rc.33-win-x64.zip`，450 项，339,239,970 bytes，SHA-256 `afff3a89be2d85c893910b86e7c9496ec2f9ee63e210e4575bbd76b708d9adba`。包含批准 Demo `/desk`、自包含 .NET、mpv/FFmpeg、许可证材料及 `data/station.db` 只读快照；发布校验、冷启动不拉起 mpv、托盘生命周期和进程清理通过。
+
+## KTVS-093 已完成
+
+- `/desk` 前端直接沿用批准 Demo 的桌面视觉和交互结构；歌手 API 返回结果保持原有热度排序，但歌手网格每页最多创建 24 张卡片，超过一页通过“上一页/下一页”切换，避免一次性生成数千个头像、阴影和布局节点导致 UI 卡顿。
+- 新增 Web 回归覆盖 25 位歌手数据：第一页只创建 24 个 `.ktv-artist`，第二页只创建剩余 1 个；无歌手数据重复请求或媒体文件操作。
+- `NowPlaying` 的音量状态同步增加有限值保护，避免后端缺失音量字段时把受控滑块变成非受控输入。
+- KTVS-093 软件验证：Web `36/36`、TypeScript 和 Vite production build 通过；RC34 发布校验和托盘冒烟通过（冷启动待机、托盘生命周期、健康检查和进程清理）。
+- RC34：`artifacts/AI-KTV-Station-0.1.0-rc.34-win-x64.zip`，450 项，339,240,095 bytes，SHA-256 `2a36167d333908652b42086cbea00a8020f67540acbf9ed5ac7ffdeefac3ba65`。包含批准 Demo `/desk`、自包含 .NET、mpv/FFmpeg、许可证材料及 `data/station.db` 只读快照；发布校验 `RELEASE_PACKAGE=passed`、Windows 发布 `WINDOWS_PUBLISH=passed`、包冒烟 `PACKAGE_SMOKE=passed`。
 
 ## 最近验证
 
