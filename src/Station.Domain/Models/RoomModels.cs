@@ -61,3 +61,51 @@ public sealed class PlayHistory
     public DateTimeOffset? EndedAt { get; set; }
     public string? ErrorCode { get; set; }
 }
+
+/// <summary>Long-lived household identity.  It deliberately has no room or host role.</summary>
+public sealed class UserProfile
+{
+    public Guid Id { get; set; } = Guid.NewGuid();
+    public string DisplayName { get; set; } = string.Empty;
+    public string? AvatarUrl { get; set; }
+    public string? PinHash { get; set; }
+    public DateTimeOffset CreatedAt { get; set; }
+    public DateTimeOffset LastUsedAt { get; set; }
+    public bool IsArchived { get; set; }
+    public List<ProfileDevice> Devices { get; set; } = [];
+    public List<ProfilePlaylist> Playlists { get; set; } = [];
+}
+
+public sealed class ProfileDevice
+{
+    public Guid Id { get; set; } = Guid.NewGuid();
+    public Guid UserProfileId { get; set; }
+    public UserProfile UserProfile { get; set; } = null!;
+    public string TokenHash { get; set; } = string.Empty;
+    public DateTimeOffset CreatedAt { get; set; }
+    public DateTimeOffset LastUsedAt { get; set; }
+    public DateTimeOffset? RevokedAt { get; set; }
+}
+
+public sealed class ProfilePlaylist
+{
+    public Guid Id { get; set; } = Guid.NewGuid();
+    public Guid UserProfileId { get; set; }
+    public UserProfile UserProfile { get; set; } = null!;
+    public string Name { get; set; } = string.Empty;
+    public ProfilePlaylistKind Kind { get; set; } = ProfilePlaylistKind.Custom;
+    public bool IsFamilyShared { get; set; }
+    public DateTimeOffset CreatedAt { get; set; }
+    public DateTimeOffset UpdatedAt { get; set; }
+    public List<ProfilePlaylistItem> Items { get; set; } = [];
+}
+
+public sealed class ProfilePlaylistItem
+{
+    public Guid ProfilePlaylistId { get; set; }
+    public ProfilePlaylist ProfilePlaylist { get; set; } = null!;
+    public Guid SongId { get; set; }
+    public Song Song { get; set; } = null!;
+    public long Position { get; set; }
+    public DateTimeOffset AddedAt { get; set; }
+}

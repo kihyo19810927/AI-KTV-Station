@@ -19,6 +19,10 @@ public sealed class StationDbContext(DbContextOptions<StationDbContext> options)
     public DbSet<PlayHistory> PlayHistory => Set<PlayHistory>();
     public DbSet<ScanRun> ScanRuns => Set<ScanRun>();
     public DbSet<PlaybackError> PlaybackErrors => Set<PlaybackError>();
+    public DbSet<UserProfile> UserProfiles => Set<UserProfile>();
+    public DbSet<ProfileDevice> ProfileDevices => Set<ProfileDevice>();
+    public DbSet<ProfilePlaylist> ProfilePlaylists => Set<ProfilePlaylist>();
+    public DbSet<ProfilePlaylistItem> ProfilePlaylistItems => Set<ProfilePlaylistItem>();
 
     protected override void OnModelCreating(ModelBuilder model)
     {
@@ -63,5 +67,28 @@ public sealed class StationDbContext(DbContextOptions<StationDbContext> options)
         model.Entity<PlayHistory>().Property(x => x.Outcome).HasConversion<string>();
         model.Entity<ScanRun>().Property(x => x.Status).HasConversion<string>();
         model.Entity<PlaybackError>().Property(x => x.ErrorCode).HasMaxLength(100);
+        model.Entity<UserProfile>(e =>
+        {
+            e.Property(x => x.DisplayName).HasMaxLength(80);
+            e.Property(x => x.AvatarUrl).HasMaxLength(1024);
+            e.Property(x => x.PinHash).HasMaxLength(1024);
+            e.HasIndex(x => new { x.IsArchived, x.LastUsedAt });
+        });
+        model.Entity<ProfileDevice>(e =>
+        {
+            e.Property(x => x.TokenHash).HasMaxLength(64);
+            e.HasIndex(x => x.TokenHash).IsUnique();
+        });
+        model.Entity<ProfilePlaylist>(e =>
+        {
+            e.Property(x => x.Name).HasMaxLength(120);
+            e.Property(x => x.Kind).HasConversion<string>();
+            e.HasIndex(x => new { x.UserProfileId, x.Kind, x.Name }).IsUnique();
+        });
+        model.Entity<ProfilePlaylistItem>(e =>
+        {
+            e.HasKey(x => new { x.ProfilePlaylistId, x.SongId });
+            e.HasIndex(x => new { x.ProfilePlaylistId, x.Position }).IsUnique();
+        });
     }
 }

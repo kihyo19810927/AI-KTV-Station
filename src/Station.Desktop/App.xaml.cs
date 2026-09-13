@@ -191,6 +191,7 @@ public partial class App : System.Windows.Application
             {
                 await services.GetRequiredService<PlaybackConsoleViewModel>().RefreshAsync();
                 await services.GetRequiredService<QueueManagementViewModel>().RefreshAsync();
+                await services.GetRequiredService<DesktopSongRequestViewModel>().RefreshQueueSummaryAsync();
             }
             finally { refreshing = false; }
         };

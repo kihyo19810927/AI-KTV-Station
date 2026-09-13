@@ -84,6 +84,20 @@ public sealed class SongSearchIndexTests
         Assert.Equal(new DateTimeOffset(2026, 9, 1, 0, 0, 0, TimeSpan.Zero), result.Value.Items[0].AddedAt);
     }
 
+    [Fact]
+    public async Task Artist_card_query_uses_exact_artist_filter_after_fts_match()
+    {
+        await using var fixture = await SearchFixture.CreateAsync();
+        await fixture.AddAsync("Lyn 的歌", "甲", "国语", "流行", "1080P", 2020);
+        await fixture.AddAsync("另一首", "Lyn", "英语", "流行", "1080P", 2021);
+        await fixture.Index.RebuildAsync();
+
+        var result = await fixture.Index.SearchAsync(new SongSearchQuery("Lyn", PageSize: 20, Artist: "Lyn", Field: SongSearchField.Artist));
+
+        Assert.True(result.IsSuccess, result.Error.Message);
+        Assert.Equal("另一首", Assert.Single(result.Value.Items).Title);
+    }
+
     private sealed class SearchFixture : IAsyncDisposable
     {
         private readonly string databasePath;

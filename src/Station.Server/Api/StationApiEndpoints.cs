@@ -34,6 +34,14 @@ public static class StationApiEndpoints
         api.MapPut("/library/favorites/{songId:guid}", SetFavoriteAsync).WithName("SetFavorite");
         api.MapGet("/library/history", GetHistoryAsync).WithName("GetPlaybackHistory");
         api.MapGet("/library/popular", GetPopularAsync).WithName("GetPopularSongs");
+        api.MapGet("/profiles", ListProfilesAsync).WithName("ListHouseholdProfiles");
+        api.MapPost("/profiles", CreateProfileAsync).WithName("CreateHouseholdProfile");
+        api.MapPost("/profiles/{profileId:guid}/activate", ActivateProfileAsync).WithName("ActivateHouseholdProfile");
+        api.MapGet("/profiles/session", ResolveProfileAsync).WithName("ResolveHouseholdProfile");
+        api.MapGet("/profiles/{profileId:guid}/playlists", ListProfilePlaylistsAsync).WithName("ListProfilePlaylists");
+        api.MapGet("/profiles/{profileId:guid}/favorites", ListProfileFavoritesAsync).WithName("ListProfileFavorites");
+        api.MapPost("/profiles/{profileId:guid}/playlists", CreateProfilePlaylistAsync).WithName("CreateProfilePlaylist");
+        api.MapPut("/profiles/{profileId:guid}/favorites/{songId:guid}", SetProfileFavoriteAsync).WithName("SetProfileFavorite");
 
         api.MapGet("/playback", GetPlaybackAsync).WithName("GetPlayback");
         api.MapPost("/playback/play", PlayAsync).WithName("ResumePlayback");
@@ -287,6 +295,69 @@ public static class StationApiEndpoints
         return result.IsSuccess ? Results.Ok(result.Value) : Problem(result.Error);
     }
 
+    private static async Task<IResult> ListProfilesAsync(HttpContext context, RoomAuthenticationService authentication, ProfileLibraryService profiles, CancellationToken cancellationToken)
+    {
+        var identity = await AuthorizeAsync(context, authentication, RoomPermission.ViewCatalog, cancellationToken);
+        return identity.IsFailure ? Problem(identity.Error) : Results.Ok(await profiles.ListProfilesAsync(cancellationToken));
+    }
+
+    private static async Task<IResult> CreateProfileAsync(HttpContext context, CreateProfileRequest request, RoomAuthenticationService authentication, ProfileLibraryService profiles, CancellationToken cancellationToken)
+    {
+        var identity = await AuthorizeAsync(context, authentication, RoomPermission.ViewCatalog, cancellationToken);
+        if (identity.IsFailure) return Problem(identity.Error);
+        try { return Results.Created("/api/profiles", await profiles.CreateAsync(request.DisplayName, request.AvatarUrl, cancellationToken)); }
+        catch (ArgumentException exception) { return Problem(new Error("profile.invalid_name", exception.Message)); }
+    }
+
+    private static async Task<IResult> ActivateProfileAsync(Guid profileId, HttpContext context, ActivateProfileRequest request, RoomAuthenticationService authentication, ProfileLibraryService profiles, CancellationToken cancellationToken)
+    {
+        var identity = await AuthorizeAsync(context, authentication, RoomPermission.ViewCatalog, cancellationToken);
+        if (identity.IsFailure) return Problem(identity.Error);
+        var session = await profiles.ActivateAsync(profileId, request.Pin, cancellationToken);
+        return session is null ? Problem(new Error("profile.activation_denied", "Profile was not found or its PIN is incorrect.")) : Results.Ok(session);
+    }
+
+    private static async Task<IResult> ResolveProfileAsync(HttpContext context, RoomAuthenticationService authentication, ProfileLibraryService profiles, CancellationToken cancellationToken)
+    {
+        var identity = await AuthorizeAsync(context, authentication, RoomPermission.ViewCatalog, cancellationToken);
+        if (identity.IsFailure) return Problem(identity.Error);
+        var session = await profiles.ResolveAsync(context.Request.Headers["X-Station-Profile-Token"].ToString(), cancellationToken);
+        return session is null ? Results.NoContent() : Results.Ok(session.Profile);
+    }
+
+    private static async Task<IResult> ListProfilePlaylistsAsync(Guid profileId, HttpContext context, RoomAuthenticationService authentication, ProfileLibraryService profiles, CancellationToken cancellationToken)
+    {
+        var identity = await AuthorizeAsync(context, authentication, RoomPermission.ViewCatalog, cancellationToken);
+        if (identity.IsFailure) return Problem(identity.Error);
+        return Results.Ok(await profiles.ListPlaylistsAsync(profileId, cancellationToken));
+    }
+
+    private static async Task<IResult> CreateProfilePlaylistAsync(Guid profileId, HttpContext context, CreatePlaylistRequest request, RoomAuthenticationService authentication, ProfileLibraryService profiles, CancellationToken cancellationToken)
+    {
+        var identity = await AuthorizeAsync(context, authentication, RoomPermission.ViewCatalog, cancellationToken);
+        if (identity.IsFailure) return Problem(identity.Error);
+        var session = await profiles.ResolveAsync(context.Request.Headers["X-Station-Profile-Token"].ToString(), cancellationToken);
+        if (session?.Profile.Id != profileId) return Problem(new Error("profile.forbidden", "Activate this profile on this device before changing its playlists."));
+        var result = await profiles.CreatePlaylistAsync(profileId, request.Name, request.IsFamilyShared, cancellationToken);
+        return result.IsSuccess ? Results.Created($"/api/profiles/{profileId}/playlists/{result.Value.Id}", result.Value) : Problem(result.Error);
+    }
+
+    private static async Task<IResult> ListProfileFavoritesAsync(Guid profileId, HttpContext context, RoomAuthenticationService authentication, ProfileLibraryService profiles, CancellationToken cancellationToken)
+    {
+        var identity = await AuthorizeAsync(context, authentication, RoomPermission.ViewCatalog, cancellationToken);
+        return identity.IsFailure ? Problem(identity.Error) : Results.Ok(await profiles.ListFavoritesAsync(profileId, cancellationToken));
+    }
+
+    private static async Task<IResult> SetProfileFavoriteAsync(Guid profileId, Guid songId, HttpContext context, FavoriteRequest request, RoomAuthenticationService authentication, ProfileLibraryService profiles, CancellationToken cancellationToken)
+    {
+        var identity = await AuthorizeAsync(context, authentication, RoomPermission.ViewCatalog, cancellationToken);
+        if (identity.IsFailure) return Problem(identity.Error);
+        var session = await profiles.ResolveAsync(context.Request.Headers["X-Station-Profile-Token"].ToString(), cancellationToken);
+        if (session?.Profile.Id != profileId) return Problem(new Error("profile.forbidden", "Activate this profile on this device before changing its favorites."));
+        var result = await profiles.SetFavoriteAsync(profileId, songId, request.Favorite, cancellationToken);
+        return result.IsSuccess ? Results.Ok(new { result.Value }) : Problem(result.Error);
+    }
+
     private static Task<IResult> PlayAsync(HttpContext context, RoomAuthenticationService auth, PlaybackControlService playback, CancellationToken token) =>
         HostControlAsync(context, auth, token, playback.PlayAsync);
     private static Task<IResult> PauseAsync(HttpContext context, RoomAuthenticationService auth, PlaybackControlService playback, CancellationToken token) =>
@@ -355,7 +426,7 @@ public static class StationApiEndpoints
         var status = error.Code switch
         {
             "auth.token_required" or "auth.token_invalid" or "auth.token_expired" or "auth.token_revoked" or "auth.room_closed" => StatusCodes.Status401Unauthorized,
-            "auth.forbidden" or "auth.local_only" or "auth.room_mismatch" or "queue.forbidden" => StatusCodes.Status403Forbidden,
+            "auth.forbidden" or "auth.local_only" or "auth.room_mismatch" or "queue.forbidden" or "profile.forbidden" => StatusCodes.Status403Forbidden,
             var code when code.EndsWith("not_found", StringComparison.Ordinal) => StatusCodes.Status404NotFound,
             "room.already_open" or "scan.already_running" or "scan.operation_finished" or "queue.guest_limit_reached" or "queue.item_not_mutable" => StatusCodes.Status409Conflict,
             _ => StatusCodes.Status400BadRequest,
@@ -374,3 +445,6 @@ public sealed record SeekRequest(double PositionSeconds);
 public sealed record AudioTrackRequest(int StreamId);
 public sealed record SubtitleTrackRequest(int? StreamId);
 public sealed record FavoriteRequest(bool Favorite);
+public sealed record CreateProfileRequest(string DisplayName, string? AvatarUrl);
+public sealed record ActivateProfileRequest(string? Pin);
+public sealed record CreatePlaylistRequest(string Name, bool IsFamilyShared);

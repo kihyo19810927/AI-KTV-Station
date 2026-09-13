@@ -6,4 +6,5 @@ public enum TrackPurpose { Unknown, Backing, Vocal, DefaultSubtitle }
 public enum RoomStatus { Open, Closed }
 public enum QueueItemStatus { Probing, ProbeFailed, Waiting, Preparing, Playing, Paused, Completed, Skipped, Failed }
 public enum PlaybackOutcome { Completed, Skipped, Failed }
+public enum ProfilePlaylistKind { Favorites, Frequent, Custom, LegacyImport }
 public enum ScanStatus { Pending, Running, Completed, Cancelled, Failed }

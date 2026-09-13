@@ -57,7 +57,7 @@ function loadDiscoverState(key: string): SavedDiscoverState | null {
 }
 
 export function DiscoverPage() {
-  const { api, session } = useSession()
+  const { api, session, profile } = useSession()
   const { addQueueItem } = useRoomRealtime()
   const storageKey = `ai-ktv-station.discover-state.v1.${session?.roomId ?? 'unknown'}.${session?.guestId ?? 'unknown'}`
   const [savedState] = useState(() => loadDiscoverState(storageKey))
@@ -87,7 +87,10 @@ export function DiscoverPage() {
 
   useEffect(() => {
     const controller = new AbortController()
-    api.get<FavoriteSong[]>('/api/library/favorites', controller.signal).then(items => setFavorites(new Set(items.map(item => item.songId)))).catch(() => undefined)
+    if (!profile) { api.get<FavoriteSong[]>('/api/library/favorites', controller.signal).then(items => setFavorites(new Set(items.map(item => item.songId)))).catch(() => undefined); return () => controller.abort() }
+    // Profile favorites are durable; legacy guest favorites remain available in
+    // the library page for safe migration rather than being deleted.
+    api.get<FavoriteSong[]>(`/api/profiles/${profile.profileId}/favorites`, controller.signal).then(items => setFavorites(new Set(items.map(item => item.songId)))).catch(() => undefined)
     return () => controller.abort()
   }, [api])
 
@@ -158,7 +161,7 @@ export function DiscoverPage() {
   async function toggleFavorite(song: SongSearchItem) {
     const favorite = !favorites.has(song.songId)
     try {
-      await api.put(`/api/library/favorites/${song.songId}`, { favorite })
+      await api.put(profile ? `/api/profiles/${profile.profileId}/favorites/${song.songId}` : `/api/library/favorites/${song.songId}`, { favorite })
       setFavorites(current => { const next = new Set(current); if (favorite) next.add(song.songId); else next.delete(song.songId); return next })
       setNotice(favorite ? `已收藏《${song.title}》。` : `已取消收藏《${song.title}》。`)
     } catch (value) { setNotice(value instanceof ApiError ? value.message : '收藏操作失败。') }
