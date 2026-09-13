@@ -1,4 +1,7 @@
-param([Parameter(Mandatory)][string]$Package)
+param(
+    [Parameter(Mandatory)][string]$Package,
+    [switch]$RequireSeedDatabase
+)
 
 $ErrorActionPreference = 'Stop'
 $packagePath = (Resolve-Path -LiteralPath $Package).Path
@@ -25,11 +28,14 @@ try {
             throw "Required package entry is missing: $required"
         }
     }
-    foreach ($forbidden in @('station.db', 'settings.json')) {
+    foreach ($forbidden in @('settings.json', 'station.db-wal', 'station.db-shm')) {
         if ($entries | Where-Object { [IO.Path]::GetFileName($_) -ieq $forbidden }) {
             throw "Forbidden package entry exists: $forbidden"
         }
     }
+    $seedEntries = @($entries | Where-Object { $_.Replace('\', '/').EndsWith('/data/station.db', [StringComparison]::OrdinalIgnoreCase) })
+    if ($RequireSeedDatabase -and $seedEntries.Count -ne 1) { throw 'Required seed database entry is missing: data/station.db' }
+    if ($seedEntries.Count -gt 1) { throw 'Package contains duplicate seed database entries.' }
 }
 finally { $archive.Dispose() }
 

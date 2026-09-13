@@ -95,5 +95,7 @@
 | KTVS-079 歌手/桌面点歌/探测与播放交互 | Core/Desktop/Web + mpv/ffprobe 脚本 + RC16 smoke | 通过（Core 非外部 174/174、Desktop 16/16、Web 31/31、ffprobe 1/1、mpv 3/3、耐久 20/20；RC16 579 项，SHA-256 `be529461211d80578442849d88b7ac11d88714e034f284471ac13650e4e9b48e`；包、窗口、健康与退出清理通过） | 韩国歌手数据、真实头像、NAS 失败媒体、mpv 主动关闭与 WPF 视觉待实机验收 |
 | KTVS-080 桌面点歌渲染性能 | Release 单节点构建 + Desktop xUnit + Core 非外部 xUnit + RC17 package smoke | 通过（Release 0 警告/错误；Desktop 17/17，含无变化队列项不重建断言；Core 非外部 174/174；RC17 579 项、SHA-256 `10a95842473b3d0965ef095d46a35765bca5b2e13005ee712e5320f6c495f0ea`，包、窗口、健康与退出清理通过） | 当前自动化范围没有可控制的 Station 窗口；真实大歌手库、远程头像时延和鼠标手感待 RC17 实机验收 |
 | KTVS-081 至 KTVS-086 账户/歌单、桌面体验与队列语义 | SQLite migration + Core xUnit + Desktop xUnit + Vitest + Release build + format | 通过（追加式账户/歌单迁移、ProfileLibrary 2 场景、严格歌手下钻、当前播放后插播；Release 0 警告/错误，Core 非外部 178/178、Desktop 17/17、Web 31/31、format verify） | 真实家庭成员切换、远程头像、3,000 歌手鼠标手感、手机长连接及 mpv/长队列待验收 |
+| RC18 本地验收包 | `publish-windows` + ZIP 校验 + 隔离启动/关闭 | 通过（579 项、296,718,483 bytes、SHA-256 `3b4f9f5ea29544159783f2353f373806ada39c677259f097c008089104b079c1`；健康、窗口和退出清理通过） | 干净 Windows、真实媒体/设备与长期内存观察待验收 |
+| KTVS-087 / RC21 含初始库候选包 | SQLite Backup API 快照 + 预迁移/FTS 重建 + ZIP 单库校验 + 隔离启动/关闭 | 通过（580 项、353,069,922 bytes、SHA-256 `8af1d98e4893facb73871cc2d893f1f7e6cae618b3e087ace728872acdc7e8d8`；仅 `data/station.db`，无 WAL/SHM；健康、窗口和退出清理通过） | 源库与包含真实曲库数据，仅限本地验收；干净 Windows、真实媒体/设备与长期内存观察待验收 |
 
 禁止把替身、模拟器或文档审阅结果写成真实设备通过。
