@@ -10,7 +10,9 @@
 
 1. 核对 ZIP 旁 `.sha256` 文件与本机 `Get-FileHash <zip> -Algorithm SHA256` 一致。
 2. 将 ZIP 解压到用户可写的固定目录，例如 `%LOCALAPPDATA%\Programs\AI-KTV-Station`。不要从 ZIP 内直接运行。
-3. 启动 `Station.Desktop.exe`。首次启动会在程序目录的 `data` 子目录创建 SQLite 数据库，并在 `%LOCALAPPDATA%\AI-KTV Station` 保存设置、日志和脱敏诊断。
+3. 当前候选包启动 `Station.Desktop.exe`。首次启动会在程序目录的 `data` 子目录创建 SQLite 数据库，并在 `%LOCALAPPDATA%\AI-KTV Station` 保存设置、日志和脱敏诊断。
+
+> 后续 Web 桌面端候选包将改由 `Station.Tray.exe` 启动：它驻留通知区、启动本机 Server 并打开 Edge App 窗口。退出托盘菜单会仅停止本程序所创建的 mpv 实例，不会结束其他 mpv 进程。
 4. 如需手机访问，在设置中选择明确的局域网 IP；服务默认监听 `0.0.0.0:5090`，房间二维码使用可达的局域网地址。不得映射公网端口。
 5. 先添加一个小批测试目录，确认后手动扫描；添加来源不会自动扫描，更不得直接选择庞大的挂载根目录。
 

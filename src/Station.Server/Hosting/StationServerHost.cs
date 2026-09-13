@@ -4,7 +4,9 @@ using System.Text.Json.Serialization;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Station.Application.Common;
+using Station.Application.Catalog;
 using Station.Application.Configuration;
+using Station.Application.Health;
 using Station.Application.Library;
 using Station.Application.Media;
 using Station.Application.Metadata;
@@ -23,6 +25,9 @@ using Station.Infrastructure.Rooms;
 using Station.Infrastructure.Runtime;
 using Station.Infrastructure.Scanning;
 using Station.Infrastructure.Search;
+using Station.Infrastructure.Configuration;
+using Station.Infrastructure.Health;
+using Station.Infrastructure.Catalog;
 using Station.Server.Api;
 using Station.Server.Realtime;
 using Station.Server.Scanning;
@@ -40,6 +45,8 @@ public static class StationServerHost
             Args = args,
             WebRootPath = webRootPath,
         });
+        var runtimePaths = StationRuntimePaths.Create();
+        builder.Configuration.AddJsonFile(runtimePaths.SettingsFile, optional: true, reloadOnChange: false);
         configure?.Invoke(builder);
         builder.Logging.ClearProviders();
         builder.Logging.AddJsonConsole();
@@ -57,6 +64,8 @@ public static class StationServerHost
         var host = address.AddressFamily == AddressFamily.InterNetworkV6 ? $"[{address}]" : address.ToString();
         builder.WebHost.UseUrls($"http://{host}:{options.Server.Port}");
         var dataDirectory = Path.GetFullPath(options.Storage.DataDirectory, builder.Environment.ContentRootPath); Directory.CreateDirectory(dataDirectory);
+        Directory.CreateDirectory(runtimePaths.SettingsRoot);
+        builder.Services.AddSingleton(runtimePaths);
         builder.Services.AddSingleton<ArtistBrowseCache>();
         builder.Services.AddDbContext<StationDbContext>(db => db.UseSqlite($"Data Source={Path.Combine(dataDirectory, "station.db")}"));
         AddServices(builder.Services, options, sharedPlayer);
@@ -73,18 +82,21 @@ public static class StationServerHost
     private static void AddServices(IServiceCollection services, StationOptions options, IPlayerAdapter? sharedPlayer)
     {
         services.TryAddSingleton(options.Scanning);
+        services.TryAddSingleton(options);
+        services.TryAddSingleton<IStationSettingsStore>(p => new JsonStationSettingsStore(p.GetRequiredService<StationRuntimePaths>().SettingsFile));
+        services.TryAddSingleton<ILocalDiagnosticLog>(p => new JsonLineDiagnosticLog(p.GetRequiredService<StationRuntimePaths>().LogFile, p.GetRequiredService<TimeProvider>()));
         services.AddScoped<IMediaScanRepository, EfMediaScanRepository>(); services.AddScoped<IScanRunReader, EfScanRunReader>(); services.AddScoped<IMediaFileEnumerator, FileSystemMediaFileEnumerator>(); services.AddScoped<IMediaFilenameParser, KtvFilenameParser>(); services.AddScoped<INfoMetadataReader, NfoXmlMetadataReader>(); services.AddSingleton<ISearchTextNormalizer, ToolGoodSearchTextNormalizer>(); services.AddScoped<IMediaProbe>(_ => new FfprobeMediaProbe(ExternalToolLocator.Find("ffprobe.exe") ?? "ffprobe.exe", TimeSpan.FromSeconds(30))); services.AddScoped<IMediaScanRunner, MediaScanService>(); services.AddScoped<ISongSearchIndex, SqliteSongSearchIndex>(); services.AddSingleton<IScanCoordinator, ScanCoordinator>();
         services.AddSingleton(TimeProvider.System); services.AddScoped<IDatabaseMigrationExecutor, EfDatabaseMigrationExecutor>(); services.AddScoped<DatabaseUpgradeService>(); services.AddScoped<IRoomRepository, EfRoomRepository>(); services.AddSingleton<IRoomJoinCodeGenerator, SecureRoomJoinCodeGenerator>(); services.AddScoped<RoomLifecycleService>(); services.AddScoped<IRoomIdentityRepository, EfRoomIdentityRepository>(); services.AddSingleton<IRoomTokenProtector, Sha256RoomTokenProtector>(); services.AddScoped<RoomAuthenticationService>(); services.AddScoped<IRoomQueueRepository, EfRoomQueueRepository>(); services.AddSingleton<IRoomQueueLock, InProcessRoomQueueLock>(); services.AddScoped<RoomQueueService>();
         if (sharedPlayer is null) services.AddSingleton<IPlayerAdapter>(_ => new MpvPlayerAdapter(new PlayerOptions { ExecutablePath = ExternalToolLocator.Find("mpv.exe") ?? "mpv.exe", CommandTimeoutSeconds = options.Player.CommandTimeoutSeconds })); else services.AddSingleton(sharedPlayer);
         services.AddScoped<PlaybackControlService>(); services.AddScoped<IPlaybackStartupRecoveryStore, EfPlaybackStartupRecoveryStore>(); services.AddScoped<PlaybackStartupRecoveryService>();
         services.AddScoped<IPlaybackQueueStore, EfPlaybackQueueStore>(); services.AddScoped<IQueuePreflightService, EfQueuePreflightService>(); services.AddScoped<IPlaybackFailureStore, EfPlaybackFailureStore>(); services.AddSingleton(new PlaybackRecoveryPolicy()); services.AddSingleton<PlaybackContinuationGate>(); services.AddScoped<PlaybackRecoveryService>(); services.AddScoped<QueuePlaybackOrchestrator>(); services.AddHostedService<RoomPlaybackHostedService>(); services.AddHostedService<QueuePreflightHostedService>();
-        services.AddScoped<IRoomLibraryRepository, EfRoomLibraryRepository>(); services.AddScoped<RoomLibraryService>(); services.AddScoped<IProfileLibraryRepository, EfProfileLibraryRepository>(); services.AddScoped<ProfileLibraryService>(); services.AddSingleton<ArtistLexicon>(); services.AddScoped<IArtistBrowseService, EfArtistBrowseService>(); services.AddSingleton<RoomRealtimeJournal>(); services.AddSingleton<IRoomRealtimePublisher, SignalRRoomRealtimePublisher>(); services.AddSingleton<IQueueStatusNotifier, SignalRQueueStatusNotifier>();
+        services.AddScoped<IRoomLibraryRepository, EfRoomLibraryRepository>(); services.AddScoped<RoomLibraryService>(); services.AddScoped<IProfileLibraryRepository, EfProfileLibraryRepository>(); services.AddScoped<ProfileLibraryService>(); services.AddSingleton<ArtistLexicon>(); services.AddScoped<IArtistBrowseService, EfArtistBrowseService>(); services.AddScoped<ICatalogAdminRepository, EfCatalogAdminRepository>(); services.AddScoped<ICatalogAdminService, CatalogAdminService>(); services.AddScoped<ICatalogJsonImportService, CatalogJsonImportService>(); services.AddScoped<IStationHealthService, StationHealthService>(); services.AddScoped<IDiagnosticExportService, JsonDiagnosticExportService>(p => new JsonDiagnosticExportService(p.GetRequiredService<StationRuntimePaths>().DiagnosticsDirectory, p.GetRequiredService<IStationHealthService>(), p.GetRequiredService<ILocalDiagnosticLog>())); services.AddSingleton<RoomRealtimeJournal>(); services.AddSingleton<IRoomRealtimePublisher, SignalRRoomRealtimePublisher>(); services.AddSingleton<IQueueStatusNotifier, SignalRQueueStatusNotifier>();
     }
 
     private static void MapPipeline(WebApplication app)
     {
         app.UseDefaultFiles(); app.Use(async (context, next) => { context.Response.Headers.XContentTypeOptions = "nosniff"; context.Response.Headers.XFrameOptions = "DENY"; context.Response.Headers["Referrer-Policy"] = "no-referrer"; if (context.Request.Path.StartsWithSegments("/api")) context.Response.Headers.CacheControl = "no-store"; await next(); }); app.UseStaticFiles();
-        app.MapGet("/health", () => Results.Ok(new { status = "ok" })); app.MapOpenApi(); app.MapStationApi(); app.MapHub<RoomHub>("/hubs/room"); MapScans(app); app.MapFallbackToFile("index.html");
+        app.MapGet("/health", () => Results.Ok(new { status = "ok" })); app.MapOpenApi(); app.MapStationApi(); app.MapStationManagementApi(); app.MapHub<RoomHub>("/hubs/room"); MapScans(app); app.MapFallbackToFile("index.html");
     }
 
     private static void MapScans(WebApplication app)

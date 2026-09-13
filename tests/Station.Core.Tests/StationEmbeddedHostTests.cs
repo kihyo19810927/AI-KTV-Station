@@ -4,6 +4,9 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Station.Application.Common;
+using Station.Application.Catalog;
+using Station.Application.Configuration;
+using Station.Application.Health;
 using Station.Application.Playback;
 using Station.Server.Hosting;
 
@@ -30,8 +33,14 @@ public sealed class StationEmbeddedHostTests
             using var client = new HttpClient { BaseAddress = new Uri($"http://127.0.0.1:{port}") };
             var response = await client.GetAsync("/health");
             Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+            var managementHealth = await client.GetAsync("/api/manage/health");
+            Assert.Equal(HttpStatusCode.OK, managementHealth.StatusCode);
             Assert.Same(player, app.Services.GetRequiredService<IPlayerAdapter>());
             Assert.Contains(app.Services.GetServices<IHostedService>(), service => service.GetType().Name == "RoomPlaybackHostedService");
+            Assert.NotNull(app.Services.GetRequiredService<IStationSettingsStore>());
+            await using var scope = app.Services.CreateAsyncScope();
+            Assert.NotNull(scope.ServiceProvider.GetRequiredService<ICatalogJsonImportService>());
+            Assert.NotNull(scope.ServiceProvider.GetRequiredService<IStationHealthService>());
         }
         finally
         {

@@ -149,6 +149,7 @@
 | KTVS-086 | 队列重排按钮语义与插播位置修复 | KTVS-078,084 | Done | ↑/↓ 为单步移动，插播绑定 `InsertNextAsync`；等待项统一排在当前播放后；状态反馈明确结果 | 实机主机/访客交互待验收 |
 | KTVS-087 | 已验收数据库的安全随包快照 | KTVS-076,086 | Done | 发布脚本以 SQLite Backup API 读取可带 WAL 的源库，在暂存副本预迁移并重建 FTS；ZIP 仅保留单个 `data/station.db`，不含 WAL/SHM 或设置 | 含真实曲库数据的候选包仅限所有者本地验收，不得推送或公开分发 |
 | KTVS-088 | WPF 数据作用域、歌手统计缓存与收尾视觉修复 | KTVS-087 | Done | 每次桌面用例使用独立 Server scope 且读取不跟踪；歌手统计 SQL 聚合/30 秒缓存/写入失效；紧凑刷新按钮、可读迷你状态条；JSON 曲库挂载路径配置重映射且不重复导入 | RC22 含真实曲库数据仅本地验收；PR 通过后才开始 Web 桌面端 |
+| KTVS-089 | Server 本机管理能力与托盘启动器 | KTVS-088 | Done | 本机设置、JSON/JSONL 导入、健康和脱敏诊断由 Server 提供 loopback-only API；通知区启动器启动 Server、打开 Edge App 并受控停止其播放器 | `/desk` 视觉页由下一任务实现；托盘/Edge 真实 Windows 交互待验收 |
 
 ## 后续阶段门禁
 

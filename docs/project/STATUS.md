@@ -4,11 +4,11 @@
 
 ## 当前基线
 
-- 分支：`codex/KTVS-088-wpf-performance`
+- 分支：`codex/KTVS-089-server-tray`
 - 版本：`0.1.0-rc.22`（含已验收曲库数据库的本地候选包）
 - 阶段：Phase 10：持续验收问题修复与发布准备
 - 已完成：KTVS-001 至 KTVS-057；KTVS-058 软件验证完成；KTVS-060 至 KTVS-087 用户反馈与回归修复完成
-- 当前任务：KTVS-088 已完成，RC22 等待本地验收与最后一个 WPF PR 审阅；PR 通过后才开始 Web 桌面端
+- 当前任务：KTVS-089：将本机管理能力迁入 Server，并建立无 WPF 业务界面的通知区启动器；`/desk` React 桌面页留待下一阶段
 
 ## 调查结果
 
@@ -18,12 +18,18 @@
 - `ffprobe`/`ffmpeg` 可用（来自 `D:\Applications\ffmpeg\bin`，未写入项目配置）。
 - .NET SDK `10.0.400`（绝对路径可用）；mpv 已由 WinGet 安装并可定位。
 
-## KTVS-088 进行中
+## KTVS-088 已完成
 
 - 桌面数据操作已改为通过内嵌 Server 的独立异步作用域在后台执行；读取请求使用 `NoTracking`，写入仍保留完整工作单元。歌手浏览改为 SQLite 聚合和每库 30 秒不可变快照；成功写入曲库、历史或收藏时主动失效。实际 72,295 首快照冷加载 `672.03ms`，后续分组切换 100 次缓存 P50 `0.213ms`、P95 `0.370ms`；真实鼠标手感仍需 Windows 目视验收。
 - 设置新增“115 挂载路径”。便携 JSON/JSONL 导入保留相对路径并在盘符变化时重映射既有 `115 JSON 曲库`，复用既有文件路径，不删除歌曲、收藏、历史或人工修正。
 - `Station.CatalogImport` 的 SQLite 快照异常已改为受控错误码，避免 Windows 弹出未处理异常窗口。
 - RC22：`artifacts/AI-KTV-Station-0.1.0-rc.22-win-x64.zip`，580 项，大小 353,069,531 bytes，SHA-256 `6483940b5cd42a4ebc91263041a35c7a3228908fa7eca04671e6d5afa4b3edf4`。包内只含单个 `data/station.db`，无 WAL/SHM 或用户设置；发布校验、隔离启动、健康、窗口与正常退出进程清理通过。数据库来自所有者 RC21 安装目录的 SQLite 只读快照，未写入源库；候选包不得推送或公开分发。
+
+## KTVS-089 进行中
+
+- `Station.Server` 已读取当前 Windows 用户设置文件，并注册本机设置、JSON/JSONL 导入、健康检查、JSONL 诊断日志和脱敏诊断导出。`/api/manage/*` 路由严格按 loopback 拒绝局域网客户端，因此手机端仍无法获得本机文件路径或管理能力。
+- `Station.Tray` 是纯通知区 WinForms 启动器：启动同一 Server Host 后以 Edge `--app` 打开 `/desk`；退出时调用其注册 `IPlayerAdapter` 的正常停止并释放 Host，不使用 `taskkill /IM mpv.exe` 一类会误伤其他播放器的策略。
+- 当前自动化验证覆盖管理健康路由、服务注册、托盘首次启动、Edge 失败仍保留 Server、幂等停止和播放器停止；完整 Core 非外部 `186/186`、Desktop `18/18`、Release 构建/格式/依赖方向/运维文档门禁通过。真实 Windows 托盘图标、Edge App 窗口和已拥有 mpv 子进程的退出行为待下一候选包实机验收。
 
 ## 最近验证
 
