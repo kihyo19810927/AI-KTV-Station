@@ -364,10 +364,14 @@ public sealed class MpvPlayerAdapter : IPlayerAdapter
             return;
         }
         if (eventName != "end-file") return;
-        if (suppressNextEndFile) { suppressNextEndFile = false; return; }
         var current = CurrentSnapshot();
         if (current.PlaybackId is not { } playbackId) return;
         var reason = root.TryGetProperty("reason", out var reasonElement) ? reasonElement.GetString() : null;
+        // `loadfile ... replace` emits an end-file event for the old media. The
+        // adapter has already assigned the new playback id by then, so treating
+        // this event as a stop would immediately skip the newly loaded song.
+        if (reason == "replaced") { suppressNextEndFile = false; return; }
+        if (suppressNextEndFile) { suppressNextEndFile = false; return; }
         if (reason == "error")
         {
             var failure = new PlayerFailure("player.media_load_failed", PlayerFailureKind.MediaLoadFailed, true, "The media could not be played.");

@@ -1,14 +1,14 @@
 .ktv-app {
-  --ktv-shell: light-dark(#f4f2f8, #111019);
-  --ktv-panel: light-dark(#ffffff, #1b1824);
-  --ktv-sidebar: light-dark(#191127, #15101f);
-  --ktv-sidebar-soft: light-dark(#312244, #2b203b);
-  --ktv-text: light-dark(#181420, #f4f0fb);
-  --ktv-muted: light-dark(#787183, #aaa3b3);
-  --ktv-line: light-dark(#ebe7f0, #342e3e);
-  --ktv-purple: light-dark(#8250df, #a978ff);
-  --ktv-purple-soft: light-dark(#eee6ff, #33234d);
-  --ktv-green: light-dark(#16834d, #54d98c);
+  --ktv-shell: #f4f2f8;
+  --ktv-panel: #ffffff;
+  --ktv-sidebar: #191127;
+  --ktv-sidebar-soft: #312244;
+  --ktv-text: #181420;
+  --ktv-muted: #787183;
+  --ktv-line: #ebe7f0;
+  --ktv-purple: #8250df;
+  --ktv-purple-soft: #eee6ff;
+  --ktv-green: #16834d;
   color: var(--ktv-text);
   font-family: "Microsoft YaHei UI", "Microsoft YaHei", system-ui, sans-serif;
   width: 100%;
@@ -38,6 +38,7 @@
 .ktv-room { display: flex; align-items: center; gap: 9px; }
 .ktv-room-name, .ktv-room-live { padding: 8px 12px; border-radius: 999px; background: var(--ktv-panel); border: 1px solid var(--ktv-line); font-size: 12px; white-space: nowrap; }
 .ktv-room-live { color: var(--ktv-green); background: color-mix(in srgb, var(--ktv-green) 9%, var(--ktv-panel)); border-color: transparent; }
+.ktv-header-notice { margin: -5px 0 12px; padding: 9px 12px; border: 1px solid color-mix(in srgb, var(--ktv-purple) 25%, var(--ktv-line)); border-radius: 10px; color: var(--ktv-purple); background: var(--ktv-purple-soft); font-size: 12px; }
 .ktv-layout { display: grid; grid-template-columns: minmax(0, 1fr) 292px; gap: 16px; align-items: start; }
 .ktv-catalog, .ktv-queue { background: var(--ktv-panel); border-radius: 17px; }
 .ktv-catalog { min-width: 0; padding: 18px; }
@@ -127,6 +128,20 @@
 .ktv-room-tools small { margin-top: 2px; color: var(--ktv-muted); font-size: 10px; }
 .ktv-room-tools button { display: flex; align-items: center; gap: 4px; padding: 7px 8px; border: 1px solid var(--ktv-line); border-radius: 8px; background: var(--ktv-panel); color: var(--ktv-text); font-size: 10px; cursor: pointer; }
 .ktv-room-tools button svg { width: 12px; height: 12px; }
+@media (prefers-color-scheme: dark) {
+  .ktv-app {
+    --ktv-shell: #111019;
+    --ktv-panel: #1b1824;
+    --ktv-sidebar: #15101f;
+    --ktv-sidebar-soft: #2b203b;
+    --ktv-text: #f4f0fb;
+    --ktv-muted: #aaa3b3;
+    --ktv-line: #342e3e;
+    --ktv-purple: #a978ff;
+    --ktv-purple-soft: #33234d;
+    --ktv-green: #54d98c;
+  }
+}
 @media (max-width: 980px) {
   .ktv-window { grid-template-columns: 72px minmax(0, 1fr); }
   .ktv-brand-copy, .ktv-nav span, .ktv-side-status { display: none; }

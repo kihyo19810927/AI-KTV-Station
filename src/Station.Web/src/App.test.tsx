@@ -64,6 +64,29 @@ describe('mobile application shell', () => {
     await screen.findByRole('button', { name: /歌手 25/ })
     expect(document.querySelectorAll('.ktv-artist')).toHaveLength(1)
   })
+  it('keeps desktop navigation responsive and submits the visible song request button', async () => {
+    const song = { songId: 'song-1', title: '夜曲', artists: '周杰伦', availability: 'Available' }
+    const queued = { id: 'item-1', ...song, requestedByGuestId: 'host-1', requestedByNickname: '主持人', position: 1, status: 'Waiting' }
+    vi.mocked(fetch).mockImplementation(async (url, init) => {
+      const path = String(url)
+      if (path === '/api/manage/room/ensure') return new Response(JSON.stringify({ room: { id: 'room-1', joinCode: 'KTV826', maxQueuedSongsPerGuest: 100 }, host: { token: 'host-token', roomId: 'room-1', guestId: 'host-1', nickname: '主持人', role: 'Host', expiresAt: '2099-01-01T00:00:00Z' }, joinUrl: 'http://192.168.1.20:5090/join?code=KTV826' }), { status: 200, headers: { 'Content-Type': 'application/json' } })
+      if (path === '/api/playback') return new Response(JSON.stringify({ state: 'Idle', volume: 80, tracks: [] }), { status: 200, headers: { 'Content-Type': 'application/json' } })
+      if (path.startsWith('/api/library/favorites')) return new Response(JSON.stringify([]), { status: 200, headers: { 'Content-Type': 'application/json' } })
+      if (path.startsWith('/api/catalog/search')) return new Response(JSON.stringify({ items: [song], total: 1, page: 1, pageSize: 20 }), { status: 200, headers: { 'Content-Type': 'application/json' } })
+      if (path === '/api/queue' && init?.method === 'POST') return new Response(JSON.stringify(queued), { status: 201, headers: { 'Content-Type': 'application/json' } })
+      return new Response(JSON.stringify([]), { status: 200, headers: { 'Content-Type': 'application/json' } })
+    })
+    renderApp('/desk')
+    await screen.findByText('夜曲')
+    fireEvent.click(screen.getByRole('button', { name: '点歌' }))
+    expect(await screen.findByRole('status')).toHaveTextContent('已点播《夜曲》')
+    fireEvent.click(screen.getByRole('button', { name: '曲库管理' }))
+    expect(await screen.findByRole('status')).toHaveTextContent('曲库管理由主机本地管理入口提供')
+    expect(screen.getByRole('button', { name: '曲库管理' })).toHaveClass('active')
+    fireEvent.click(screen.getByRole('button', { name: '电脑点歌' }))
+    expect(screen.getByRole('button', { name: '电脑点歌' })).toHaveClass('active')
+    expect(vi.mocked(fetch).mock.calls.some(([url, request]) => String(url) === '/api/queue' && request?.method === 'POST')).toBe(true)
+  })
   it('shows realtime desktop queue state and sends playback controls', async () => {
     realtime.snapshot = { version: 3, roomId: 'room-1', queue: [
       { id: 'item-playing', songId: 'song-playing', title: '海阔天空', artists: 'Beyond', requestedByGuestId: 'host-1', requestedByNickname: '主持人', position: 1, status: 'Playing', requestedAt: '2099-01-01T00:00:00Z' },

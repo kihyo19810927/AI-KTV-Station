@@ -5,10 +5,10 @@
 ## 当前基线
 
 - 分支：`codex/KTVS-090-tray-package`
-- 版本：`0.1.0-rc.34`（含已验收曲库数据库的本地候选包）
+- 版本：`0.1.0-rc.35`（含已验收曲库数据库的本地候选包；待用户实机验收）
 - 阶段：Phase 10：持续验收问题修复、托盘启动与 Web 桌面主控
 - 已完成：KTVS-001 至 KTVS-057；KTVS-058 软件验证完成；KTVS-060 至 KTVS-090 用户反馈与回归修复完成；KTVS-091 至 KTVS-093 Web 桌面主控软件实现完成
-- 当前任务：KTVS-093 已完成：在批准 Demo `/desk` 视觉上限制歌手卡片渲染上限，待用户实机验收
+- 当前任务：KTVS-094 已完成：修复批准 Demo `/desk` 的按钮可见性、导航反馈和连续播放事件误判，待用户实机验收
 
 ## 调查结果
 
@@ -54,6 +54,14 @@
 - `NowPlaying` 的音量状态同步增加有限值保护，避免后端缺失音量字段时把受控滑块变成非受控输入。
 - KTVS-093 软件验证：Web `36/36`、TypeScript 和 Vite production build 通过；RC34 发布校验和托盘冒烟通过（冷启动待机、托盘生命周期、健康检查和进程清理）。
 - RC34：`artifacts/AI-KTV-Station-0.1.0-rc.34-win-x64.zip`，450 项，339,240,095 bytes，SHA-256 `2a36167d333908652b42086cbea00a8020f67540acbf9ed5ac7ffdeefac3ba65`。包含批准 Demo `/desk`、自包含 .NET、mpv/FFmpeg、许可证材料及 `data/station.db` 只读快照；发布校验 `RELEASE_PACKAGE=passed`、Windows 发布 `WINDOWS_PUBLISH=passed`、包冒烟 `PACKAGE_SMOKE=passed`。
+
+## KTVS-094 已完成
+
+- 修复 `/desk` 桌面 Demo 的颜色变量兼容性：移除不兼容的 `light-dark()`，使用稳定浅色基线并通过 `prefers-color-scheme: dark` 覆盖深色变量；紫色点歌按钮、侧栏、标签和播控按钮恢复可见对比度。
+- 侧栏导航不再只有无感滚动或不可见提示：当前导航项会高亮，房间、曲库、设置、正在播放和队列操作会在页面顶部显示即时反馈；桌面点歌按钮继续直接调用 `/api/queue`。
+- mpv 适配器明确忽略 `end-file(reason=replaced)`，避免 `loadfile replace` 的旧媒体事件被绑定到新播放 ID；真实 Unicode MKV 外部回归增加切换后状态仍为 `Playing` 的检查。
+- KTVS-094 软件验证：Web `38/38`、TypeScript、Vite production build、Server Release、Core 非外部 `181/181`、mpv 外部 `3/3` 通过；RC35 发布包、冷启动待机、托盘生命周期、健康检查和进程清理冒烟通过。
+- RC35：`artifacts/AI-KTV-Station-0.1.0-rc.35-win-x64.zip`，450 项，339,240,361 bytes，SHA-256 `8fb1fd8609d9a61829fd3401460414e1e9fd3b48baba73b2f4694d861293fbb9`。包含稳定颜色基线、桌面导航反馈、连续播放替换事件修复、自包含 .NET、mpv/FFmpeg、许可证材料及已验收曲库 `data/station.db` 快照；`RELEASE_PACKAGE=passed`、`WINDOWS_PUBLISH=passed`、`PACKAGE_SMOKE=passed`。
 
 ## 最近验证
 
