@@ -1,4 +1,5 @@
 using System.Net;
+using System.Net.Http.Json;
 using System.Net.Sockets;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -35,6 +36,19 @@ public sealed class StationEmbeddedHostTests
             Assert.Equal(HttpStatusCode.OK, response.StatusCode);
             var managementHealth = await client.GetAsync("/api/manage/health");
             Assert.Equal(HttpStatusCode.OK, managementHealth.StatusCode);
+            var ensured = await client.PostAsJsonAsync("/api/manage/room/ensure", new { hostNickname = "主持人", maxQueuedSongsPerGuest = 100 });
+            Assert.Equal(HttpStatusCode.OK, ensured.StatusCode);
+            using var firstRoom = await ensured.Content.ReadFromJsonAsync<System.Text.Json.JsonDocument>();
+            var firstRoomId = firstRoom!.RootElement.GetProperty("room").GetProperty("id").GetString();
+            var joinCode = firstRoom.RootElement.GetProperty("room").GetProperty("joinCode").GetString();
+            var joinUrl = firstRoom.RootElement.GetProperty("joinUrl").GetString();
+            Assert.False(string.IsNullOrWhiteSpace(firstRoom.RootElement.GetProperty("host").GetProperty("token").GetString()));
+            Assert.Matches("^[A-Z0-9]{6}$", joinCode!);
+            Assert.Contains($"/join?code={joinCode}", joinUrl, StringComparison.Ordinal);
+            var restored = await client.PostAsJsonAsync("/api/manage/room/ensure", new { hostNickname = "主持人", maxQueuedSongsPerGuest = 100 });
+            Assert.Equal(HttpStatusCode.OK, restored.StatusCode);
+            using var secondRoom = await restored.Content.ReadFromJsonAsync<System.Text.Json.JsonDocument>();
+            Assert.Equal(firstRoomId, secondRoom!.RootElement.GetProperty("room").GetProperty("id").GetString());
             Assert.Same(player, app.Services.GetRequiredService<IPlayerAdapter>());
             Assert.Contains(app.Services.GetServices<IHostedService>(), service => service.GetType().Name == "RoomPlaybackHostedService");
             Assert.NotNull(app.Services.GetRequiredService<IStationSettingsStore>());

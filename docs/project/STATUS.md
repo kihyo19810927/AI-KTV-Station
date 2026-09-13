@@ -4,11 +4,11 @@
 
 ## 当前基线
 
-- 分支：`codex/KTVS-089-server-tray`
-- 版本：`0.1.0-rc.22`（含已验收曲库数据库的本地候选包）
-- 阶段：Phase 10：持续验收问题修复与发布准备
-- 已完成：KTVS-001 至 KTVS-057；KTVS-058 软件验证完成；KTVS-060 至 KTVS-087 用户反馈与回归修复完成
-- 当前任务：KTVS-089：将本机管理能力迁入 Server，并建立无 WPF 业务界面的通知区启动器；`/desk` React 桌面页留待下一阶段
+- 分支：`codex/KTVS-090-tray-package`
+- 版本：`0.1.0-rc.32`（含已验收曲库数据库的本地候选包）
+- 阶段：Phase 10：持续验收问题修复、托盘启动与 Web 桌面主控
+- 已完成：KTVS-001 至 KTVS-057；KTVS-058 软件验证完成；KTVS-060 至 KTVS-090 用户反馈与回归修复完成
+- 当前任务：KTVS-091 已完成：以批准的 Demo 为基线实现 `/desk` React 桌面主控页，待用户实机验收
 
 ## 调查结果
 
@@ -25,11 +25,20 @@
 - `Station.CatalogImport` 的 SQLite 快照异常已改为受控错误码，避免 Windows 弹出未处理异常窗口。
 - RC22：`artifacts/AI-KTV-Station-0.1.0-rc.22-win-x64.zip`，580 项，大小 353,069,531 bytes，SHA-256 `6483940b5cd42a4ebc91263041a35c7a3228908fa7eca04671e6d5afa4b3edf4`。包内只含单个 `data/station.db`，无 WAL/SHM 或用户设置；发布校验、隔离启动、健康、窗口与正常退出进程清理通过。数据库来自所有者 RC21 安装目录的 SQLite 只读快照，未写入源库；候选包不得推送或公开分发。
 
-## KTVS-089 进行中
+## KTVS-089 已完成
 
 - `Station.Server` 已读取当前 Windows 用户设置文件，并注册本机设置、JSON/JSONL 导入、健康检查、JSONL 诊断日志和脱敏诊断导出。`/api/manage/*` 路由严格按 loopback 拒绝局域网客户端，因此手机端仍无法获得本机文件路径或管理能力。
 - `Station.Tray` 是纯通知区 WinForms 启动器：启动同一 Server Host 后以 Edge `--app` 打开 `/desk`；退出时调用其注册 `IPlayerAdapter` 的正常停止并释放 Host，不使用 `taskkill /IM mpv.exe` 一类会误伤其他播放器的策略。
-- 当前自动化验证覆盖管理健康路由、服务注册、托盘首次启动、Edge 失败仍保留 Server、幂等停止和播放器停止；完整 Core 非外部 `186/186`、Desktop `18/18`、Release 构建/格式/依赖方向/运维文档门禁通过。真实 Windows 托盘图标、Edge App 窗口和已拥有 mpv 子进程的退出行为待下一候选包实机验收。
+- 自动化验证覆盖管理健康路由、服务注册、托盘首次启动、Edge 失败仍保留 Server、幂等停止和播放器停止；此前候选包已由用户确认通知区托盘可工作。完整 Core 非外部 `186/186`、Desktop `18/18`、Release 构建/格式/依赖方向/运维文档门禁通过。
+
+## KTVS-091 已完成
+
+- `Station.Server` 新增 loopback-only 的 `/api/manage/room/ensure`，为桌面主控幂等创建/恢复房间并签发主持人凭证；响应同时生成局域网加入链接，使用房间码但不把令牌放入 URL。
+- `Station.Web` 新增 `/desk`，直接按批准的 Demo 实现深色紫色侧栏、电脑点歌、并排“按歌名/按歌手”检索按钮、歌星圆形头像卡片、语种/风格筛选、分页、播放状态和队列面板。页面复用现有 REST/SignalR 房间能力，WPF 不承载业务界面。
+- 桌面页启动后自动恢复本地主持房间；歌手卡片按歌手字段检索，队列显示探测/播放状态并提供插播，播放控制复用现有 `/api/playback/*` 接口。
+- `scripts/test-packaged-app.ps1` 同步修复了包冒烟测试的 `Station` 配置层级，并覆盖随机端口；修复托盘启动任务与 smoke 退出调度的竞态，避免托盘进程残留。
+- RC32：`artifacts/AI-KTV-Station-0.1.0-rc.32-win-x64.zip`，450 项，SHA-256 `9198c5ec476e257e38aa5ed576b5802f455541a6012b4995e5c79619a353b5ee`。包含 `/desk`、自包含 .NET、mpv/FFmpeg、许可证材料和 `data/station.db`；隔离启动健康、冷启动不拉起 mpv、托盘生命周期和进程清理通过。因当前机不存在此前指定的外部数据库目录，本包使用 RC30 已验收包中的只读数据库快照。
+- 当前验证：Web TypeScript `tsc -b`、Vitest `34/34`、Vite production build、Server/Tray Release build、嵌入宿主管理路由测试 `1/1`、Desktop `18/18`、Core 非外部 `181/181`、格式门禁和 RC32 包冒烟均通过。真实 Edge App 视觉、触控、局域网手机和长列表体验仍需用户验收。
 
 ## 最近验证
 

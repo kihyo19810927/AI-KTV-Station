@@ -2,7 +2,11 @@ using Station.Application.Catalog;
 using Station.Application.Common;
 using Station.Application.Configuration;
 using Station.Application.Health;
+using Station.Application.Rooms;
 using Station.Server.Security;
+using System.Net;
+using System.Net.NetworkInformation;
+using System.Net.Sockets;
 
 namespace Station.Server.Api;
 
@@ -16,12 +20,60 @@ public static class StationManagementEndpoints
     {
         var management = endpoints.MapGroup("/api/manage");
         management.MapGet("/settings", GetSettingsAsync).WithName("GetStationSettings");
+        management.MapPost("/room/ensure", EnsureHostRoomAsync).WithName("EnsureHostRoom");
         management.MapPut("/settings", SaveSettingsAsync).WithName("SaveStationSettings");
         management.MapPost("/catalog/import", ImportCatalogAsync).WithName("ImportPortableCatalog");
         management.MapGet("/health", CheckHealthAsync).WithName("CheckStationHealth");
         management.MapGet("/diagnostics/recent", ReadDiagnosticsAsync).WithName("ReadStationDiagnostics");
         management.MapPost("/diagnostics/export", ExportDiagnosticsAsync).WithName("ExportStationDiagnostics");
         return endpoints;
+    }
+
+    private static async Task<IResult> EnsureHostRoomAsync(
+        HttpContext context,
+        LocalHostRoomRequest? request,
+        RoomLifecycleService rooms,
+        RoomAuthenticationService authentication,
+        CancellationToken cancellationToken)
+    {
+        if (!IsLocal(context)) return LocalOnly();
+        var current = await rooms.GetCurrentAsync(cancellationToken);
+        if (current.IsFailure) return StationApiEndpoints.Problem(current.Error);
+        var room = current.Value;
+        if (room is null)
+        {
+            var created = await rooms.CreateAsync(request?.MaxQueuedSongsPerGuest ?? 100, cancellationToken);
+            if (created.IsFailure)
+            {
+                // Another local host page may have won the one-room race.
+                current = await rooms.GetCurrentAsync(cancellationToken);
+                if (current.IsFailure || current.Value is null) return StationApiEndpoints.Problem(created.Error);
+                room = current.Value;
+            }
+            else room = created.Value;
+        }
+        var host = await authentication.IssueHostAsync(room.Id, request?.HostNickname ?? "主持人", cancellationToken);
+        return host.IsSuccess
+            ? Results.Ok(new LocalHostRoomResponse(room, host.Value, BuildLanJoinUrl(context, room.JoinCode)))
+            : StationApiEndpoints.Problem(host.Error);
+    }
+
+    private static string BuildLanJoinUrl(HttpContext context, string joinCode)
+    {
+        var address = NetworkInterface.GetAllNetworkInterfaces()
+            .Where(network => network.OperationalStatus == OperationalStatus.Up && network.NetworkInterfaceType != NetworkInterfaceType.Loopback)
+            .SelectMany(network => network.GetIPProperties().UnicastAddresses)
+            .Select(unicast => unicast.Address)
+            .FirstOrDefault(IsPrivateIpv4)?.ToString() ?? context.Request.Host.Host;
+        var port = context.Request.Host.Port is { } requestPort ? $":{requestPort}" : string.Empty;
+        return $"{context.Request.Scheme}://{address}{port}/join?code={Uri.EscapeDataString(joinCode)}";
+    }
+
+    private static bool IsPrivateIpv4(IPAddress address)
+    {
+        if (address.AddressFamily != AddressFamily.InterNetwork) return false;
+        var bytes = address.GetAddressBytes();
+        return bytes[0] == 10 || bytes[0] == 192 && bytes[1] == 168 || bytes[0] == 172 && bytes[1] is >= 16 and <= 31;
     }
 
     private static async Task<IResult> GetSettingsAsync(HttpContext context, IStationSettingsStore store, CancellationToken cancellationToken)
@@ -76,4 +128,6 @@ public static class StationManagementEndpoints
     private static IResult LocalOnly() => StationApiEndpoints.Problem(new Error("auth.local_only", "Station management is available only on the host."));
 
     public sealed record LocalCatalogImportRequest(string? IndexPath, string? MountRoot);
+    public sealed record LocalHostRoomRequest(string? HostNickname, int? MaxQueuedSongsPerGuest);
+    public sealed record LocalHostRoomResponse(RoomAdminDetails Room, IssuedRoomToken Host, string JoinUrl);
 }

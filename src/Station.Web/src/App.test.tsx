@@ -16,6 +16,54 @@ function renderApp(path: string) { return render(<MemoryRouter initialEntries={[
 describe('mobile application shell', () => {
   beforeEach(() => { sessionStorage.clear(); realtime.snapshot = { version: 0, roomId: 'room-1', queue: [] }; realtime.lastUrl = ''; realtime.invokeArgs = []; vi.restoreAllMocks(); vi.spyOn(globalThis, 'fetch').mockImplementation(async () => new Response(JSON.stringify({ items: [], total: 0, page: 1, pageSize: 20 }), { status: 200, headers: { 'Content-Type': 'application/json' } })) })
   it('renders join route', () => { renderApp('/join'); expect(screen.getByRole('heading', { name: 'AI-KTV Station' })).toBeInTheDocument(); expect(screen.getByRole('button', { name: '加入房间' })).toBeInTheDocument() })
+  it('opens the desktop route by ensuring a local host room and persists the host session', async () => {
+    vi.mocked(fetch).mockImplementation(async url => String(url) === '/api/manage/room/ensure'
+      ? new Response(JSON.stringify({ room: { id: 'room-1', joinCode: 'KTV826', maxQueuedSongsPerGuest: 100 }, host: { token: 'host-token', roomId: 'room-1', guestId: 'host-1', nickname: '主持人', role: 'Host', expiresAt: '2099-01-01T00:00:00Z' }, joinUrl: 'http://192.168.1.20:5090/join?code=KTV826' }), { status: 200, headers: { 'Content-Type': 'application/json' } })
+      : new Response(JSON.stringify({ items: [], total: 0, page: 1, pageSize: 20 }), { status: 200, headers: { 'Content-Type': 'application/json' } }))
+    renderApp('/desk')
+    expect((await screen.findAllByText(/KTV826/)).length).toBeGreaterThan(0)
+    expect(screen.getByText(/房间已开启/)).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: '电脑点歌' })).toBeInTheDocument()
+    expect(screen.getByRole('tab', { name: '歌星' })).toBeInTheDocument()
+    expect(vi.mocked(fetch).mock.calls.filter(([url]) => String(url) === '/api/manage/room/ensure')).toHaveLength(1)
+    expect(JSON.parse(sessionStorage.getItem('ai-ktv-station.room-session.v1') ?? '{}')).toMatchObject({ role: 'Host', token: 'host-token' })
+  })
+  it('uses the desktop artist search scope and loads the Demo artist cards', async () => {
+    const song = { songId: 'song-1', title: '晴天', artists: '周杰伦', availability: 'Available' }
+    vi.mocked(fetch).mockImplementation(async url => {
+      const path = String(url)
+      if (path === '/api/manage/room/ensure') return new Response(JSON.stringify({ room: { id: 'room-1', joinCode: 'KTV826', maxQueuedSongsPerGuest: 100 }, host: { token: 'host-token', roomId: 'room-1', guestId: 'host-1', nickname: '主持人', role: 'Host', expiresAt: '2099-01-01T00:00:00Z' }, joinUrl: 'http://192.168.1.20:5090/join?code=KTV826' }), { status: 200, headers: { 'Content-Type': 'application/json' } })
+      if (path.startsWith('/api/library/favorites')) return new Response(JSON.stringify([]), { status: 200, headers: { 'Content-Type': 'application/json' } })
+      if (path.startsWith('/api/catalog/artists')) return new Response(JSON.stringify([{ id: 'artist-1', name: '周杰伦', songCount: 7, imageUrl: '/avatars/zhou.jpg' }]), { status: 200, headers: { 'Content-Type': 'application/json' } })
+      return new Response(JSON.stringify({ items: [song], total: 1, page: 1, pageSize: 20 }), { status: 200, headers: { 'Content-Type': 'application/json' } })
+    })
+    renderApp('/desk')
+    await screen.findByRole('heading', { name: '电脑点歌' })
+    const input = screen.getByPlaceholderText('输入歌名、歌手或拼音')
+    fireEvent.change(input, { target: { value: '周杰伦' } })
+    fireEvent.click(screen.getByRole('button', { name: '按歌手' }))
+    await waitFor(() => expect(vi.mocked(fetch).mock.calls.some(([url]) => String(url).includes('field=Artist') && String(url).includes('text=%E5%91%A8%E6%9D%B0%E4%BC%A6'))).toBe(true))
+    fireEvent.click(screen.getByRole('tab', { name: '歌星' }))
+    expect(await screen.findByRole('button', { name: /周杰伦/ })).toBeInTheDocument()
+  })
+  it('shows realtime desktop queue state and sends playback controls', async () => {
+    realtime.snapshot = { version: 3, roomId: 'room-1', queue: [
+      { id: 'item-playing', songId: 'song-playing', title: '海阔天空', artists: 'Beyond', requestedByGuestId: 'host-1', requestedByNickname: '主持人', position: 1, status: 'Playing', requestedAt: '2099-01-01T00:00:00Z' },
+      { id: 'item-waiting', songId: 'song-waiting', title: '晴天', artists: '周杰伦', requestedByGuestId: 'host-1', requestedByNickname: '主持人', position: 2, status: 'Waiting', requestedAt: '2099-01-01T00:00:00Z' },
+    ], playback: { playbackId: 'playback-1', state: 'Playing', position: '65', duration: '300' } }
+    vi.mocked(fetch).mockImplementation(async url => {
+      const path = String(url)
+      if (path === '/api/manage/room/ensure') return new Response(JSON.stringify({ room: { id: 'room-1', joinCode: 'KTV826', maxQueuedSongsPerGuest: 100 }, host: { token: 'host-token', roomId: 'room-1', guestId: 'host-1', nickname: '主持人', role: 'Host', expiresAt: '2099-01-01T00:00:00Z' }, joinUrl: 'http://192.168.1.20:5090/join?code=KTV826' }), { status: 200, headers: { 'Content-Type': 'application/json' } })
+      if (path.startsWith('/api/library/favorites')) return new Response(JSON.stringify([]), { status: 200, headers: { 'Content-Type': 'application/json' } })
+      if (path === '/api/playback/pause') return new Response(JSON.stringify({}), { status: 200, headers: { 'Content-Type': 'application/json' } })
+      return new Response(JSON.stringify({ items: [], total: 0, page: 1, pageSize: 20 }), { status: 200, headers: { 'Content-Type': 'application/json' } })
+    })
+    renderApp('/desk')
+    expect(await screen.findByText('海阔天空')).toBeInTheDocument()
+    expect(screen.getByText('晴天')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: '暂停' }))
+    await waitFor(() => expect(vi.mocked(fetch).mock.calls.some(([url, init]) => String(url) === '/api/playback/pause' && init?.method === 'POST')).toBe(true))
+  })
   it('restores a valid session and renders the approved discovery shell', async () => { sessionStorage.setItem('ai-ktv-station.room-session.v1', JSON.stringify(validSession)); renderApp('/room/discover'); expect(await screen.findByText('小明 · 访客 · 已连接')).toBeInTheDocument(); expect(screen.getByPlaceholderText('输入关键字后点击按歌名或按歌手')).toBeInTheDocument(); expect(screen.getByRole('navigation', { name: '主导航' })).toBeInTheDocument() })
   it('joins a room and persists the short-lived session', async () => {
     vi.mocked(fetch).mockResolvedValue(new Response(JSON.stringify({ ...validSession, guestId: 'guest-1' }), { status: 200, headers: { 'Content-Type': 'application/json' } }))

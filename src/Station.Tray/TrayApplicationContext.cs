@@ -7,6 +7,7 @@ internal sealed class TrayApplicationContext : ApplicationContext
     private readonly NotifyIcon notifyIcon;
     private readonly TrayStationController controller;
     private bool shuttingDown;
+    private bool startupCompleted;
     private TimeSpan? smokeExitDelay;
     private System.Threading.Timer? smokeExitTimer;
 
@@ -38,7 +39,11 @@ internal sealed class TrayApplicationContext : ApplicationContext
         BeginShutdown();
     }
 
-    public void ScheduleSmokeExit(TimeSpan delay) => smokeExitDelay = delay;
+    public void ScheduleSmokeExit(TimeSpan delay)
+    {
+        smokeExitDelay = delay;
+        if (Volatile.Read(ref startupCompleted)) ExitAfter(delay);
+    }
 
     private void ExitAfter(TimeSpan delay)
     {
@@ -57,6 +62,7 @@ internal sealed class TrayApplicationContext : ApplicationContext
         {
             var opened = await controller.StartAsync();
             if (!opened) notifyIcon.ShowBalloonTip(5000, "AI-KTV Station", "服务已启动；未能自动打开 Edge，请从托盘菜单打开桌面点歌。", ToolTipIcon.Info);
+            Volatile.Write(ref startupCompleted, true);
             if (smokeExitDelay is { } delay) ExitAfter(delay);
         }
         catch (Exception exception)

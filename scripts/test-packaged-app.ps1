@@ -27,9 +27,11 @@ try {
     }
 
     $settings = @{
-        Server = @{ BindAddress = '127.0.0.1'; Port = $port }
-        Storage = @{ DataDirectory = 'data' }
-        Player = @{ ExecutablePath = ''; CommandTimeoutSeconds = 10 }
+        Station = @{
+            Server = @{ BindAddress = '127.0.0.1'; Port = $port }
+            Storage = @{ DataDirectory = 'data' }
+            Player = @{ ExecutablePath = ''; CommandTimeoutSeconds = 10 }
+        }
     } | ConvertTo-Json -Depth 4
     $settings | Set-Content -LiteralPath (Join-Path $settingsRoot 'settings.json') -Encoding utf8
     $env:AI_KTV_STATION_SETTINGS_ROOT = $settingsRoot
