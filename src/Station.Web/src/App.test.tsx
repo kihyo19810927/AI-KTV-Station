@@ -64,6 +64,31 @@ describe('mobile application shell', () => {
     fireEvent.click(screen.getByRole('button', { name: '暂停' }))
     await waitFor(() => expect(vi.mocked(fetch).mock.calls.some(([url, init]) => String(url) === '/api/playback/pause' && init?.method === 'POST')).toBe(true))
   })
+  it('controls desktop volume, progress, audio and subtitle tracks through playback APIs', async () => {
+    vi.mocked(fetch).mockImplementation(async (url, init) => {
+      const path = String(url)
+      if (path === '/api/manage/room/ensure') return new Response(JSON.stringify({ room: { id: 'room-1', joinCode: 'KTV826', maxQueuedSongsPerGuest: 100 }, host: { token: 'host-token', roomId: 'room-1', guestId: 'host-1', nickname: '主持人', role: 'Host', expiresAt: '2099-01-01T00:00:00Z' }, joinUrl: 'http://192.168.1.20:5090/join?code=KTV826' }), { status: 200, headers: { 'Content-Type': 'application/json' } })
+      if (path.startsWith('/api/library/favorites')) return new Response(JSON.stringify([]), { status: 200, headers: { 'Content-Type': 'application/json' } })
+      if (path === '/api/playback') return new Response(JSON.stringify({ state: 'Playing', volume: 62, position: '00:01:05', duration: '00:05:00', audioTrackId: 1, subtitleTrackId: 3, tracks: [{ streamId: 1, type: 'Audio', title: '原唱' }, { streamId: 2, type: 'Audio', title: '伴奏' }, { streamId: 3, type: 'Subtitle', language: '中文' }] }), { status: 200, headers: { 'Content-Type': 'application/json' } })
+      if (path === '/api/playback/volume' || path === '/api/playback/seek' || path === '/api/playback/audio' || path === '/api/playback/subtitle') return new Response(JSON.stringify({ state: 'Playing', volume: 62, position: '00:01:30', duration: '00:05:00', audioTrackId: 2, subtitleTrackId: null, tracks: [{ streamId: 1, type: 'Audio', title: '原唱' }, { streamId: 2, type: 'Audio', title: '伴奏' }, { streamId: 3, type: 'Subtitle', language: '中文' }] }), { status: 200, headers: { 'Content-Type': 'application/json' } })
+      if (init?.method === 'POST') return new Response(JSON.stringify({}), { status: 200, headers: { 'Content-Type': 'application/json' } })
+      return new Response(JSON.stringify({ items: [], total: 0, page: 1, pageSize: 20 }), { status: 200, headers: { 'Content-Type': 'application/json' } })
+    })
+    renderApp('/desk')
+    await screen.findByRole('heading', { name: '电脑点歌' })
+    await waitFor(() => expect(screen.getByText('01:05')).toBeInTheDocument())
+    fireEvent.click(screen.getByRole('button', { name: '音量' }))
+    fireEvent.change(screen.getByRole('slider', { name: '音量' }), { target: { value: '48' } })
+    fireEvent.click(screen.getByRole('button', { name: '原唱伴奏' }))
+    fireEvent.change(screen.getByRole('combobox', { name: '原唱伴奏' }), { target: { value: '2' } })
+    fireEvent.change(screen.getByRole('combobox', { name: '字幕' }), { target: { value: '3' } })
+    await waitFor(() => {
+      const calls = vi.mocked(fetch).mock.calls
+      expect(calls.some(([url, init]) => String(url) === '/api/playback/volume' && init?.method === 'POST' && String(init.body).includes('48'))).toBe(true)
+      expect(calls.some(([url, init]) => String(url) === '/api/playback/audio' && init?.method === 'POST' && String(init.body).includes('2'))).toBe(true)
+      expect(calls.some(([url, init]) => String(url) === '/api/playback/subtitle' && init?.method === 'POST' && String(init.body).includes('3'))).toBe(true)
+    })
+  })
   it('restores a valid session and renders the approved discovery shell', async () => { sessionStorage.setItem('ai-ktv-station.room-session.v1', JSON.stringify(validSession)); renderApp('/room/discover'); expect(await screen.findByText('小明 · 访客 · 已连接')).toBeInTheDocument(); expect(screen.getByPlaceholderText('输入关键字后点击按歌名或按歌手')).toBeInTheDocument(); expect(screen.getByRole('navigation', { name: '主导航' })).toBeInTheDocument() })
   it('joins a room and persists the short-lived session', async () => {
     vi.mocked(fetch).mockResolvedValue(new Response(JSON.stringify({ ...validSession, guestId: 'guest-1' }), { status: 200, headers: { 'Content-Type': 'application/json' } }))

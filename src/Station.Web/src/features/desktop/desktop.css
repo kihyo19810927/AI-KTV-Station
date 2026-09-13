@@ -91,11 +91,22 @@
 .ktv-progress { height: 4px; margin: 12px 0 8px; overflow: hidden; border-radius: 3px; background: var(--ktv-line); }
 .ktv-progress span { display: block; height: 100%; min-width: 0; background: var(--ktv-purple); transition: width .25s ease; }
 .ktv-time { display: flex; justify-content: space-between; color: var(--ktv-muted); font-size: 10px; }
+.ktv-mini-seek { margin-top: 7px; }
+.ktv-mini-seek input, .ktv-control-panel input[type="range"] { width: 100%; accent-color: var(--ktv-purple); cursor: pointer; }
 .ktv-player-actions { display: grid; grid-template-columns: repeat(4, 1fr); gap: 5px; margin-top: 10px; }
 .ktv-player-actions button { height: 32px; display: grid; place-items: center; border: 0; border-radius: 8px; background: var(--ktv-panel); color: var(--ktv-text); cursor: pointer; }
 .ktv-player-actions button:disabled { cursor: not-allowed; opacity: .45; }
 .ktv-player-actions button:hover:not(:disabled) { color: var(--ktv-purple); }
+.ktv-player-actions button.selected { color: var(--ktv-purple); background: var(--ktv-purple-soft); }
 .ktv-player-actions svg { width: 15px; height: 15px; }
+.ktv-control-panel { margin-top: 9px; padding: 10px; border: 1px solid var(--ktv-line); border-radius: 10px; background: color-mix(in srgb, var(--ktv-shell) 72%, var(--ktv-panel)); color: var(--ktv-muted); font-size: 10px; }
+.ktv-control-panel > div, .ktv-control-panel label { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.ktv-control-panel strong { color: var(--ktv-text); font-size: 11px; }
+.ktv-control-panel > input[type="range"] { display: block; margin-top: 8px; }
+.ktv-track-panel { display: grid; gap: 8px; }
+.ktv-track-panel label { color: var(--ktv-text); font-size: 10px; }
+.ktv-track-panel select { min-width: 0; flex: 1; height: 28px; padding: 0 5px; border: 1px solid var(--ktv-line); border-radius: 7px; background: var(--ktv-panel); color: var(--ktv-text); font: inherit; }
+.ktv-track-panel > span { line-height: 1.5; }
 .ktv-queue-head { display: flex; align-items: center; justify-content: space-between; margin: 17px 0 7px; }
 .ktv-queue-head strong { font-size: 14px; font-weight: 500; }
 .ktv-queue-head span { color: var(--ktv-muted); font-size: 11px; }

@@ -5,10 +5,10 @@
 ## 当前基线
 
 - 分支：`codex/KTVS-090-tray-package`
-- 版本：`0.1.0-rc.32`（含已验收曲库数据库的本地候选包）
+- 版本：`0.1.0-rc.33`（含已验收曲库数据库的本地候选包）
 - 阶段：Phase 10：持续验收问题修复、托盘启动与 Web 桌面主控
 - 已完成：KTVS-001 至 KTVS-057；KTVS-058 软件验证完成；KTVS-060 至 KTVS-090 用户反馈与回归修复完成
-- 当前任务：KTVS-091 已完成：以批准的 Demo 为基线实现 `/desk` React 桌面主控页，待用户实机验收
+- 当前任务：KTVS-092 已完成：在批准 Demo `/desk` 视觉上补齐真实桌面播控，待用户实机验收
 
 ## 调查结果
 
@@ -39,6 +39,12 @@
 - `scripts/test-packaged-app.ps1` 同步修复了包冒烟测试的 `Station` 配置层级，并覆盖随机端口；修复托盘启动任务与 smoke 退出调度的竞态，避免托盘进程残留。
 - RC32：`artifacts/AI-KTV-Station-0.1.0-rc.32-win-x64.zip`，450 项，SHA-256 `9198c5ec476e257e38aa5ed576b5802f455541a6012b4995e5c79619a353b5ee`。包含 `/desk`、自包含 .NET、mpv/FFmpeg、许可证材料和 `data/station.db`；隔离启动健康、冷启动不拉起 mpv、托盘生命周期和进程清理通过。因当前机不存在此前指定的外部数据库目录，本包使用 RC30 已验收包中的只读数据库快照。
 - 当前验证：Web TypeScript `tsc -b`、Vitest `34/34`、Vite production build、Server/Tray Release build、嵌入宿主管理路由测试 `1/1`、Desktop `18/18`、Core 非外部 `181/181`、格式门禁和 RC32 包冒烟均通过。真实 Edge App 视觉、触控、局域网手机和长列表体验仍需用户验收。
+
+## KTVS-092 已完成
+
+- `/desk` 继续直接沿用批准的 Demo 结构和视觉变量，不回退到 WPF/XAML；右侧播控补齐播放/暂停、切歌、进度拖动、音量滑动、原唱/伴奏切换和字幕选择。
+- 桌面端增加 `TimeSpan`/数字进度统一换算，避免 `00:01:05` 被 `Number()` 当成无效值；音量更新使用 160ms 防抖并乐观更新，避免拖动时高频请求阻塞 UI。
+- Vitest 新增桌面播控接口回归，覆盖音量、进度、音轨和字幕请求；当前 Web 测试为 `35/35`，TypeScript 和 Vite production build 通过。
 
 ## 最近验证
 

@@ -12,7 +12,6 @@ import {
   Search,
   Settings,
   SkipForward,
-  Users,
   Volume2,
 } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react'
@@ -40,6 +39,8 @@ interface SongSearchItem {
 interface SongSearchPage { items: SongSearchItem[]; total: number; page: number; pageSize: number }
 interface FavoriteSong { songId: string; title: string; artists: string; favoritedAt: string }
 interface ArtistItem { artistId?: string; id?: string; name: string; songCount: number; imageUrl?: string; avatarUrl?: string }
+interface Track { streamId: number; type: 'Audio' | 'Subtitle'; title?: string; language?: string }
+interface PlayerState { state: string; volume: number; tracks?: Track[]; position?: string | number; duration?: string | number; audioTrackId?: number; subtitleTrackId?: number }
 type DesktopView = 'songs' | 'artists' | 'language' | 'style' | 'favorites'
 type SearchField = 'Any' | 'Title' | 'Artist'
 
@@ -58,15 +59,22 @@ function avatarColor(name: string) {
   return colors[Math.abs(hash) % colors.length]
 }
 
-function formatClock(value?: string) {
+function seconds(value: string | number | undefined) {
+  if (typeof value === 'number' && Number.isFinite(value)) return Math.max(0, value)
+  if (typeof value !== 'string') return 0
+  const parts = value.split(':').map(Number)
+  if (parts.some(part => !Number.isFinite(part))) return 0
+  return parts.length === 3 ? parts[0] * 3600 + parts[1] * 60 + parts[2] : parts.length === 2 ? parts[0] * 60 + parts[1] : Number(parts[0]) || 0
+}
+
+function formatClock(value?: string | number) {
   if (!value) return '--:--'
-  const number = Number(value)
-  if (Number.isFinite(number)) {
-    const seconds = Math.max(0, Math.floor(number))
-    return `${String(Math.floor(seconds / 60)).padStart(2, '0')}:${String(seconds % 60).padStart(2, '0')}`
-  }
-  const match = value.match(/^(?:\d+\.)?(\d{2}:\d{2}:\d{2})/)
-  return match ? match[1].slice(3) : value.slice(-5)
+  const total = seconds(value)
+  return `${String(Math.floor(total / 60)).padStart(2, '0')}:${String(Math.floor(total % 60)).padStart(2, '0')}`
+}
+
+function trackName(track: Track) {
+  return track.title?.trim() || track.language?.trim() || (track.type === 'Audio' ? `音轨 ${track.streamId}` : `字幕 ${track.streamId}`)
 }
 
 export function DesktopLandingPage() {
@@ -113,6 +121,13 @@ function DesktopRoomPage({ room, joinUrl: preferredJoinUrl }: { room: HostRoomRe
   const [requestingId, setRequestingId] = useState('')
   const [pendingControl, setPendingControl] = useState('')
   const [copied, setCopied] = useState(false)
+  const [playerState, setPlayerState] = useState<PlayerState | null>(null)
+  const [volumeDraft, setVolumeDraft] = useState(80)
+  const [volumeDragging, setVolumeDragging] = useState(false)
+  const [positionDraft, setPositionDraft] = useState(0)
+  const [positionDragging, setPositionDragging] = useState(false)
+  const [controlPanel, setControlPanel] = useState<'tracks' | 'volume' | null>(null)
+  const volumeTimer = useRef<number | undefined>(undefined)
 
   const waitingQueue = useMemo(() => queue.filter(item => !['Completed', 'Skipped', 'Failed', 'Playing', 'Paused'].includes(item.status)).sort((a, b) => a.position - b.position), [queue])
   const currentSong = useMemo(() => queue.find(item => item.status === 'Playing' || item.status === 'Paused') ?? queue.find(item => item.status === 'Preparing'), [queue])
@@ -125,6 +140,28 @@ function DesktopRoomPage({ room, joinUrl: preferredJoinUrl }: { room: HostRoomRe
     api.get<FavoriteSong[]>('/api/library/favorites', controller.signal).then(setFavorites).catch(() => undefined)
     return () => controller.abort()
   }, [api])
+
+  useEffect(() => {
+    let disposed = false
+    const refresh = () => api.get<PlayerState>('/api/playback').then(value => { if (!disposed) setPlayerState(value) }).catch(() => undefined)
+    void refresh()
+    const timer = window.setInterval(refresh, 2000)
+    return () => {
+      disposed = true
+      window.clearInterval(timer)
+      if (volumeTimer.current) window.clearTimeout(volumeTimer.current)
+    }
+  }, [api])
+
+  useEffect(() => {
+    if (playerState && !volumeDragging && Number.isFinite(playerState.volume)) setVolumeDraft(playerState.volume)
+  }, [playerState?.volume, volumeDragging])
+
+  useEffect(() => {
+    if (positionDragging) return
+    const position = playerState?.position ?? playback?.position
+    setPositionDraft(seconds(position))
+  }, [playerState?.position, playback?.position, positionDragging])
 
   useEffect(() => {
     if (view !== 'artists') return
@@ -195,9 +232,32 @@ function DesktopRoomPage({ room, joinUrl: preferredJoinUrl }: { room: HostRoomRe
   async function playbackControl(action: 'play' | 'pause' | 'skip') {
     if (pendingControl) return
     setPendingControl(action); setNotice('')
-    try { await api.post(`/api/playback/${action}`, {}); }
+    try { setPlayerState(await api.post<PlayerState>(`/api/playback/${action}`, {})); }
     catch (value) { setNotice(value instanceof ApiError ? value.message : '播放控制失败。') }
     finally { setPendingControl('') }
+  }
+
+  async function playbackCommand(path: string, body?: unknown) {
+    setNotice('')
+    try { setPlayerState(await api.post<PlayerState>(path, body)) }
+    catch (value) { setNotice(value instanceof ApiError ? value.message : '播放控制失败，请稍后重试。') }
+  }
+
+  function updateVolume(value: number) {
+    setVolumeDraft(value)
+    setPlayerState(current => current ? { ...current, volume: value } : current)
+    if (volumeTimer.current) window.clearTimeout(volumeTimer.current)
+    volumeTimer.current = window.setTimeout(() => void playbackCommand('/api/playback/volume', { volume: value }), 160)
+  }
+
+  function updatePosition(value: number) {
+    setPositionDraft(value)
+    setPlayerState(current => current ? { ...current, position: value } : current)
+  }
+
+  function commitPosition() {
+    setPositionDragging(false)
+    void playbackCommand('/api/playback/seek', { positionSeconds: positionDraft })
   }
 
   async function copyJoinUrl() {
@@ -213,6 +273,14 @@ function DesktopRoomPage({ room, joinUrl: preferredJoinUrl }: { room: HostRoomRe
   const resultTitle = view === 'artists' ? (artistGroup || '全部') + '歌手' : view === 'favorites' ? '我的收藏' : view === 'language' && language ? `${language}歌曲` : view === 'style' && style ? `${style}歌曲` : searchField === 'Artist' && submittedText ? `${submittedText}的歌曲` : '搜索结果'
   const resultCount = view === 'artists' ? `${artists.length} 位歌手` : view === 'favorites' ? `${favorites.length} 首` : result ? `找到 ${result.total} 首 · 第 ${page} / ${totalPages} 页` : loading ? '加载中…' : '暂无结果'
   const connectionText = { connecting: '连接中', connected: '服务在线', reconnecting: '重新连接中', offline: '连接断开' }[connectionStatus]
+  const playbackState = playback?.state ?? playerState?.state
+  const playbackPosition = playerState?.position ?? playback?.position
+  const playbackDuration = playerState?.duration ?? playback?.duration
+  const duration = Math.max(1, seconds(playbackDuration))
+  const progress = Math.min(100, Math.max(0, positionDraft / duration * 100))
+  const tracks = Array.isArray(playerState?.tracks) ? playerState.tracks : []
+  const audioTracks = tracks.filter(track => track.type === 'Audio')
+  const subtitleTracks = tracks.filter(track => track.type === 'Subtitle')
 
   return <div className="ktv-app">
     <div className="ktv-window">
@@ -264,9 +332,12 @@ function DesktopRoomPage({ room, joinUrl: preferredJoinUrl }: { room: HostRoomRe
 
           <aside className="ktv-queue" id="ktv-queue" aria-label="播放与队列">
             <section className="ktv-now" id="ktv-now-playing">
-              <span className="ktv-now-label">NOW PLAYING</span><strong>{currentSong?.title ?? '暂无歌曲'}</strong><small>{currentSong?.artists || '等待点歌'} · {playback?.state === 'Paused' ? '已暂停' : playback?.state === 'Playing' ? '播放中' : '等待播放'}</small>
-              <div className="ktv-progress"><span style={{ width: playback?.duration && playback.position ? `${Math.min(100, Math.max(0, Number(playback.position) / Math.max(1, Number(playback.duration)) * 100))}%` : '0%' }}></span></div><div className="ktv-time"><span>{formatClock(playback?.position)}</span><span>{formatClock(playback?.duration)}</span></div>
-              <div className="ktv-player-actions"><button type="button" aria-label={playback?.state === 'Playing' ? '暂停' : '播放'} disabled={pendingControl !== ''} onClick={() => void playbackControl(playback?.state === 'Playing' ? 'pause' : 'play')}>{playback?.state === 'Playing' ? <Pause aria-hidden="true" /> : <Play aria-hidden="true" />}</button><button type="button" aria-label="切歌" disabled={pendingControl !== '' || !currentSong} onClick={() => void playbackControl('skip')}><SkipForward aria-hidden="true" /></button><button type="button" aria-label="原唱伴奏" onClick={() => setNotice('请在播放器页面选择原唱或伴奏音轨')}><Mic2 aria-hidden="true" /></button><button type="button" aria-label="音量" onClick={() => setNotice('请在播放器页面调整音量')}><Volume2 aria-hidden="true" /></button></div>
+              <span className="ktv-now-label">NOW PLAYING</span><strong>{currentSong?.title ?? '暂无歌曲'}</strong><small>{currentSong?.artists || '等待点歌'} · {playbackState === 'Paused' ? '已暂停' : playbackState === 'Playing' ? '播放中' : '等待播放'}</small>
+              <div className="ktv-progress"><span style={{ width: `${progress}%` }}></span></div><div className="ktv-time"><span>{formatClock(playbackPosition)}</span><span>{formatClock(playbackDuration)}</span></div>
+              <div className="ktv-mini-seek"><input aria-label="播放进度" type="range" min="0" max={duration} step="1" value={Math.min(positionDraft, duration)} onPointerDown={() => setPositionDragging(true)} onChange={event => updatePosition(Number(event.target.value))} onPointerUp={commitPosition} /></div>
+              <div className="ktv-player-actions"><button type="button" aria-label={playbackState === 'Playing' ? '暂停' : '播放'} disabled={pendingControl !== ''} onClick={() => void playbackControl(playbackState === 'Playing' ? 'pause' : 'play')}>{playbackState === 'Playing' ? <Pause aria-hidden="true" /> : <Play aria-hidden="true" />}</button><button type="button" aria-label="切歌" disabled={pendingControl !== '' || !currentSong} onClick={() => void playbackControl('skip')}><SkipForward aria-hidden="true" /></button><button type="button" aria-label="原唱伴奏" className={controlPanel === 'tracks' ? 'selected' : ''} onClick={() => setControlPanel(current => current === 'tracks' ? null : 'tracks')}><Mic2 aria-hidden="true" /></button><button type="button" aria-label="音量" className={controlPanel === 'volume' ? 'selected' : ''} onClick={() => setControlPanel(current => current === 'volume' ? null : 'volume')}><Volume2 aria-hidden="true" /></button></div>
+              {controlPanel === 'volume' && <div className="ktv-control-panel ktv-volume-panel"><div><strong>音量</strong><span>{Math.round(volumeDraft)}%</span></div><input aria-label="音量" type="range" min="0" max="100" value={volumeDraft} onPointerDown={() => setVolumeDragging(true)} onChange={event => updateVolume(Number(event.target.value))} onPointerUp={() => setVolumeDragging(false)} /></div>}
+              {controlPanel === 'tracks' && <div className="ktv-control-panel ktv-track-panel">{audioTracks.length > 0 ? <label>原唱 / 伴奏<select aria-label="原唱伴奏" value={playerState?.audioTrackId ?? ''} onChange={event => void playbackCommand('/api/playback/audio', { streamId: Number(event.target.value) })}>{audioTracks.map(track => <option key={track.streamId} value={track.streamId}>{trackName(track)}</option>)}</select></label> : <span>当前媒体没有可切换的音轨</span>}{subtitleTracks.length > 0 && <label>字幕<select aria-label="字幕" value={playerState?.subtitleTrackId ?? ''} onChange={event => void playbackCommand('/api/playback/subtitle', { streamId: event.target.value ? Number(event.target.value) : null })}><option value="">关闭字幕</option>{subtitleTracks.map(track => <option key={track.streamId} value={track.streamId}>{trackName(track)}</option>)}</select></label>}</div>}
             </section>
             <div className="ktv-queue-head"><strong>接下来播放</strong><span>{waitingQueue.length} 首</span></div>
             <div className="ktv-queue-list">{waitingQueue.length === 0 ? <p className="ktv-empty">队列为空</p> : waitingQueue.map((item, index) => <div className="ktv-queue-row" key={item.id}><span>{index + 1}</span><span className="ktv-queue-copy"><strong>{item.title}</strong><small>{item.artists || item.requestedByNickname} · {statusLabels[item.status]}</small></span><button type="button" className="ktv-insert" aria-label={`插播${item.title}`} disabled={pendingControl !== '' || item.status === 'ProbeFailed'} onClick={() => void queueInsert(item)}><MonitorPlay aria-hidden="true" /></button></div>)}</div>

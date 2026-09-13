@@ -152,6 +152,7 @@
 | KTVS-089 | Server 本机管理能力与托盘启动器 | KTVS-088 | Done | 本机设置、JSON/JSONL 导入、健康和脱敏诊断由 Server 提供 loopback-only API；通知区启动器启动 Server、打开 Edge App 并受控停止其播放器 | `/desk` 视觉页由下一任务实现；托盘/Edge 真实 Windows 交互待验收 |
 | KTVS-090 | 托盘版可执行包与冷启动安全 | KTVS-089 | Done | 默认交付 `Station.Tray.exe`；Windows PowerShell 5.1 可发布；历史队列冷启动保持待机、不拉起 MPV；通知区受控退出不残留自身进程 | `/desk` 主控建房界面与真实通知区交互待验收 |
 | KTVS-091 | Demo 桌面 Web 主控页 | KTVS-090 | Done | `/desk` 直接复用批准 Demo 的桌面点歌视觉；本地主持房间幂等恢复；按歌名/按歌手检索、歌星卡片、分页、实时播放/队列和局域网加入链接可用；不把业务逻辑放回 WPF | 真实 Edge App、触控、局域网手机和长列表视觉待验收 |
+| KTVS-092 | Demo 桌面播控闭环 | KTVS-091 | Done | `/desk` 继续保持批准 Demo 视觉；播放进度、音量、原唱/伴奏、字幕和播放控制接入真实 API；TimeSpan 进度正确换算；通过 Vitest 覆盖控制请求与防抖音量更新 | 真实 Edge App、触控、局域网手机和实际媒体待验收 |
 
 ## 后续阶段门禁
 

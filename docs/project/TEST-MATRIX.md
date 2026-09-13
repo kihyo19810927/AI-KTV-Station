@@ -102,5 +102,6 @@
 | RC22 WPF 收尾本地验收包 | 自包含发布 + SQLite 只读快照 + ZIP/隔离启动/退出 | 通过（580 项、353,069,531 bytes、SHA-256 `6483940b5cd42a4ebc91263041a35c7a3228908fa7eca04671e6d5afa4b3edf4`；仅 `data/station.db`，无 WAL/SHM；健康、窗口与退出清理通过） | 包含真实曲库数据，仅本地验收；真实 WPF 手感、挂载映射和设备待验收 |
 
 | KTVS-091 Demo 桌面 Web 主控页 | Vitest + TypeScript + Vite production build + Server embedded host + Desktop/Core 回归 + RC32 package smoke | 通过（Web 34/34、TypeScript、Vite、Server/Tray Release、嵌入宿主 `1/1`、Desktop 18/18、Core 非外部 181/181、RC32 冷启动/托盘生命周期/进程清理） | 真实 Edge App 视觉、触控、局域网手机、长列表与实际媒体待验收 |
+| KTVS-092 Demo 桌面播控闭环 | Vitest + TypeScript + Vite production build | 通过（Web 35/35；进度 `TimeSpan` 换算、音量防抖、进度跳转、音轨和字幕 API 控制） | 真实 Edge App、触控、局域网手机和实际媒体待验收 |
 
 禁止把替身、模拟器或文档审阅结果写成真实设备通过。
