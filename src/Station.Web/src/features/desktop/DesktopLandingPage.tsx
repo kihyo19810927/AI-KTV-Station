@@ -48,6 +48,15 @@ type DesktopNavTarget = 'overview' | 'playback' | 'songs' | 'queue' | 'catalog' 
 const singerGroups = ['全部', '华语男歌手', '华语女歌手', '华语组合', '欧美歌手', '日本歌手', '韩国歌手', '其他']
 const languages = ['全部', '国语', '粤语', '台语', '闽南语', '英语', '日语', '韩语', '纯音乐']
 const styles = ['全部', '流行', '经典', '摇滚', '民谣', '儿歌', '舞曲', '影视原声', '纯音乐']
+const desktopNavMeta: Record<DesktopNavTarget, { title: string; subtitle: string }> = {
+  overview: { title: '总览', subtitle: '房间状态、播放状态和点歌概览' },
+  playback: { title: '正在播放', subtitle: '播放控制、音量和音轨设置' },
+  songs: { title: '电脑点歌', subtitle: '主控机直接搜歌、点歌和管理当前队列' },
+  queue: { title: '点歌队列', subtitle: '查看等待播放的歌曲并安排下一首' },
+  catalog: { title: '曲库管理', subtitle: '查看曲库服务状态和导入入口' },
+  room: { title: '房间与二维码', subtitle: '把房间分享给手机和家庭成员' },
+  settings: { title: '设置与诊断', subtitle: '查看连接状态和主机运行信息' },
+}
 const statusLabels: Record<QueueEntry['status'], string> = {
   Probing: '正在探测', ProbeFailed: '探测失败', Waiting: '等待播放', Preparing: '准备播放',
   Playing: '正在播放', Paused: '已暂停', Completed: '已播放', Skipped: '已跳过', Failed: '播放失败',
@@ -213,32 +222,8 @@ function DesktopRoomPage({ room, joinUrl: preferredJoinUrl }: { room: HostRoomRe
     setNavTarget(target)
     if (target === 'songs') {
       selectView('songs')
-      return
     }
-    if (target === 'playback') {
-      document.getElementById('ktv-now-playing')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
-      setNotice('正在播放与播控已显示在右侧面板。')
-      return
-    }
-    if (target === 'queue') {
-      document.getElementById('ktv-queue')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
-      setNotice('点歌队列已显示在右侧面板。')
-      return
-    }
-    if (target === 'overview') {
-      window.scrollTo({ top: 0, behavior: 'smooth' })
-      setNotice(`房间 ${room.joinCode} 已开启，当前等待 ${waitingQueue.length} 首。`)
-      return
-    }
-    if (target === 'room') {
-      setNotice(`房间码 ${room.joinCode}，可在右侧复制手机加入链接。`)
-      return
-    }
-    if (target === 'catalog') {
-      setNotice('曲库管理由主机本地管理入口提供，电脑点歌页可直接检索现有曲库。')
-      return
-    }
-    setNotice('设置与诊断由托盘主机入口提供。')
+    setNotice('')
   }
 
   function submitSearch(event?: FormEvent) {
@@ -320,6 +305,22 @@ function DesktopRoomPage({ room, joinUrl: preferredJoinUrl }: { room: HostRoomRe
   const audioTracks = tracks.filter(track => track.type === 'Audio')
   const subtitleTracks = tracks.filter(track => track.type === 'Subtitle')
 
+  function renderUtilityPage() {
+    if (navTarget === 'overview') return <div className="ktv-utility-grid">
+      <section className="ktv-utility-panel ktv-utility-hero"><span className="ktv-utility-kicker">ROOM OVERVIEW</span><h2>今晚想唱什么？</h2><p>房间已准备好，电脑和手机都可以直接点歌。</p><div className="ktv-utility-actions"><button type="button" className="ktv-gradient-button" onClick={() => navigateTo('songs')}>开始点歌</button><button type="button" className="ktv-ghost-button" onClick={() => navigateTo('room')}>查看房间码</button></div></section>
+      <section className="ktv-stat-card"><span>正在播放</span><strong>{currentSong?.title ?? '暂无歌曲'}</strong><small>{currentSong?.artists || '等待点歌'}</small></section>
+      <section className="ktv-stat-card"><span>接下来播放</span><strong>{waitingQueue.length} 首</strong><small>队列实时同步</small></section>
+      <section className="ktv-stat-card"><span>服务状态</span><strong>{connectionText}</strong><small>房间码 {room.joinCode}</small></section>
+    </div>
+    if (navTarget === 'playback') return <section className="ktv-utility-panel ktv-playback-page" id="ktv-now-playing"><div className="ktv-utility-panel-head"><div><span className="ktv-utility-kicker">NOW PLAYING</span><h2>{currentSong?.title ?? '暂无歌曲'}</h2><p>{currentSong?.artists || '等待点歌'} · {playbackState === 'Paused' ? '已暂停' : playbackState === 'Playing' ? '播放中' : '等待播放'}</p></div><span className="ktv-live-pill">● {playbackState === 'Playing' ? '播放中' : '待机'}</span></div><div className="ktv-large-progress"><span style={{ width: `${progress}%` }}></span></div><div className="ktv-utility-time"><span>{formatClock(playbackPosition)}</span><span>{formatClock(playbackDuration)}</span></div><div className="ktv-utility-controls"><button type="button" className="ktv-gradient-button" disabled={pendingControl !== ''} onClick={() => void playbackControl(playbackState === 'Playing' ? 'pause' : 'play')}>{playbackState === 'Playing' ? <Pause aria-hidden="true" /> : <Play aria-hidden="true" />}{playbackState === 'Playing' ? '暂停' : '播放'}</button><button type="button" className="ktv-ghost-button" disabled={pendingControl !== '' || !currentSong} onClick={() => void playbackControl('skip')}><SkipForward aria-hidden="true" />切歌</button><button type="button" className="ktv-ghost-button" onClick={() => setControlPanel(current => current === 'volume' ? null : 'volume')}><Volume2 aria-hidden="true" />音量 {Math.round(volumeDraft)}%</button><button type="button" className="ktv-ghost-button" onClick={() => setControlPanel(current => current === 'tracks' ? null : 'tracks')}><Mic2 aria-hidden="true" />原唱/伴奏</button></div>{controlPanel === 'volume' && <div className="ktv-control-panel ktv-volume-panel"><div><strong>音量</strong><span>{Math.round(volumeDraft)}%</span></div><input aria-label="音量" type="range" min="0" max="100" value={volumeDraft} onPointerDown={() => setVolumeDragging(true)} onChange={event => updateVolume(Number(event.target.value))} onPointerUp={() => setVolumeDragging(false)} /></div>}{controlPanel === 'tracks' && <div className="ktv-control-panel ktv-track-panel">{audioTracks.length > 0 ? <label>原唱 / 伴奏<select aria-label="原唱伴奏" value={playerState?.audioTrackId ?? ''} onChange={event => void playbackCommand('/api/playback/audio', { streamId: Number(event.target.value) })}>{audioTracks.map(track => <option key={track.streamId} value={track.streamId}>{trackName(track)}</option>)}</select></label> : <span>当前媒体没有可切换的音轨</span>}{subtitleTracks.length > 0 && <label>字幕<select aria-label="字幕" value={playerState?.subtitleTrackId ?? ''} onChange={event => void playbackCommand('/api/playback/subtitle', { streamId: event.target.value ? Number(event.target.value) : null })}><option value="">关闭字幕</option>{subtitleTracks.map(track => <option key={track.streamId} value={track.streamId}>{trackName(track)}</option>)}</select></label>}</div>}</section>
+    if (navTarget === 'queue') return <section className="ktv-utility-panel ktv-queue-page" id="ktv-queue"><div className="ktv-utility-panel-head"><div><span className="ktv-utility-kicker">UP NEXT</span><h2>点歌队列</h2><p>{waitingQueue.length} 首歌曲等待播放</p></div><button type="button" className="ktv-ghost-button" onClick={() => navigateTo('songs')}>继续点歌</button></div>{waitingQueue.length === 0 ? <p className="ktv-empty">队列为空，先去点一首喜欢的歌吧。</p> : <div className="ktv-utility-queue-list">{waitingQueue.map((item, index) => <div className="ktv-utility-queue-row" key={item.id}><span className="ktv-queue-number">{String(index + 1).padStart(2, '0')}</span><div><strong>{item.title}</strong><small>{item.artists || item.requestedByNickname} · {statusLabels[item.status]}</small></div><button type="button" className="ktv-ghost-button" disabled={pendingControl !== '' || item.status === 'ProbeFailed'} onClick={() => void queueInsert(item)}>插到下一首</button></div>)}</div>}</section>
+    if (navTarget === 'room') return <section className="ktv-utility-panel ktv-room-page"><span className="ktv-utility-kicker">ROOM ACCESS</span><h2>邀请家人一起点歌</h2><p>手机连接同一局域网后，打开下面的地址或输入房间码即可加入。</p><div className="ktv-room-code-card"><span>房间码</span><strong>{room.joinCode}</strong><small>{joinUrl}</small></div><button type="button" className="ktv-gradient-button" onClick={() => void copyJoinUrl()}><Copy aria-hidden="true" />{copied ? '已复制加入链接' : '复制加入链接'}</button></section>
+    if (navTarget === 'catalog') return <section className="ktv-utility-panel"><span className="ktv-utility-kicker">CATALOG</span><h2>曲库管理</h2><p>曲库导入、扫描和路径设置由主机本地管理入口负责。电脑点歌页已经可以直接检索当前数据库中的歌曲。</p><div className="ktv-info-banner"><Library aria-hidden="true" /><span>当前曲库服务在线 · {result?.total ?? '—'} 首检索结果</span></div><button type="button" className="ktv-gradient-button" onClick={() => navigateTo('songs')}>返回电脑点歌</button></section>
+    return <section className="ktv-utility-panel"><span className="ktv-utility-kicker">SETTINGS & DIAGNOSTICS</span><h2>设置与诊断</h2><p>主机服务、播放器和网络状态在托盘主机入口查看。当前桌面点歌连接状态如下：</p><div className="ktv-diagnostic-list"><div><span>房间服务</span><strong>{connectionText}</strong></div><div><span>房间码</span><strong>{room.joinCode}</strong></div><div><span>队列上限</span><strong>{room.maxQueuedSongsPerGuest} 首/访客</strong></div></div><button type="button" className="ktv-ghost-button" onClick={() => navigateTo('songs')}>返回电脑点歌</button></section>
+  }
+
+  const pageMeta = desktopNavMeta[navTarget]
+
   return <div className="ktv-app">
     <div className="ktv-window">
       <aside className="ktv-sidebar">
@@ -338,12 +339,12 @@ function DesktopRoomPage({ room, joinUrl: preferredJoinUrl }: { room: HostRoomRe
 
       <main className="ktv-main">
         <header className="ktv-header">
-          <div><h1>电脑点歌</h1><p>主控机直接搜歌、点歌和管理当前队列</p></div>
+          <div><h1>{pageMeta.title}</h1><p>{pageMeta.subtitle}</p></div>
           <div className="ktv-room"><span className="ktv-room-name">客厅 KTV · {room.joinCode}</span><span className="ktv-room-live">● 房间已开启</span></div>
         </header>
         {notice && <p className="ktv-header-notice" role="status">{notice}</p>}
 
-        <div className="ktv-layout">
+        {navTarget === 'songs' ? <div className="ktv-layout">
           <section className="ktv-catalog" aria-label="电脑点歌区">
             <form className="ktv-search" onSubmit={submitSearch}>
               <label className="ktv-search-input"><Search aria-hidden="true" /><span className="sr-only">搜索歌曲</span><input type="search" value={searchText} onChange={event => setSearchText(event.target.value)} placeholder="输入歌名、歌手或拼音" /></label>
@@ -381,7 +382,7 @@ function DesktopRoomPage({ room, joinUrl: preferredJoinUrl }: { room: HostRoomRe
             <div className="ktv-queue-list">{waitingQueue.length === 0 ? <p className="ktv-empty">队列为空</p> : waitingQueue.map((item, index) => <div className="ktv-queue-row" key={item.id}><span>{index + 1}</span><span className="ktv-queue-copy"><strong>{item.title}</strong><small>{item.artists || item.requestedByNickname} · {statusLabels[item.status]}</small></span><button type="button" className="ktv-insert" aria-label={`插播${item.title}`} disabled={pendingControl !== '' || item.status === 'ProbeFailed'} onClick={() => void queueInsert(item)}><MonitorPlay aria-hidden="true" /></button></div>)}</div>
             <div className="ktv-room-tools"><QrCode aria-hidden="true" /><div><strong>手机加入</strong><small>房间码 {room.joinCode}</small></div><button type="button" onClick={() => void copyJoinUrl()}><Copy aria-hidden="true" />{copied ? '已复制' : '复制链接'}</button></div>
           </aside>
-        </div>
+        </div> : renderUtilityPage()}
       </main>
     </div>
   </div>

@@ -105,5 +105,6 @@
 | KTVS-092 Demo 桌面播控闭环 | Vitest + TypeScript + Vite production build | 通过（Web 35/35；进度 `TimeSpan` 换算、音量防抖、进度跳转、音轨和字幕 API 控制） | 真实 Edge App、触控、局域网手机和实际媒体待验收 |
 | KTVS-093 Demo 歌手卡片分页性能 | Vitest + TypeScript + Vite production build | 通过（Web 36/36；25 位歌手数据分页为 24/1 张 `.ktv-artist`，避免一次性创建整批卡片） | 真实 Edge App、触控和超大歌手库待验收 |
 | KTVS-094 Demo 可见性、导航与连续播放修复 | Web Vitest + TypeScript + Vite + Server Release build + Core 非外部 + mpv 外部夹具 | 通过（Web 38/38、TypeScript、Server 0 警告/0 错误、Core 181/181、mpv 外部 3/3；覆盖按钮可见基线、导航反馈、桌面点歌 POST、替换事件后仍保持 Playing） | 真实 Edge App、触控和长时间连续播放待验收 |
+| KTVS-095 Demo 深色视觉与桌面导航内页 | Web Vitest + TypeScript + Vite production build | 通过（Web 38/38、TypeScript、生产构建；覆盖深色 CSS 基线、总览/播放/队列/曲库/房间/设置内页切换和返回点歌） | 真实 Edge App、触控和长列表视觉待验收 |
 
 禁止把替身、模拟器或文档审阅结果写成真实设备通过。

@@ -5,10 +5,10 @@
 ## 当前基线
 
 - 分支：`codex/KTVS-090-tray-package`
-- 版本：`0.1.0-rc.35`（含已验收曲库数据库的本地候选包；待用户实机验收）
+- 版本：`0.1.0-rc.36`（含已验收曲库数据库的本地候选包；待用户实机验收）
 - 阶段：Phase 10：持续验收问题修复、托盘启动与 Web 桌面主控
 - 已完成：KTVS-001 至 KTVS-057；KTVS-058 软件验证完成；KTVS-060 至 KTVS-090 用户反馈与回归修复完成；KTVS-091 至 KTVS-093 Web 桌面主控软件实现完成
-- 当前任务：KTVS-094 已完成：修复批准 Demo `/desk` 的按钮可见性、导航反馈和连续播放事件误判，待用户实机验收
+- 当前任务：KTVS-095 已完成：将 `/desk` 改为深紫渐变视觉并补齐桌面侧栏内页切换，待用户实机验收
 
 ## 调查结果
 
@@ -62,6 +62,13 @@
 - mpv 适配器明确忽略 `end-file(reason=replaced)`，避免 `loadfile replace` 的旧媒体事件被绑定到新播放 ID；真实 Unicode MKV 外部回归增加切换后状态仍为 `Playing` 的检查。
 - KTVS-094 软件验证：Web `38/38`、TypeScript、Vite production build、Server Release、Core 非外部 `181/181`、mpv 外部 `3/3` 通过；RC35 发布包、冷启动待机、托盘生命周期、健康检查和进程清理冒烟通过。
 - RC35：`artifacts/AI-KTV-Station-0.1.0-rc.35-win-x64.zip`，450 项，339,240,361 bytes，SHA-256 `8fb1fd8609d9a61829fd3401460414e1e9fd3b48baba73b2f4694d861293fbb9`。包含稳定颜色基线、桌面导航反馈、连续播放替换事件修复、自包含 .NET、mpv/FFmpeg、许可证材料及已验收曲库 `data/station.db` 快照；`RELEASE_PACKAGE=passed`、`WINDOWS_PUBLISH=passed`、`PACKAGE_SMOKE=passed`。
+
+## KTVS-095 已完成
+
+- `/desk` 视觉基线改为深紫渐变背景、半透明面板、圆角卡片和粉紫渐变操作按钮，移除白色主面板造成的低对比观感；按钮和输入控件统一使用深色背景及高对比文字。
+- 修复侧栏“点击无反应”的实现缺陷：此前除“电脑点歌”外只执行滚动或显示提示，未切换内容视图；现在总览、正在播放、点歌队列、曲库管理、房间与二维码、设置与诊断均有独立桌面内页，返回电脑点歌和关键操作可用。
+- KTVS-095 验证：Web `38/38`、TypeScript `tsc -b`、Vite production build 通过；回归覆盖深色 CSS 基线以及侧栏内页切换。
+- RC36：`artifacts/AI-KTV-Station-0.1.0-rc.36-win-x64.zip`，450 项，339,242,385 bytes，SHA-256 `be108e1f7249c93db695f2896eb7313e9dc7045292dddea661197b3dc435e9be`。包含本次深色 `/desk` 视觉、真实桌面导航内页、自包含 .NET、mpv/FFmpeg、许可证材料及已验收曲库 `data/station.db` 快照；`RELEASE_PACKAGE=passed`、`WINDOWS_PUBLISH=passed`、`PACKAGE_SMOKE=passed`。
 
 ## 最近验证
 
