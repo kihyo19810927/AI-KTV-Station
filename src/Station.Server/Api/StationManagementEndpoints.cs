@@ -4,6 +4,8 @@ using Station.Application.Configuration;
 using Station.Application.Health;
 using Station.Application.Rooms;
 using Station.Server.Security;
+using Station.Infrastructure.Persistence;
+using Microsoft.EntityFrameworkCore;
 using System.Net;
 using System.Net.NetworkInformation;
 using System.Net.Sockets;
@@ -24,6 +26,7 @@ public static class StationManagementEndpoints
         management.MapPost("/room/ensure", EnsureHostRoomAsync).WithName("EnsureHostRoom");
         management.MapGet("/room/{roomId:guid}/guests", ListRoomGuestsAsync).WithName("ListRoomGuests");
         management.MapGet("/qr", RenderQrAsync).WithName("RenderManagementQr");
+        management.MapGet("/catalog/stats", GetCatalogStatsAsync).WithName("GetCatalogStats");
         management.MapPut("/settings", SaveSettingsAsync).WithName("SaveStationSettings");
         management.MapPost("/catalog/import", ImportCatalogAsync).WithName("ImportPortableCatalog");
         management.MapGet("/health", CheckHealthAsync).WithName("CheckStationHealth");
@@ -90,6 +93,24 @@ public static class StationManagementEndpoints
         using var data = QRCodeGenerator.GenerateQrCode(content.Trim(), QRCodeGenerator.ECCLevel.Q);
         var png = new PngByteQRCode(data).GetGraphic(10, [23, 17, 38], [255, 255, 255]);
         return Results.File(png, "image/png");
+    }
+
+    private static async Task<IResult> GetCatalogStatsAsync(
+        HttpContext context,
+        StationDbContext database,
+        CancellationToken cancellationToken)
+    {
+        if (!IsLocal(context)) return LocalOnly();
+
+        var songCount = await database.Songs.AsNoTracking().LongCountAsync(cancellationToken);
+        var artistCount = await database.Artists.AsNoTracking().LongCountAsync(cancellationToken);
+        var mediaCount = await database.MediaFiles.AsNoTracking().LongCountAsync(cancellationToken);
+        var probedCount = await database.MediaFiles.AsNoTracking()
+            .LongCountAsync(file => file.ProbeFingerprint != null || file.DurationSeconds != null, cancellationToken);
+        var failedCount = await database.MediaFiles.AsNoTracking()
+            .LongCountAsync(file => file.LastErrorCode != null, cancellationToken);
+
+        return Results.Ok(new { songCount, artistCount, mediaCount, probedCount, failedCount });
     }
 
     private static bool IsPrivateIpv4(IPAddress address)

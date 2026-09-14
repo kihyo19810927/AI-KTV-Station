@@ -36,6 +36,12 @@ public sealed class StationEmbeddedHostTests
             Assert.Equal(HttpStatusCode.OK, response.StatusCode);
             var managementHealth = await client.GetAsync("/api/manage/health");
             Assert.Equal(HttpStatusCode.OK, managementHealth.StatusCode);
+            var catalogStats = await client.GetFromJsonAsync<System.Text.Json.JsonDocument>("/api/manage/catalog/stats");
+            Assert.Equal(0, catalogStats!.RootElement.GetProperty("songCount").GetInt64());
+            var qr = await client.GetAsync("/api/manage/qr?content=https%3A%2F%2Fexample.test%2Fjoin");
+            Assert.Equal(HttpStatusCode.OK, qr.StatusCode);
+            Assert.Equal("image/png", qr.Content.Headers.ContentType?.MediaType);
+            Assert.NotEmpty(await qr.Content.ReadAsByteArrayAsync());
             var ensured = await client.PostAsJsonAsync("/api/manage/room/ensure", new { hostNickname = "主持人", maxQueuedSongsPerGuest = 100 });
             Assert.Equal(HttpStatusCode.OK, ensured.StatusCode);
             using var firstRoom = await ensured.Content.ReadFromJsonAsync<System.Text.Json.JsonDocument>();
