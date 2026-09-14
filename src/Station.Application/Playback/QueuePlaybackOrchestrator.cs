@@ -129,7 +129,11 @@ public sealed class QueuePlaybackOrchestrator(
                     await FinishCurrentAsync(QueueItemStatus.Completed, PlaybackOutcome.Completed, null, cancellationToken).ConfigureAwait(false);
                     await StartNextCoreAsync(cancellationToken).ConfigureAwait(false);
                     break;
-                case PlaybackEndedEvent ended when ended.Reason is PlaybackEndReason.Stopped or PlaybackEndReason.Replaced:
+                case PlaybackEndedEvent ended when ended.Reason == PlaybackEndReason.Replaced:
+                    // Replaced is an internal transition emitted while loading
+                    // the next file. It must never finish the newly active item.
+                    break;
+                case PlaybackEndedEvent ended when ended.Reason == PlaybackEndReason.Stopped:
                     await FinishCurrentAsync(QueueItemStatus.Skipped, PlaybackOutcome.Skipped, null, cancellationToken).ConfigureAwait(false);
                     await StartNextCoreAsync(cancellationToken).ConfigureAwait(false);
                     break;

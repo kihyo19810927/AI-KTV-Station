@@ -151,8 +151,6 @@
 .ktv-live-pill { flex: 0 0 auto; padding: 7px 10px; border-radius: 999px; color: var(--ktv-green); background: rgba(77, 213, 164, .14); font-size: 11px; }
 .ktv-playback-page { max-width: 860px; min-height: 410px; background: radial-gradient(circle at 78% 5%, rgba(225, 72, 177, .22), transparent 28%), linear-gradient(135deg, rgba(126, 58, 190, .25), rgba(255, 255, 255, .06)); }
 .ktv-playback-page h2 { font-size: clamp(30px, 5vw, 52px); }
-.ktv-large-progress { height: 7px; margin-top: 52px; overflow: hidden; border-radius: 999px; background: rgba(255, 255, 255, .15); }
-.ktv-large-progress span { display: block; height: 100%; min-width: 0; border-radius: inherit; background: linear-gradient(90deg, #9e5ff0, #ef66bc); transition: width .25s ease; }
 .ktv-utility-time { display: flex; justify-content: space-between; margin-top: 8px; color: var(--ktv-muted); font-size: 11px; }
 .ktv-utility-controls button { min-height: 42px; }
 .ktv-queue-page { max-width: 900px; }

@@ -2,6 +2,7 @@ using Station.Application.Catalog;
 using Station.Application.Common;
 using Station.Application.Configuration;
 using Station.Application.Health;
+using Station.Application.Playback;
 using Station.Application.Rooms;
 using Station.Server.Security;
 using Station.Infrastructure.Persistence;
@@ -25,6 +26,7 @@ public static class StationManagementEndpoints
         management.MapGet("/settings", GetSettingsAsync).WithName("GetStationSettings");
         management.MapPost("/room/ensure", EnsureHostRoomAsync).WithName("EnsureHostRoom");
         management.MapGet("/room/{roomId:guid}/guests", ListRoomGuestsAsync).WithName("ListRoomGuests");
+        management.MapPost("/room/qr-overlay", ShowQrOverlayAsync).WithName("ShowRoomQrOverlay");
         management.MapGet("/qr", RenderQrAsync).WithName("RenderManagementQr");
         management.MapGet("/catalog/stats", GetCatalogStatsAsync).WithName("GetCatalogStats");
         management.MapPut("/settings", SaveSettingsAsync).WithName("SaveStationSettings");
@@ -93,6 +95,54 @@ public static class StationManagementEndpoints
         using var data = QRCodeGenerator.GenerateQrCode(content.Trim(), QRCodeGenerator.ECCLevel.Q);
         var png = new PngByteQRCode(data).GetGraphic(10, [23, 17, 38], [255, 255, 255]);
         return Results.File(png, "image/png");
+    }
+
+    private static async Task<IResult> ShowQrOverlayAsync(
+        HttpContext context,
+        LocalQrOverlayRequest request,
+        IPlayerAdapter player,
+        CancellationToken cancellationToken)
+    {
+        if (!IsLocal(context)) return LocalOnly();
+        if (request is null || string.IsNullOrWhiteSpace(request.Content))
+            return StationApiEndpoints.Problem(new Error("qr.content_required", "QR content is required."));
+
+        using var data = QRCodeGenerator.GenerateQrCode(request.Content.Trim(), QRCodeGenerator.ECCLevel.Q);
+        var matrix = data.ModuleMatrix;
+        const int quietZone = 4;
+        const int moduleScale = 5;
+        var size = (matrix.Count + quietZone * 2) * moduleScale;
+        var pixels = new byte[size * size * 4];
+        for (var y = 0; y < size; y++)
+        {
+            var moduleY = y / moduleScale - quietZone;
+            for (var x = 0; x < size; x++)
+            {
+                var moduleX = x / moduleScale - quietZone;
+                var dark = moduleY >= 0 && moduleY < matrix.Count && moduleX >= 0 && moduleX < matrix.Count && matrix[moduleY][moduleX];
+                var color = dark ? (byte)23 : (byte)255;
+                var offset = (y * size + x) * 4;
+                pixels[offset] = color;
+                pixels[offset + 1] = color;
+                pixels[offset + 2] = color;
+                pixels[offset + 3] = 255;
+            }
+        }
+
+        var result = await player.ShowOverlayAsync(new PlayerOverlayRequest(
+            Id: 7,
+            X: 24,
+            Y: 24,
+            Width: size,
+            Height: size,
+            Stride: size * 4,
+            DisplayWidth: 280,
+            DisplayHeight: 280,
+            Bgra: pixels,
+            Duration: TimeSpan.FromSeconds(15)), cancellationToken);
+        return result.IsSuccess
+            ? Results.Ok(new { displayed = true, durationSeconds = 15 })
+            : StationApiEndpoints.Problem(result.Error);
     }
 
     private static async Task<IResult> GetCatalogStatsAsync(
@@ -172,6 +222,7 @@ public static class StationManagementEndpoints
     private static IResult LocalOnly() => StationApiEndpoints.Problem(new Error("auth.local_only", "Station management is available only on the host."));
 
     public sealed record LocalCatalogImportRequest(string? IndexPath, string? MountRoot);
+    public sealed record LocalQrOverlayRequest(string? Content);
     public sealed record LocalHostRoomRequest(string? HostNickname, int? MaxQueuedSongsPerGuest);
     public sealed record LocalHostRoomResponse(RoomAdminDetails Room, IssuedRoomToken Host, string JoinUrl);
 }

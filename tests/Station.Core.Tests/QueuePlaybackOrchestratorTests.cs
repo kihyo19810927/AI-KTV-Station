@@ -108,6 +108,24 @@ public sealed class QueuePlaybackOrchestratorTests
     }
 
     [Fact]
+    public async Task Replaced_event_for_active_playback_does_not_skip_current_song()
+    {
+        var player = new FakePlayer();
+        var store = new MemoryPlaybackStore(Item(1), Item(2));
+        var service = Create(player, store, maximumRetries: 0);
+        await service.StartAsync(store.RoomId);
+        var currentPlayback = service.Current.PlaybackId!.Value;
+
+        await service.HandleAsync(new PlaybackEndedEvent(Guid.NewGuid(), DateTimeOffset.UtcNow,
+            currentPlayback, PlaybackEndReason.Replaced));
+
+        Assert.Equal(store.Items[0].QueueItemId, service.Current.QueueItemId);
+        Assert.Equal(currentPlayback, service.Current.PlaybackId);
+        Assert.Empty(store.Completed);
+        Assert.Single(player.Loads);
+    }
+
+    [Fact]
     public async Task Run_loop_loads_item_added_after_room_started_empty()
     {
         var player = new FakePlayer();

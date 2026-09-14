@@ -7,8 +7,8 @@
 - 分支：`codex/KTVS-090-tray-package`
 - 版本：`0.1.0-rc.39`（代码、测试与含真实曲库的本地候选包完成）
 - 阶段：Phase 10：持续验收问题修复、托盘启动与 Web 桌面主控
-- 已完成：KTVS-001 至 KTVS-057；KTVS-058 软件验证完成；KTVS-060 至 KTVS-090 用户反馈与回归修复完成；KTVS-091 至 KTVS-096 Web 桌面主控软件实现完成
-- 当前任务：KTVS-096 已完成：完成 RC36 后的桌面主控重构、管理接口、含真实曲库的 RC39 本地包和发布前回归，待用户实机验收
+- 已完成：KTVS-001 至 KTVS-057；KTVS-058 软件验证完成；KTVS-060 至 KTVS-090 用户反馈与回归修复完成；KTVS-091 至 KTVS-097 Web 桌面主控软件实现完成
+- 当前任务：KTVS-097 已完成：修复连续换歌时旧 mpv `end-file` 事件误推进队列、移除播放页重复进度条，并接通二维码投屏 OSD；待用户实机验收
 
 ## 调查结果
 
@@ -78,6 +78,13 @@
 - 曲库页改为导入/健康状态控制台；新增本机只读统计接口，首次进入即可显示歌曲、歌手、媒体和探测失败计数，不依赖点歌页默认查询；设置页拆为曲库存储、播放与显示、音频伴奏、房间系统四个 tab，挂载路径放在曲库存储 tab，均通过现有本机管理 API 保存。
 - KTVS-096 软件验证：Core `181/181`、Desktop `18/18`、Web `38/38`、TypeScript、Vite production build、Server Release 构建全部通过；RC39 发布校验与隔离启动冒烟（冷启动待机、托盘生命周期、进程清理）通过。指定数据库已确认存在，源文件大小 `127,692,800` bytes，发布过程未修改源库或媒体。
 - RC39：`artifacts/AI-KTV-Station-0.1.0-rc.39-win-x64.zip`，451 项，333,754,540 bytes，SHA-256 `43cd61086b5407cea967c58f6054d11c754cc368252ce700b97d7629db88d975`；包内含单个 `data/station.db`，无 WAL/SHM，并包含 mpv/FFmpeg 运行文件及许可证材料。数据库来自 `D:\Applications\AI-KTV-Station\data\station.db` 的 SQLite Backup API 只读快照，仅限本地验收/交付，不得推送或公开分发。
+
+## KTVS-097 已完成
+
+- 连续播放根因已修复：mpv `loadfile ... replace` 期间建立替换事件围栏，连续延迟到达的旧媒体非 EOF `end-file` 不再结束当前新歌；显式用户切歌仍保持 `Stopped`，自然 EOF 仍为 `Completed`。应用编排器对 `Replaced` 事件也做了最终保护，不会推进队列。
+- 播放页删除装饰性进度条，仅保留一个可拖动的进度滑块；Web 回归确认页面只渲染一个“播放进度”滑块。
+- 房间页“投到 MV 屏幕”不再是占位通知：Server 生成高对比度 QR 原始 BGRA 位图，通过 `IPlayerAdapter` 的 mpv `overlay-add` 显示在视频左上角，15 秒后 `overlay-remove`；本机管理接口仍仅 loopback 可用。
+- KTVS-097 验证：Core 非外部 `189/189`、Desktop `18/18`、Web `38/38`、TypeScript、Web production build、Server Release 均通过；mpv 外部 `4/4` 通过，新增快速连续换歌回归，确认新播放不会被旧媒体事件结束。真实电视画面、不同 mpv 构建、长队列和实际扫码仍待用户实机验收。
 
 ## 最近验证
 

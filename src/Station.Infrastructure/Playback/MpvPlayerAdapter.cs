@@ -32,7 +32,12 @@ public sealed class MpvPlayerAdapter : IPlayerAdapter
     private PlayerSnapshot snapshot = EmptySnapshot(PlayerLifecycleState.Stopped);
     private long requestId;
     private bool stopping;
-    private bool suppressNextEndFile;
+    // Replacing a file can produce more than one delayed end-file event for
+    // the old media. Keep a fence until the new media reaches a real EOF so
+    // none of those events can finish the newly assigned playback id.
+    private bool replacementEndFilePending;
+    private bool explicitSkipPending;
+    private CancellationTokenSource? overlayLifetime;
     private bool disposed;
 
     public MpvPlayerAdapter(PlayerOptions options)
@@ -70,6 +75,11 @@ public sealed class MpvPlayerAdapter : IPlayerAdapter
 
         await CleanupProcessAsync().ConfigureAwait(false);
         stopping = false;
+        lock (stateGate)
+        {
+            replacementEndFilePending = false;
+            explicitSkipPending = false;
+        }
         var pipeName = $"ai-ktv-station-{Environment.ProcessId}-{Guid.NewGuid():N}";
         var startInfo = new ProcessStartInfo
         {
@@ -132,6 +142,11 @@ public sealed class MpvPlayerAdapter : IPlayerAdapter
             }
 
             stopping = true;
+            lock (stateGate)
+            {
+                replacementEndFilePending = false;
+                explicitSkipPending = false;
+            }
             if (before.PlaybackId is { } playbackId && before.State is PlayerLifecycleState.Preparing or PlayerLifecycleState.Playing or PlayerLifecycleState.Paused)
                 Publish(new PlaybackEndedEvent(Guid.NewGuid(), DateTimeOffset.UtcNow, playbackId, PlaybackEndReason.Stopped));
             try { await SendCommandAsync(cancellationToken, "quit").ConfigureAwait(false); }
@@ -147,8 +162,23 @@ public sealed class MpvPlayerAdapter : IPlayerAdapter
     public Task<Result<PlayerSnapshot>> SkipAsync(CancellationToken cancellationToken = default) =>
         ExecuteAsync(async () =>
         {
-            await SendCommandAsync(cancellationToken, "stop").ConfigureAwait(false);
-            return CurrentSnapshot();
+            lock (stateGate)
+            {
+                // A user skip is intentional and must not be swallowed by the
+                // replacement fence left by the previous load.
+                replacementEndFilePending = false;
+                explicitSkipPending = true;
+            }
+            try
+            {
+                await SendCommandAsync(cancellationToken, "stop").ConfigureAwait(false);
+                return CurrentSnapshot();
+            }
+            catch
+            {
+                lock (stateGate) explicitSkipPending = false;
+                throw;
+            }
         }, "player.skip_failed", "The current song could not be skipped.", cancellationToken);
 
     public async Task<Result<PlayerSnapshot>> LoadAsync(PlayerLoadRequest request, CancellationToken cancellationToken = default)
@@ -160,7 +190,7 @@ public sealed class MpvPlayerAdapter : IPlayerAdapter
             var before = CurrentSnapshot();
             if (before.PlaybackId is { } previous && before.State is PlayerLifecycleState.Preparing or PlayerLifecycleState.Playing or PlayerLifecycleState.Paused)
             {
-                suppressNextEndFile = true;
+                lock (stateGate) replacementEndFilePending = true;
                 Publish(new PlaybackEndedEvent(Guid.NewGuid(), DateTimeOffset.UtcNow, previous, PlaybackEndReason.Replaced));
             }
             ChangeState(PlayerLifecycleState.Preparing, request.PlaybackId, null);
@@ -224,6 +254,43 @@ public sealed class MpvPlayerAdapter : IPlayerAdapter
             return Result<PlayerSnapshot>.Failure(validation);
         return await SetPropertyAndRefreshAsync("sid", streamId is null ? "no" : streamId.Value,
             "player.subtitle_track_failed", "The subtitle track could not be selected.", cancellationToken).ConfigureAwait(false);
+    }
+
+    public async Task<Result<PlayerSnapshot>> ShowOverlayAsync(PlayerOverlayRequest request, CancellationToken cancellationToken = default)
+    {
+        if (request.Id is < 0 or > 63 || request.X < 0 || request.Y < 0 || request.Width <= 0 || request.Height <= 0 ||
+            request.Stride < request.Width * 4 || request.DisplayWidth <= 0 || request.DisplayHeight <= 0 ||
+            request.Bgra.Length != request.Stride * request.Height || request.Duration <= TimeSpan.Zero)
+            return Result<PlayerSnapshot>.Failure(new Error("player.invalid_overlay", "The player overlay data is invalid."));
+
+        return await ExecuteAsync(async () =>
+        {
+            CancellationTokenSource? previousOverlay;
+            lock (stateGate)
+            {
+                previousOverlay = overlayLifetime;
+                previousOverlay?.Cancel();
+                overlayLifetime = new CancellationTokenSource();
+            }
+            previousOverlay?.Dispose();
+
+            var rawPath = Path.Combine(Path.GetTempPath(), $"ai-ktv-overlay-{Guid.NewGuid():N}.bgra");
+            try
+            {
+                await File.WriteAllBytesAsync(rawPath, request.Bgra, cancellationToken).ConfigureAwait(false);
+                await SendCommandAsync(cancellationToken, "overlay-add", request.Id, request.X, request.Y, rawPath,
+                    0, "bgra", request.Width, request.Height, request.Stride, request.DisplayWidth, request.DisplayHeight).ConfigureAwait(false);
+
+                CancellationTokenSource lifetime;
+                lock (stateGate) lifetime = overlayLifetime!;
+                _ = RemoveOverlayAfterAsync(request.Id, request.Duration, lifetime);
+                return CurrentSnapshot();
+            }
+            finally
+            {
+                try { File.Delete(rawPath); } catch (IOException) { }
+            }
+        }, "player.overlay_failed", "The player overlay could not be displayed.", cancellationToken).ConfigureAwait(false);
     }
 
     public async Task<Result<PlayerSnapshot>> GetStateAsync(CancellationToken cancellationToken = default)
@@ -354,6 +421,31 @@ public sealed class MpvPlayerAdapter : IPlayerAdapter
         }
     }
 
+    private async Task RemoveOverlayAfterAsync(int id, TimeSpan duration, CancellationTokenSource lifetime)
+    {
+        try
+        {
+            await Task.Delay(duration, lifetime.Token).ConfigureAwait(false);
+            if (!IsRunning()) return;
+            await operationGate.WaitAsync(lifetime.Token).ConfigureAwait(false);
+            try
+            {
+                if (IsRunning()) await SendCommandAsync(lifetime.Token, "overlay-remove", id).ConfigureAwait(false);
+            }
+            finally { operationGate.Release(); }
+        }
+        catch (OperationCanceledException) when (lifetime.IsCancellationRequested) { }
+        catch (Exception) { }
+        finally
+        {
+            lock (stateGate)
+            {
+                if (ReferenceEquals(overlayLifetime, lifetime)) overlayLifetime = null;
+            }
+            lifetime.Dispose();
+        }
+    }
+
     private void HandleMpvEvent(string? eventName, JsonElement root)
     {
         if (eventName == "file-loaded")
@@ -368,10 +460,22 @@ public sealed class MpvPlayerAdapter : IPlayerAdapter
         if (current.PlaybackId is not { } playbackId) return;
         var reason = root.TryGetProperty("reason", out var reasonElement) ? reasonElement.GetString() : null;
         // `loadfile ... replace` emits an end-file event for the old media. The
-        // adapter has already assigned the new playback id by then, so treating
-        // this event as a stop would immediately skip the newly loaded song.
-        if (reason == "replaced") { suppressNextEndFile = false; return; }
-        if (suppressNextEndFile) { suppressNextEndFile = false; return; }
+        // adapter has already assigned the new playback id by then. mpv can
+        // report that event as `replaced`, `stop`, or with no reason, and more
+        // than one stale event may arrive. Ignore every non-EOF event while a
+        // replacement is fenced; the fence is released by a real EOF or an
+        // explicit user skip.
+        bool replacementPending;
+        bool explicitSkip;
+        lock (stateGate)
+        {
+            replacementPending = replacementEndFilePending;
+            explicitSkip = explicitSkipPending;
+            if (explicitSkipPending) explicitSkipPending = false;
+            if (replacementPending && reason == "eof") replacementEndFilePending = false;
+        }
+        if (reason == "replaced" && !explicitSkip) return;
+        if (replacementPending && !explicitSkip && reason != "eof" && reason != "error") return;
         if (reason == "error")
         {
             var failure = new PlayerFailure("player.media_load_failed", PlayerFailureKind.MediaLoadFailed, true, "The media could not be played.");
@@ -432,6 +536,14 @@ public sealed class MpvPlayerAdapter : IPlayerAdapter
     private async Task CleanupProcessAsync()
     {
         lifetime?.Cancel();
+        CancellationTokenSource? overlay;
+        lock (stateGate)
+        {
+            overlay = overlayLifetime;
+            overlayLifetime = null;
+        }
+        overlay?.Cancel();
+        overlay?.Dispose();
         try { writer?.Dispose(); } catch (Exception ex) when (ex is IOException or ObjectDisposedException) { }
         try { reader?.Dispose(); } catch (Exception ex) when (ex is IOException or ObjectDisposedException) { }
         pipe?.Dispose();

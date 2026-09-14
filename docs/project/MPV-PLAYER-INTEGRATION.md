@@ -8,7 +8,8 @@ KTVS-021 将 KTVS-003 Spike 收敛为 Infrastructure 层的 `MpvPlayerAdapter`�
 - 启动连接和每个命令均受配置的命令超时限制；调用方取消不会转换为播放器故障。
 - 非 `success` 响应、畸形/中断协议、加载失败和进程意外退出被映射为稳定 Application 错误或 `PlayerFailure`，原始 JSON、pipe 名和媒体路径不会离开 Infrastructure。
 - 主动停止只清理适配器持有的子进程；超时后也只按已捕获 PID 终止该进程树，不扫描或终止其他 mpv 实例。
-- `file-loaded`、`end-file` 和进程退出由持续读取循环接收。替换媒体时旧 `PlaybackId` 只产生一次 `Replaced`，自然 EOF 映射为 `Completed`。
+- `file-loaded`、`end-file` 和进程退出由持续读取循环接收。替换媒体时旧 `PlaybackId` 会产生内部 `Replaced`；适配器会为换歌建立事件围栏，吞掉旧媒体可能延迟到达的多个非 EOF `end-file` 事件，避免它们结束新媒体。自然 EOF 映射为 `Completed`，用户明确切歌才映射为 `Stopped`。
+- 房间页的“投到 MV 屏幕”通过现有 `IPlayerAdapter` 调用 mpv `overlay-add` 显示原始 BGRA 二维码，15 秒后调用 `overlay-remove`；临时像素文件只在 IPC 命令期间存在，不暴露路径或令牌。
 
 ## 自动验证
 

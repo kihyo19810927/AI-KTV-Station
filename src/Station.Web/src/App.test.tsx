@@ -137,6 +137,7 @@ describe('mobile application shell', () => {
      await screen.findByRole('heading', { name: '电脑点歌' })
      fireEvent.click(screen.getByRole('button', { name: '正在播放' }))
      await waitFor(() => expect(screen.getByText('01:05')).toBeInTheDocument())
+    expect(screen.getAllByRole('slider', { name: '播放进度' })).toHaveLength(1)
     fireEvent.click(screen.getByRole('button', { name: '音量' }))
     fireEvent.change(screen.getByRole('slider', { name: '音量' }), { target: { value: '48' } })
     fireEvent.click(screen.getByRole('button', { name: '原唱伴奏' }))

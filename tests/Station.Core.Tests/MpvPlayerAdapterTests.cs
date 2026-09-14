@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using System.Diagnostics;
 using Station.Application.Configuration;
 using Station.Application.Playback;
@@ -143,6 +144,49 @@ public sealed class MpvPlayerAdapterTests
         Assert.NotEqual(firstProcessId, player.ProcessId);
         Assert.Equal(PlayerLifecycleState.Playing, loaded.Value.State);
         Assert.True((await player.StopAsync(timeout.Token)).IsSuccess);
+    }
+
+    [Fact]
+    [Trait("Category", "External")]
+    public async Task Replacing_media_while_playing_does_not_end_the_new_playback()
+    {
+        var executable = Environment.GetEnvironmentVariable("KTV_STATION_MPV");
+        var media = Environment.GetEnvironmentVariable("KTV_STATION_MEDIA_FIXTURE");
+        Assert.False(string.IsNullOrWhiteSpace(executable));
+        Assert.False(string.IsNullOrWhiteSpace(media));
+        await using var player = new MpvPlayerAdapter(new PlayerOptions { ExecutablePath = executable!, CommandTimeoutSeconds = 10 });
+        using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(20));
+        using var eventsCancellation = new CancellationTokenSource();
+        var events = new ConcurrentBag<PlayerEvent>();
+        var eventPump = Task.Run(async () =>
+        {
+            try
+            {
+                await foreach (var item in player.WatchEventsAsync(eventsCancellation.Token)) events.Add(item);
+            }
+            catch (OperationCanceledException) when (eventsCancellation.IsCancellationRequested) { }
+        });
+
+        Assert.True((await player.StartAsync(timeout.Token)).IsSuccess);
+        var playbackIds = new List<Guid>();
+        for (var index = 0; index < 4; index++)
+        {
+            var playbackId = Guid.NewGuid();
+            playbackIds.Add(playbackId);
+            var loaded = await player.LoadAsync(new PlayerLoadRequest(playbackId, media!), timeout.Token);
+            Assert.True(loaded.IsSuccess, loaded.Error.Code);
+            Assert.Equal(PlayerLifecycleState.Playing, loaded.Value.State);
+            await Task.Delay(100, timeout.Token);
+        }
+
+        Assert.DoesNotContain(events, item => item is PlaybackEndedEvent ended &&
+            playbackIds.Contains(ended.PlaybackId!.Value) &&
+            ended.Reason is PlaybackEndReason.Completed or PlaybackEndReason.Stopped);
+        Assert.Equal(PlayerLifecycleState.Playing, (await player.GetStateAsync(timeout.Token)).Value.State);
+
+        Assert.True((await player.StopAsync(timeout.Token)).IsSuccess);
+        eventsCancellation.Cancel();
+        await eventPump;
     }
 
     private static async Task<PlaybackEndedEvent> WaitForEndedAsync(IPlayerAdapter player, Guid playbackId, CancellationToken cancellationToken)
