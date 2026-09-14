@@ -106,5 +106,6 @@
 | KTVS-093 Demo 歌手卡片分页性能 | Vitest + TypeScript + Vite production build | 通过（Web 36/36；25 位歌手数据分页为 24/1 张 `.ktv-artist`，避免一次性创建整批卡片） | 真实 Edge App、触控和超大歌手库待验收 |
 | KTVS-094 Demo 可见性、导航与连续播放修复 | Web Vitest + TypeScript + Vite + Server Release build + Core 非外部 + mpv 外部夹具 | 通过（Web 38/38、TypeScript、Server 0 警告/0 错误、Core 181/181、mpv 外部 3/3；覆盖按钮可见基线、导航反馈、桌面点歌 POST、替换事件后仍保持 Playing） | 真实 Edge App、触控和长时间连续播放待验收 |
 | KTVS-095 Demo 深色视觉与桌面导航内页 | Web Vitest + TypeScript + Vite production build | 通过（Web 38/38、TypeScript、生产构建；覆盖深色 CSS 基线、总览/播放/队列/曲库/房间/设置内页切换和返回点歌） | 真实 Edge App、触控和长列表视觉待验收 |
+| KTVS-096 RC36 复盘后的桌面 Web 主控重构 | Core/Desktop xUnit + Web Vitest + TypeScript + Vite production build + Server Release | 通过（Core 181/181、Desktop 18/18、Web 38/38、Server 0 警告/0 错误；覆盖宽屏点歌、显式歌名/歌手搜索、播放/队列/二维码/设置内页与管理接口） | 当前机器缺少指定 seed 数据库；真实 Edge App、手机、媒体和硬件待验收 |
 
 禁止把替身、模拟器或文档审阅结果写成真实设备通过。

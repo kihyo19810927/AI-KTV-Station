@@ -26,7 +26,7 @@ public sealed class EdgeAppLauncher : IEdgeAppLauncher
             Process.Start(new ProcessStartInfo
             {
                 FileName = "msedge.exe",
-                Arguments = $"--app=\"{address.AbsoluteUri}\" --start-maximized",
+                Arguments = $"--app=\"{address.AbsoluteUri}\" --start-maximized --start-fullscreen",
                 UseShellExecute = true,
             });
             return true;

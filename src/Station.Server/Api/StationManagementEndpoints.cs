@@ -7,6 +7,7 @@ using Station.Server.Security;
 using System.Net;
 using System.Net.NetworkInformation;
 using System.Net.Sockets;
+using QRCoder;
 
 namespace Station.Server.Api;
 
@@ -21,6 +22,8 @@ public static class StationManagementEndpoints
         var management = endpoints.MapGroup("/api/manage");
         management.MapGet("/settings", GetSettingsAsync).WithName("GetStationSettings");
         management.MapPost("/room/ensure", EnsureHostRoomAsync).WithName("EnsureHostRoom");
+        management.MapGet("/room/{roomId:guid}/guests", ListRoomGuestsAsync).WithName("ListRoomGuests");
+        management.MapGet("/qr", RenderQrAsync).WithName("RenderManagementQr");
         management.MapPut("/settings", SaveSettingsAsync).WithName("SaveStationSettings");
         management.MapPost("/catalog/import", ImportCatalogAsync).WithName("ImportPortableCatalog");
         management.MapGet("/health", CheckHealthAsync).WithName("CheckStationHealth");
@@ -67,6 +70,26 @@ public static class StationManagementEndpoints
             .FirstOrDefault(IsPrivateIpv4)?.ToString() ?? context.Request.Host.Host;
         var port = context.Request.Host.Port is { } requestPort ? $":{requestPort}" : string.Empty;
         return $"{context.Request.Scheme}://{address}{port}/join?code={Uri.EscapeDataString(joinCode)}";
+    }
+
+    private static async Task<IResult> ListRoomGuestsAsync(
+        HttpContext context,
+        Guid roomId,
+        RoomAuthenticationService authentication,
+        CancellationToken cancellationToken)
+    {
+        if (!IsLocal(context)) return LocalOnly();
+        var result = await authentication.ListGuestsAsync(roomId, cancellationToken);
+        return result.IsSuccess ? Results.Ok(result.Value) : StationApiEndpoints.Problem(result.Error);
+    }
+
+    private static IResult RenderQrAsync(HttpContext context, string? content)
+    {
+        if (!IsLocal(context)) return LocalOnly();
+        if (string.IsNullOrWhiteSpace(content)) return StationApiEndpoints.Problem(new Error("qr.content_required", "QR content is required."));
+        using var data = QRCodeGenerator.GenerateQrCode(content.Trim(), QRCodeGenerator.ECCLevel.Q);
+        var png = new PngByteQRCode(data).GetGraphic(10, [23, 17, 38], [255, 255, 255]);
+        return Results.File(png, "image/png");
     }
 
     private static bool IsPrivateIpv4(IPAddress address)

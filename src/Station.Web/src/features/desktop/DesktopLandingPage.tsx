@@ -1,110 +1,42 @@
-import {
-  Copy,
-  Home,
-  Library,
-  ListMusic,
-  Mic2,
-  MonitorPlay,
-  Music2,
-  Pause,
-  Play,
-  QrCode,
-  Search,
-  Settings,
-  SkipForward,
-  Volume2,
-} from 'lucide-react'
+import { Check, Copy, Disc3, Download, Home, Library, ListMusic, Mic2, MonitorPlay, Music2, Pause, Play, QrCode, RefreshCw, RotateCcw, Search, Settings, SkipForward, SlidersHorizontal, Upload, Users, Volume2, Wifi } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react'
 import { ApiError } from '../../api/client'
 import { RoomRealtimeProvider, useRoomRealtime } from '../../realtime/room-realtime'
 import { useSession, type RoomRole } from '../../state/session'
 import type { QueueEntry } from '../queue/types'
 
-interface HostRoomResponse {
-  room: { id: string; joinCode: string; maxQueuedSongsPerGuest: number }
-  host: { token: string; roomId: string; guestId: string; nickname: string; role: RoomRole; expiresAt: string }
-  joinUrl?: string
-}
-
-interface SongSearchItem {
-  songId: string
-  title: string
-  artists: string
-  language?: string
-  category?: string
-  quality?: string
-  availability: 'Available' | 'Offline' | 'Unreadable'
-}
-
+interface HostRoomResponse { room: { id: string; joinCode: string; maxQueuedSongsPerGuest: number }; host: { token: string; roomId: string; guestId: string; nickname: string; role: RoomRole; expiresAt: string }; joinUrl?: string }
+interface SongSearchItem { songId: string; title: string; artists: string; language?: string; category?: string; quality?: string; availability: 'Available' | 'Offline' | 'Unreadable' }
 interface SongSearchPage { items: SongSearchItem[]; total: number; page: number; pageSize: number }
 interface FavoriteSong { songId: string; title: string; artists: string; favoritedAt: string }
 interface ArtistItem { artistId?: string; id?: string; name: string; songCount: number; imageUrl?: string; avatarUrl?: string }
 interface Track { streamId: number; type: 'Audio' | 'Subtitle'; title?: string; language?: string }
 interface PlayerState { state: string; volume: number; tracks?: Track[]; position?: string | number; duration?: string | number; audioTrackId?: number; subtitleTrackId?: number }
+interface RoomGuest { id: string; nickname: string; role: RoomRole; joinedAt: string; isRevoked: boolean }
+interface StationSettings { server: { bindAddress: string; port: number }; storage: { dataDirectory: string; mediaMountRoot: string }; player: { executablePath: string; commandTimeoutSeconds: number }; scanning: { basicIndexOnly: boolean; readNfo: boolean; probeConcurrency: number } }
+interface HealthSnapshot { overall: string; components: Array<{ name: string; level: string; summary: string }> }
 type DesktopView = 'songs' | 'artists' | 'language' | 'style' | 'favorites'
 type SearchField = 'Any' | 'Title' | 'Artist'
 type DesktopNavTarget = 'overview' | 'playback' | 'songs' | 'queue' | 'catalog' | 'room' | 'settings'
+type SettingsTab = 'storage' | 'playback' | 'audio' | 'room'
 
 const singerGroups = ['全部', '华语男歌手', '华语女歌手', '华语组合', '欧美歌手', '日本歌手', '韩国歌手', '其他']
 const languages = ['全部', '国语', '粤语', '台语', '闽南语', '英语', '日语', '韩语', '纯音乐']
 const styles = ['全部', '流行', '经典', '摇滚', '民谣', '儿歌', '舞曲', '影视原声', '纯音乐']
-const desktopNavMeta: Record<DesktopNavTarget, { title: string; subtitle: string }> = {
-  overview: { title: '总览', subtitle: '房间状态、播放状态和点歌概览' },
-  playback: { title: '正在播放', subtitle: '播放控制、音量和音轨设置' },
-  songs: { title: '电脑点歌', subtitle: '主控机直接搜歌、点歌和管理当前队列' },
-  queue: { title: '点歌队列', subtitle: '查看等待播放的歌曲并安排下一首' },
-  catalog: { title: '曲库管理', subtitle: '查看曲库服务状态和导入入口' },
-  room: { title: '房间与二维码', subtitle: '把房间分享给手机和家庭成员' },
-  settings: { title: '设置与诊断', subtitle: '查看连接状态和主机运行信息' },
-}
-const statusLabels: Record<QueueEntry['status'], string> = {
-  Probing: '正在探测', ProbeFailed: '探测失败', Waiting: '等待播放', Preparing: '准备播放',
-  Playing: '正在播放', Paused: '已暂停', Completed: '已播放', Skipped: '已跳过', Failed: '播放失败',
-}
-
-function avatarColor(name: string) {
-  const colors = ['#f56a00', '#7265e6', '#00a2ae', '#1890ff', '#52c41a', '#eb2f96', '#d58c4e']
-  let hash = 0
-  for (const character of name) hash = character.charCodeAt(0) + ((hash << 5) - hash)
-  return colors[Math.abs(hash) % colors.length]
-}
-
-function seconds(value: string | number | undefined) {
-  if (typeof value === 'number' && Number.isFinite(value)) return Math.max(0, value)
-  if (typeof value !== 'string') return 0
-  const parts = value.split(':').map(Number)
-  if (parts.some(part => !Number.isFinite(part))) return 0
-  return parts.length === 3 ? parts[0] * 3600 + parts[1] * 60 + parts[2] : parts.length === 2 ? parts[0] * 60 + parts[1] : Number(parts[0]) || 0
-}
-
-function formatClock(value?: string | number) {
-  if (!value) return '--:--'
-  const total = seconds(value)
-  return `${String(Math.floor(total / 60)).padStart(2, '0')}:${String(Math.floor(total % 60)).padStart(2, '0')}`
-}
-
-function trackName(track: Track) {
-  return track.title?.trim() || track.language?.trim() || (track.type === 'Audio' ? `音轨 ${track.streamId}` : `字幕 ${track.streamId}`)
-}
+const desktopNavMeta: Record<DesktopNavTarget, { title: string; subtitle: string }> = { overview: { title: '总览', subtitle: '房间状态、播放状态和点歌概览' }, playback: { title: '正在播放', subtitle: '沉浸式播控、音量和音轨设置' }, songs: { title: '电脑点歌', subtitle: '主控机直接搜歌、点歌和管理当前队列' }, queue: { title: '点歌队列', subtitle: '查看等待播放的歌曲并安排下一首' }, catalog: { title: '曲库管理', subtitle: '曲库资产、导入任务和媒体健康状态' }, room: { title: '房间与二维码', subtitle: '把房间分享给手机和家庭成员' }, settings: { title: '设置与诊断', subtitle: '挂载路径、播放器和主机运行信息' } }
+const statusLabels: Record<QueueEntry['status'], string> = { Probing: '正在探测', ProbeFailed: '探测失败', Waiting: '等待播放', Preparing: '准备播放', Playing: '正在播放', Paused: '已暂停', Completed: '已播放', Skipped: '已跳过', Failed: '播放失败' }
+function avatarColor(name: string) { const colors = ['#f56a00', '#7265e6', '#00a2ae', '#1890ff', '#52c41a', '#eb2f96', '#d58c4e']; let hash = 0; for (const character of name) hash = character.charCodeAt(0) + ((hash << 5) - hash); return colors[Math.abs(hash) % colors.length] }
+function seconds(value: string | number | undefined) { if (typeof value === 'number' && Number.isFinite(value)) return Math.max(0, value); if (typeof value !== 'string') return 0; const parts = value.split(':').map(Number); if (parts.some(part => !Number.isFinite(part))) return 0; return parts.length === 3 ? parts[0] * 3600 + parts[1] * 60 + parts[2] : parts.length === 2 ? parts[0] * 60 + parts[1] : Number(parts[0]) || 0 }
+function formatClock(value?: string | number) { if (!value) return '--:--'; const total = seconds(value); return String(Math.floor(total / 60)).padStart(2, '0') + ':' + String(Math.floor(total % 60)).padStart(2, '0') }
+function trackName(track: Track) { return track.title?.trim() || track.language?.trim() || (track.type === 'Audio' ? '音轨 ' + track.streamId : '字幕 ' + track.streamId) }
+function blankSettings(): StationSettings { return { server: { bindAddress: '0.0.0.0', port: 5090 }, storage: { dataDirectory: 'data', mediaMountRoot: '' }, player: { executablePath: '', commandTimeoutSeconds: 10 }, scanning: { basicIndexOnly: false, readNfo: false, probeConcurrency: 1 } } }
 
 export function DesktopLandingPage() {
   const { api, setSession } = useSession()
   const [room, setRoom] = useState<HostRoomResponse | null>(null)
   const [error, setError] = useState('')
   const initialized = useRef(false)
-
-  useEffect(() => {
-    if (initialized.current) return
-    initialized.current = true
-    const controller = new AbortController()
-    api.post<HostRoomResponse>('/api/manage/room/ensure', { hostNickname: '主持人', maxQueuedSongsPerGuest: 100 }, controller.signal)
-      .then(result => { setRoom(result); setSession({ ...result.host, roomName: '客厅 KTV' }) })
-      .catch(value => {
-        if (!(value instanceof DOMException && value.name === 'AbortError')) setError(value instanceof ApiError ? value.message : '无法在本机创建 KTV 房间。')
-      })
-    return () => controller.abort()
-  }, [api, setSession])
-
+  useEffect(() => { if (initialized.current) return; initialized.current = true; const controller = new AbortController(); api.post<HostRoomResponse>('/api/manage/room/ensure', { hostNickname: '主持人', maxQueuedSongsPerGuest: 100 }, controller.signal).then(result => { setRoom(result); setSession({ ...result.host, roomName: '客厅 KTV' }) }).catch(value => { if (!(value instanceof DOMException && value.name === 'AbortError')) setError(value instanceof ApiError ? value.message : '无法在本机创建 KTV 房间。') }); return () => controller.abort() }, [api, setSession])
   if (error) return <main className="desk-loading-shell"><section className="desk-error"><Music2 /><h1>主控未就绪</h1><p>{error}</p><button onClick={() => window.location.reload()}>重试</button></section></main>
   if (!room) return <main className="desk-loading-shell"><section className="desk-loading"><Music2 /><p>正在恢复家庭 KTV 房间…</p></section></main>
   return <RoomRealtimeProvider><DesktopRoomPage room={room.room} joinUrl={room.joinUrl} /></RoomRealtimeProvider>
@@ -113,11 +45,11 @@ export function DesktopLandingPage() {
 function DesktopRoomPage({ room, joinUrl: preferredJoinUrl }: { room: HostRoomResponse['room']; joinUrl?: string }) {
   const { api } = useSession()
   const { queue, playback, connectionStatus, addQueueItem, updateQueueItem } = useRoomRealtime()
-  const [view, setView] = useState<DesktopView>('songs')
+  const [view, setView] = useState<DesktopView>('artists')
   const [navTarget, setNavTarget] = useState<DesktopNavTarget>('songs')
-  const [searchText, setSearchText] = useState('周杰伦')
-  const [submittedText, setSubmittedText] = useState('周杰伦')
-  const [searchField, setSearchField] = useState<SearchField>('Title')
+  const [searchText, setSearchText] = useState('')
+  const [submittedText, setSubmittedText] = useState('')
+  const [searchField, setSearchField] = useState<SearchField>('Any')
   const [language, setLanguage] = useState('')
   const [style, setStyle] = useState('')
   const [artistGroup, setArtistGroup] = useState('')
@@ -126,13 +58,22 @@ function DesktopRoomPage({ room, joinUrl: preferredJoinUrl }: { room: HostRoomRe
   const [result, setResult] = useState<SongSearchPage | null>(null)
   const [artists, setArtists] = useState<ArtistItem[]>([])
   const [favorites, setFavorites] = useState<FavoriteSong[]>([])
+  const [guests, setGuests] = useState<RoomGuest[]>([])
+  const [settings, setSettings] = useState<StationSettings>(() => blankSettings())
+  const [health, setHealth] = useState<HealthSnapshot | null>(null)
+  const [settingsTab, setSettingsTab] = useState<SettingsTab>('storage')
+  const [indexPath, setIndexPath] = useState('')
+  const [importRoot, setImportRoot] = useState('')
   const [loading, setLoading] = useState(false)
   const [artistLoading, setArtistLoading] = useState(false)
+  const [importing, setImporting] = useState(false)
+  const [savingSettings, setSavingSettings] = useState(false)
   const [error, setError] = useState('')
   const [notice, setNotice] = useState('')
   const [requestingId, setRequestingId] = useState('')
   const [pendingControl, setPendingControl] = useState('')
   const [copied, setCopied] = useState(false)
+  const [qrRevision, setQrRevision] = useState(0)
   const [playerState, setPlayerState] = useState<PlayerState | null>(null)
   const [volumeDraft, setVolumeDraft] = useState(80)
   const [volumeDragging, setVolumeDragging] = useState(false)
@@ -140,161 +81,43 @@ function DesktopRoomPage({ room, joinUrl: preferredJoinUrl }: { room: HostRoomRe
   const [positionDragging, setPositionDragging] = useState(false)
   const [controlPanel, setControlPanel] = useState<'tracks' | 'volume' | null>(null)
   const volumeTimer = useRef<number | undefined>(undefined)
-
   const waitingQueue = useMemo(() => queue.filter(item => !['Completed', 'Skipped', 'Failed', 'Playing', 'Paused'].includes(item.status)).sort((a, b) => a.position - b.position), [queue])
   const currentSong = useMemo(() => queue.find(item => item.status === 'Playing' || item.status === 'Paused') ?? queue.find(item => item.status === 'Preparing'), [queue])
-  const totalPages = result ? Math.max(1, Math.ceil(result.total / result.pageSize)) : 1
   const artistPageSize = 24
   const artistTotalPages = Math.max(1, Math.ceil(artists.length / artistPageSize))
   const visibleArtists = artists.slice((artistPage - 1) * artistPageSize, artistPage * artistPageSize)
-  const joinUrl = preferredJoinUrl ?? `${window.location.origin}/join?code=${encodeURIComponent(room.joinCode)}`
+  const joinUrl = preferredJoinUrl ?? window.location.origin + '/join?code=' + encodeURIComponent(room.joinCode)
+  const qrUrl = '/api/manage/qr?content=' + encodeURIComponent(joinUrl) + '&v=' + qrRevision
   const filterOptions = view === 'artists' ? singerGroups : view === 'language' ? languages : view === 'style' ? styles : []
 
-  useEffect(() => {
-    const controller = new AbortController()
-    api.get<FavoriteSong[]>('/api/library/favorites', controller.signal).then(setFavorites).catch(() => undefined)
-    return () => controller.abort()
-  }, [api])
+  useEffect(() => { const controller = new AbortController(); api.get<FavoriteSong[]>('/api/library/favorites', controller.signal).then(items => setFavorites(Array.isArray(items) ? items : [])).catch(() => undefined); return () => controller.abort() }, [api])
+  useEffect(() => { let disposed = false; const refresh = () => api.get<PlayerState>('/api/playback').then(value => { if (!disposed) setPlayerState(value) }).catch(() => undefined); void refresh(); const timer = window.setInterval(refresh, 2000); return () => { disposed = true; window.clearInterval(timer); if (volumeTimer.current) window.clearTimeout(volumeTimer.current) } }, [api])
+  useEffect(() => { if (playerState && !volumeDragging && Number.isFinite(playerState.volume)) setVolumeDraft(playerState.volume) }, [playerState?.volume, volumeDragging])
+  useEffect(() => { if (!positionDragging) setPositionDraft(seconds(playerState?.position ?? playback?.position)) }, [playerState?.position, playback?.position, positionDragging])
+  useEffect(() => { if (view !== 'artists') return; const controller = new AbortController(); const query = artistGroup ? '?artistGroup=' + encodeURIComponent(artistGroup) : ''; setArtistLoading(true); api.get<ArtistItem[]>('/api/catalog/artists' + query, controller.signal).then(items => { setArtists(Array.isArray(items) ? items : []); setArtistPage(1) }).catch(value => { if (!(value instanceof DOMException && value.name === 'AbortError')) setError('歌手列表暂时无法访问。') }).finally(() => { if (!controller.signal.aborted) setArtistLoading(false) }); return () => controller.abort() }, [api, artistGroup, view])
+  useEffect(() => { if (view === 'artists' || view === 'favorites') return; if (!submittedText && !language && !style) { setResult(null); setLoading(false); return }; const controller = new AbortController(); setLoading(true); setError(''); const params = new URLSearchParams({ page: String(page), pageSize: '20', sort: 'Relevance' }); if (submittedText) params.set('text', submittedText); if (searchField !== 'Any') params.set('field', searchField); if (language) params.set('language', language); if (style) params.set('category', style); api.get<SongSearchPage>('/api/catalog/search?' + params, controller.signal).then(next => setResult(current => page === 1 ? next : current ? { ...next, items: [...current.items, ...next.items] } : next)).catch(value => { if (!(value instanceof DOMException && value.name === 'AbortError')) setError(value instanceof ApiError ? value.message : '曲库暂时无法访问。') }).finally(() => { if (!controller.signal.aborted) setLoading(false) }); return () => controller.abort() }, [api, language, page, searchField, style, submittedText, view])
+  useEffect(() => { if (!['catalog', 'settings', 'room'].includes(navTarget)) return; const controller = new AbortController(); api.get<StationSettings>('/api/manage/settings', controller.signal).then(value => { if (value?.storage) { setSettings(value); setImportRoot(value.storage.mediaMountRoot) } }).catch(() => undefined); api.get<HealthSnapshot>('/api/manage/health', controller.signal).then(value => setHealth(Array.isArray(value?.components) ? value : null)).catch(() => undefined); if (navTarget === 'room') api.get<RoomGuest[]>('/api/manage/room/' + room.id + '/guests', controller.signal).then(items => setGuests(Array.isArray(items) ? items : [])).catch(() => setGuests([])); return () => controller.abort() }, [api, navTarget, room.id])
 
-  useEffect(() => {
-    let disposed = false
-    const refresh = () => api.get<PlayerState>('/api/playback').then(value => { if (!disposed) setPlayerState(value) }).catch(() => undefined)
-    void refresh()
-    const timer = window.setInterval(refresh, 2000)
-    return () => {
-      disposed = true
-      window.clearInterval(timer)
-      if (volumeTimer.current) window.clearTimeout(volumeTimer.current)
-    }
-  }, [api])
-
-  useEffect(() => {
-    if (playerState && !volumeDragging && Number.isFinite(playerState.volume)) setVolumeDraft(playerState.volume)
-  }, [playerState?.volume, volumeDragging])
-
-  useEffect(() => {
-    if (positionDragging) return
-    const position = playerState?.position ?? playback?.position
-    setPositionDraft(seconds(position))
-  }, [playerState?.position, playback?.position, positionDragging])
-
-  useEffect(() => {
-    if (view !== 'artists') return
-    const controller = new AbortController()
-    const query = artistGroup ? `?artistGroup=${encodeURIComponent(artistGroup)}` : ''
-    setArtistLoading(true)
-    api.get<ArtistItem[]>(`/api/catalog/artists${query}`, controller.signal)
-      .then(items => { setArtists(items ?? []); setArtistPage(1) })
-      .catch(value => { if (!(value instanceof DOMException && value.name === 'AbortError')) setError('歌手列表暂时无法访问。') })
-      .finally(() => { if (!controller.signal.aborted) setArtistLoading(false) })
-    return () => controller.abort()
-  }, [api, artistGroup, view])
-
-  useEffect(() => {
-    if (view === 'artists' || view === 'favorites') return
-    const controller = new AbortController()
-    setLoading(true); setError('')
-    const params = new URLSearchParams({ page: String(page), pageSize: '20', sort: 'Relevance' })
-    if (submittedText) params.set('text', submittedText)
-    if (searchField !== 'Any') params.set('field', searchField)
-    if (language) params.set('language', language)
-    if (style) params.set('category', style)
-    api.get<SongSearchPage>(`/api/catalog/search?${params}`, controller.signal)
-      .then(next => setResult(next))
-      .catch(value => { if (!(value instanceof DOMException && value.name === 'AbortError')) setError(value instanceof ApiError ? value.message : '曲库暂时无法访问。') })
-      .finally(() => { if (!controller.signal.aborted) setLoading(false) })
-    return () => controller.abort()
-  }, [api, language, page, searchField, style, submittedText, view])
-
-  function selectView(next: DesktopView) {
-    setView(next); setNavTarget('songs'); setError(''); setPage(1)
-    if (next === 'artists') { setArtistGroup(''); setArtistPage(1) }
-    if (next === 'songs') { setLanguage(''); setStyle('') }
-  }
-
-  function selectFilter(value: string) {
-    if (view === 'artists') { setArtistGroup(value === '全部' ? '' : value); setArtistPage(1) }
-    else if (view === 'language') { setLanguage(value === '全部' ? '' : value); setStyle(''); setPage(1) }
-    else if (view === 'style') { setStyle(value === '全部' ? '' : value); setLanguage(''); setPage(1) }
-  }
-
-  function navigateTo(target: DesktopNavTarget) {
-    setNavTarget(target)
-    if (target === 'songs') {
-      selectView('songs')
-    }
-    setNotice('')
-  }
-
-  function submitSearch(event?: FormEvent) {
-    event?.preventDefault()
-    setSubmittedText(searchText.trim())
-    setPage(1)
-    setView('songs')
-  }
-
-  async function requestSong(song: SongSearchItem | FavoriteSong) {
-    if (requestingId) return
-    if (queue.some(item => item.songId === song.songId && !['Completed', 'Skipped', 'Failed'].includes(item.status))) { setNotice(`《${song.title}》已经在队列中。`); return }
-    setRequestingId(song.songId); setNotice('')
-    try {
-      const queued = await api.post<QueueEntry>('/api/queue', { songId: song.songId })
-      addQueueItem(queued); setNotice(`已点播《${song.title}》`)
-    } catch (value) { setNotice(value instanceof ApiError ? value.message : '点歌失败，请稍后重试。') }
-    finally { setRequestingId('') }
-  }
-
-  async function queueInsert(item: QueueEntry) {
-    if (pendingControl) return
-    setPendingControl(item.id); setNotice('')
-    try { updateQueueItem(await api.post<QueueEntry>(`/api/queue/${item.id}/insert`, {})); setNotice(`《${item.title}》已插入当前播放的下一首。`) }
-    catch (value) { setNotice(value instanceof ApiError ? value.message : '无法插播这首歌。') }
-    finally { setPendingControl('') }
-  }
-
-  async function playbackControl(action: 'play' | 'pause' | 'skip') {
-    if (pendingControl) return
-    setPendingControl(action); setNotice('')
-    try { setPlayerState(await api.post<PlayerState>(`/api/playback/${action}`, {})); }
-    catch (value) { setNotice(value instanceof ApiError ? value.message : '播放控制失败。') }
-    finally { setPendingControl('') }
-  }
-
-  async function playbackCommand(path: string, body?: unknown) {
-    setNotice('')
-    try { setPlayerState(await api.post<PlayerState>(path, body)) }
-    catch (value) { setNotice(value instanceof ApiError ? value.message : '播放控制失败，请稍后重试。') }
-  }
-
-  function updateVolume(value: number) {
-    setVolumeDraft(value)
-    setPlayerState(current => current ? { ...current, volume: value } : current)
-    if (volumeTimer.current) window.clearTimeout(volumeTimer.current)
-    volumeTimer.current = window.setTimeout(() => void playbackCommand('/api/playback/volume', { volume: value }), 160)
-  }
-
-  function updatePosition(value: number) {
-    setPositionDraft(value)
-    setPlayerState(current => current ? { ...current, position: value } : current)
-  }
-
-  function commitPosition() {
-    setPositionDragging(false)
-    void playbackCommand('/api/playback/seek', { positionSeconds: positionDraft })
-  }
-
-  async function copyJoinUrl() {
-    try { await navigator.clipboard.writeText(joinUrl); setCopied(true); window.setTimeout(() => setCopied(false), 1600) }
-    catch { setNotice(`请手动输入房间码 ${room.joinCode}`) }
-  }
-
-  function chooseArtist(artist: ArtistItem) {
-    setSearchText(artist.name); setSubmittedText(artist.name); setSearchField('Artist'); setLanguage(''); setStyle(''); setPage(1); setView('songs')
-  }
+  function selectView(next: DesktopView) { setView(next); setNavTarget('songs'); setError(''); setPage(1); if (next === 'artists') { setArtistGroup(''); setArtistPage(1) }; if (next === 'songs') { setLanguage(''); setStyle('') } }
+  function selectFilter(value: string) { if (view === 'artists') { setArtistGroup(value === '全部' ? '' : value); setArtistPage(1) } else if (view === 'language') { setLanguage(value === '全部' ? '' : value); setStyle(''); setPage(1) } else if (view === 'style') { setStyle(value === '全部' ? '' : value); setLanguage(''); setPage(1) } }
+  function navigateTo(target: DesktopNavTarget) { setNavTarget(target); if (target === 'songs') selectView(view === 'favorites' ? 'songs' : view); setNotice('') }
+  function submitSearch(event?: FormEvent, requestedField?: SearchField) { event?.preventDefault(); const field = requestedField ?? searchField; setSearchField(field); setSubmittedText(searchText.trim()); setPage(1); setView('songs'); setNavTarget('songs'); setError('') }
+  async function requestSong(song: SongSearchItem | FavoriteSong) { if (requestingId) return; if (queue.some(item => item.songId === song.songId && !['Completed', 'Skipped', 'Failed'].includes(item.status))) { setNotice('《' + song.title + '》已经在队列中。'); return }; setRequestingId(song.songId); setNotice(''); try { addQueueItem(await api.post<QueueEntry>('/api/queue', { songId: song.songId })); setNotice('已点播《' + song.title + '》') } catch (value) { setNotice(value instanceof ApiError ? value.message : '点歌失败，请稍后重试。') } finally { setRequestingId('') } }
+  async function queueInsert(item: QueueEntry) { if (pendingControl) return; setPendingControl(item.id); setNotice(''); try { updateQueueItem(await api.post<QueueEntry>('/api/queue/' + item.id + '/insert', {})); setNotice('《' + item.title + '》已插入当前播放的下一首。') } catch (value) { setNotice(value instanceof ApiError ? value.message : '无法插播这首歌。') } finally { setPendingControl('') } }
+  async function playbackControl(action: 'play' | 'pause' | 'skip') { if (pendingControl) return; setPendingControl(action); setNotice(''); try { setPlayerState(await api.post<PlayerState>('/api/playback/' + action, {})) } catch (value) { setNotice(value instanceof ApiError ? value.message : '播放控制失败。') } finally { setPendingControl('') } }
+  async function playbackCommand(path: string, body?: unknown) { setNotice(''); try { setPlayerState(await api.post<PlayerState>(path, body)) } catch (value) { setNotice(value instanceof ApiError ? value.message : '播放控制失败，请稍后重试。') } }
+  function updateVolume(value: number) { setVolumeDraft(value); setPlayerState(current => current ? { ...current, volume: value } : current); if (volumeTimer.current) window.clearTimeout(volumeTimer.current); volumeTimer.current = window.setTimeout(() => void playbackCommand('/api/playback/volume', { volume: value }), 160) }
+  function updatePosition(value: number) { setPositionDraft(value); setPlayerState(current => current ? { ...current, position: value } : current) }
+  function commitPosition() { setPositionDragging(false); void playbackCommand('/api/playback/seek', { positionSeconds: positionDraft }) }
+  async function copyJoinUrl() { try { await navigator.clipboard.writeText(joinUrl); setCopied(true); window.setTimeout(() => setCopied(false), 1600) } catch { setNotice('请手动输入房间码 ' + room.joinCode) } }
+  function chooseArtist(artist: ArtistItem) { setSearchText(artist.name); setSubmittedText(artist.name); setSearchField('Artist'); setLanguage(''); setStyle(''); setPage(1); setView('songs'); setNavTarget('songs') }
+  async function saveSettings() { setSavingSettings(true); setNotice(''); try { await api.put('/api/manage/settings', settings); setNotice('设置已保存，重启主机服务后生效。') } catch (value) { setNotice(value instanceof ApiError ? value.message : '设置保存失败。') } finally { setSavingSettings(false) } }
+  async function importCatalog() { if (!indexPath.trim() || !importRoot.trim()) { setNotice('请填写 JSON/JSONL 路径和媒体挂载路径。'); return }; setImporting(true); setNotice('正在导入曲库，完成前请不要关闭页面…'); try { const result = await api.post<{ read: number; added: number; skipped: number; errors: number }>('/api/manage/catalog/import', { indexPath: indexPath.trim(), mountRoot: importRoot.trim() }); setNotice('曲库导入完成：读取 ' + result.read + '，新增 ' + result.added + '，跳过 ' + result.skipped + '，错误 ' + result.errors + '。') } catch (value) { setNotice(value instanceof ApiError ? value.message : '曲库导入失败。') } finally { setImporting(false) } }
 
   const songs = view === 'favorites' ? favorites : result?.items ?? []
-  const resultTitle = view === 'artists' ? (artistGroup || '全部') + '歌手' : view === 'favorites' ? '我的收藏' : view === 'language' && language ? `${language}歌曲` : view === 'style' && style ? `${style}歌曲` : searchField === 'Artist' && submittedText ? `${submittedText}的歌曲` : '搜索结果'
-  const resultCount = view === 'artists' ? `${artists.length} 位歌手 · 第 ${artistPage} / ${artistTotalPages} 页` : view === 'favorites' ? `${favorites.length} 首` : result ? `找到 ${result.total} 首 · 第 ${page} / ${totalPages} 页` : loading ? '加载中…' : '暂无结果'
+  const resultTitle = view === 'artists' ? (artistGroup || '热门') + '歌手' : view === 'favorites' ? '我的收藏' : view === 'language' && language ? language + '歌曲' : view === 'style' && style ? style + '歌曲' : searchField === 'Artist' && submittedText ? submittedText + '的歌曲' : submittedText ? '搜索结果' : '热门歌曲'
+  const resultCount = view === 'artists' ? artists.length + ' 位歌手 · 已显示 ' + visibleArtists.length : view === 'favorites' ? favorites.length + ' 首' : result ? '找到 ' + result.total + ' 首 · 已加载 ' + result.items.length + ' 首' : loading ? '加载中…' : submittedText || language || style ? '暂无结果' : '输入关键词后开始检索'
+  const hasMore = Boolean(result && result.items.length < result.total)
   const connectionText = { connecting: '连接中', connected: '服务在线', reconnecting: '重新连接中', offline: '连接断开' }[connectionStatus]
   const playbackState = playback?.state ?? playerState?.state
   const playbackPosition = playerState?.position ?? playback?.position
@@ -304,86 +127,15 @@ function DesktopRoomPage({ room, joinUrl: preferredJoinUrl }: { room: HostRoomRe
   const tracks = Array.isArray(playerState?.tracks) ? playerState.tracks : []
   const audioTracks = tracks.filter(track => track.type === 'Audio')
   const subtitleTracks = tracks.filter(track => track.type === 'Subtitle')
-
-  function renderUtilityPage() {
-    if (navTarget === 'overview') return <div className="ktv-utility-grid">
-      <section className="ktv-utility-panel ktv-utility-hero"><span className="ktv-utility-kicker">ROOM OVERVIEW</span><h2>今晚想唱什么？</h2><p>房间已准备好，电脑和手机都可以直接点歌。</p><div className="ktv-utility-actions"><button type="button" className="ktv-gradient-button" onClick={() => navigateTo('songs')}>开始点歌</button><button type="button" className="ktv-ghost-button" onClick={() => navigateTo('room')}>查看房间码</button></div></section>
-      <section className="ktv-stat-card"><span>正在播放</span><strong>{currentSong?.title ?? '暂无歌曲'}</strong><small>{currentSong?.artists || '等待点歌'}</small></section>
-      <section className="ktv-stat-card"><span>接下来播放</span><strong>{waitingQueue.length} 首</strong><small>队列实时同步</small></section>
-      <section className="ktv-stat-card"><span>服务状态</span><strong>{connectionText}</strong><small>房间码 {room.joinCode}</small></section>
-    </div>
-    if (navTarget === 'playback') return <section className="ktv-utility-panel ktv-playback-page" id="ktv-now-playing"><div className="ktv-utility-panel-head"><div><span className="ktv-utility-kicker">NOW PLAYING</span><h2>{currentSong?.title ?? '暂无歌曲'}</h2><p>{currentSong?.artists || '等待点歌'} · {playbackState === 'Paused' ? '已暂停' : playbackState === 'Playing' ? '播放中' : '等待播放'}</p></div><span className="ktv-live-pill">● {playbackState === 'Playing' ? '播放中' : '待机'}</span></div><div className="ktv-large-progress"><span style={{ width: `${progress}%` }}></span></div><div className="ktv-utility-time"><span>{formatClock(playbackPosition)}</span><span>{formatClock(playbackDuration)}</span></div><div className="ktv-utility-controls"><button type="button" className="ktv-gradient-button" disabled={pendingControl !== ''} onClick={() => void playbackControl(playbackState === 'Playing' ? 'pause' : 'play')}>{playbackState === 'Playing' ? <Pause aria-hidden="true" /> : <Play aria-hidden="true" />}{playbackState === 'Playing' ? '暂停' : '播放'}</button><button type="button" className="ktv-ghost-button" disabled={pendingControl !== '' || !currentSong} onClick={() => void playbackControl('skip')}><SkipForward aria-hidden="true" />切歌</button><button type="button" className="ktv-ghost-button" onClick={() => setControlPanel(current => current === 'volume' ? null : 'volume')}><Volume2 aria-hidden="true" />音量 {Math.round(volumeDraft)}%</button><button type="button" className="ktv-ghost-button" onClick={() => setControlPanel(current => current === 'tracks' ? null : 'tracks')}><Mic2 aria-hidden="true" />原唱/伴奏</button></div>{controlPanel === 'volume' && <div className="ktv-control-panel ktv-volume-panel"><div><strong>音量</strong><span>{Math.round(volumeDraft)}%</span></div><input aria-label="音量" type="range" min="0" max="100" value={volumeDraft} onPointerDown={() => setVolumeDragging(true)} onChange={event => updateVolume(Number(event.target.value))} onPointerUp={() => setVolumeDragging(false)} /></div>}{controlPanel === 'tracks' && <div className="ktv-control-panel ktv-track-panel">{audioTracks.length > 0 ? <label>原唱 / 伴奏<select aria-label="原唱伴奏" value={playerState?.audioTrackId ?? ''} onChange={event => void playbackCommand('/api/playback/audio', { streamId: Number(event.target.value) })}>{audioTracks.map(track => <option key={track.streamId} value={track.streamId}>{trackName(track)}</option>)}</select></label> : <span>当前媒体没有可切换的音轨</span>}{subtitleTracks.length > 0 && <label>字幕<select aria-label="字幕" value={playerState?.subtitleTrackId ?? ''} onChange={event => void playbackCommand('/api/playback/subtitle', { streamId: event.target.value ? Number(event.target.value) : null })}><option value="">关闭字幕</option>{subtitleTracks.map(track => <option key={track.streamId} value={track.streamId}>{trackName(track)}</option>)}</select></label>}</div>}</section>
-    if (navTarget === 'queue') return <section className="ktv-utility-panel ktv-queue-page" id="ktv-queue"><div className="ktv-utility-panel-head"><div><span className="ktv-utility-kicker">UP NEXT</span><h2>点歌队列</h2><p>{waitingQueue.length} 首歌曲等待播放</p></div><button type="button" className="ktv-ghost-button" onClick={() => navigateTo('songs')}>继续点歌</button></div>{waitingQueue.length === 0 ? <p className="ktv-empty">队列为空，先去点一首喜欢的歌吧。</p> : <div className="ktv-utility-queue-list">{waitingQueue.map((item, index) => <div className="ktv-utility-queue-row" key={item.id}><span className="ktv-queue-number">{String(index + 1).padStart(2, '0')}</span><div><strong>{item.title}</strong><small>{item.artists || item.requestedByNickname} · {statusLabels[item.status]}</small></div><button type="button" className="ktv-ghost-button" disabled={pendingControl !== '' || item.status === 'ProbeFailed'} onClick={() => void queueInsert(item)}>插到下一首</button></div>)}</div>}</section>
-    if (navTarget === 'room') return <section className="ktv-utility-panel ktv-room-page"><span className="ktv-utility-kicker">ROOM ACCESS</span><h2>邀请家人一起点歌</h2><p>手机连接同一局域网后，打开下面的地址或输入房间码即可加入。</p><div className="ktv-room-code-card"><span>房间码</span><strong>{room.joinCode}</strong><small>{joinUrl}</small></div><button type="button" className="ktv-gradient-button" onClick={() => void copyJoinUrl()}><Copy aria-hidden="true" />{copied ? '已复制加入链接' : '复制加入链接'}</button></section>
-    if (navTarget === 'catalog') return <section className="ktv-utility-panel"><span className="ktv-utility-kicker">CATALOG</span><h2>曲库管理</h2><p>曲库导入、扫描和路径设置由主机本地管理入口负责。电脑点歌页已经可以直接检索当前数据库中的歌曲。</p><div className="ktv-info-banner"><Library aria-hidden="true" /><span>当前曲库服务在线 · {result?.total ?? '—'} 首检索结果</span></div><button type="button" className="ktv-gradient-button" onClick={() => navigateTo('songs')}>返回电脑点歌</button></section>
-    return <section className="ktv-utility-panel"><span className="ktv-utility-kicker">SETTINGS & DIAGNOSTICS</span><h2>设置与诊断</h2><p>主机服务、播放器和网络状态在托盘主机入口查看。当前桌面点歌连接状态如下：</p><div className="ktv-diagnostic-list"><div><span>房间服务</span><strong>{connectionText}</strong></div><div><span>房间码</span><strong>{room.joinCode}</strong></div><div><span>队列上限</span><strong>{room.maxQueuedSongsPerGuest} 首/访客</strong></div></div><button type="button" className="ktv-ghost-button" onClick={() => navigateTo('songs')}>返回电脑点歌</button></section>
-  }
-
+  function playerControls(compact = false) { return <div className={compact ? 'ktv-player-actions compact' : 'ktv-player-actions'}><button type="button" aria-label={playbackState === 'Playing' ? '暂停' : '播放'} disabled={pendingControl !== ''} onClick={() => void playbackControl(playbackState === 'Playing' ? 'pause' : 'play')}>{playbackState === 'Playing' ? <Pause aria-hidden="true" /> : <Play aria-hidden="true" />}{!compact && (playbackState === 'Playing' ? '暂停' : '播放')}</button><button type="button" aria-label="切歌" disabled={pendingControl !== '' || !currentSong} onClick={() => void playbackControl('skip')}><SkipForward aria-hidden="true" />{!compact && '切歌'}</button><button type="button" aria-label="重唱" disabled={pendingControl !== '' || !currentSong} onClick={() => void playbackCommand('/api/playback/seek', { positionSeconds: 0 })}><RotateCcw aria-hidden="true" />{!compact && '重唱'}</button><button type="button" aria-label="原唱伴奏" className={controlPanel === 'tracks' ? 'selected' : ''} onClick={() => setControlPanel(current => current === 'tracks' ? null : 'tracks')}><Mic2 aria-hidden="true" />{!compact && '原伴唱'}</button><button type="button" aria-label="音量" className={controlPanel === 'volume' ? 'selected' : ''} onClick={() => setControlPanel(current => current === 'volume' ? null : 'volume')}><Volume2 aria-hidden="true" />{!compact && '音量'}</button></div> }
+  function trackPanel() { return controlPanel === 'tracks' ? <div className="ktv-control-panel ktv-track-panel"><div className="ktv-panel-title"><strong>原唱 / 伴奏</strong><span>{playerState?.audioTrackId ? '当前音轨 ' + playerState.audioTrackId : '等待媒体音轨'}</span></div>{audioTracks.length > 0 ? <label>当前音轨<select aria-label="原唱伴奏" value={playerState?.audioTrackId ?? ''} onChange={event => void playbackCommand('/api/playback/audio', { streamId: Number(event.target.value) })}>{audioTracks.map(track => <option key={track.streamId} value={track.streamId}>{trackName(track)}</option>)}</select></label> : <span>当前媒体没有可切换的音轨</span>}{subtitleTracks.length > 0 && <label>字幕<select aria-label="字幕" value={playerState?.subtitleTrackId ?? ''} onChange={event => void playbackCommand('/api/playback/subtitle', { streamId: event.target.value ? Number(event.target.value) : null })}><option value="">关闭字幕</option>{subtitleTracks.map(track => <option key={track.streamId} value={track.streamId}>{trackName(track)}</option>)}</select></label>}</div> : controlPanel === 'volume' ? <div className="ktv-control-panel ktv-volume-panel"><div><strong>主输出音量</strong><span>{Math.round(volumeDraft)}%</span></div><input aria-label="音量" type="range" min="0" max="100" value={volumeDraft} onPointerDown={() => setVolumeDragging(true)} onChange={event => updateVolume(Number(event.target.value))} onPointerUp={() => setVolumeDragging(false)} /></div> : null }
+  function renderPlaybackPage() { return <div className="ktv-playback-dashboard"><section className="ktv-utility-panel ktv-playback-main"><div className="ktv-playback-art"><Disc3 aria-hidden="true" /><span>{(currentSong?.artists || 'AI-KTV').trim().slice(0, 1)}</span></div><div className="ktv-utility-panel-head"><div><span className="ktv-utility-kicker">NOW PLAYING</span><h2>{currentSong?.title ?? '暂无歌曲'}</h2><p>{currentSong ? currentSong.artists + ' · ' + currentSong.requestedByNickname + ' 点播' : '点歌后将在这里显示歌名和歌手'}</p></div><span className="ktv-live-pill">● {playbackState === 'Playing' ? '播放中' : '待机'}</span></div><div className="ktv-large-progress"><span style={{ width: progress + '%' }}></span></div><input className="ktv-large-seek" aria-label="播放进度" type="range" min="0" max={duration} step="1" value={Math.min(positionDraft, duration)} onPointerDown={() => setPositionDragging(true)} onChange={event => updatePosition(Number(event.target.value))} onPointerUp={commitPosition} /><div className="ktv-utility-time"><span>{formatClock(playbackPosition)}</span><span>{formatClock(playbackDuration)}</span></div>{playerControls()}{trackPanel()}<div className="ktv-effects"><span>气氛音效</span><button type="button" className="ktv-ghost-button" onClick={() => setNotice('气氛音效将在音频设备配置完成后启用。')}>👏 掌声</button><button type="button" className="ktv-ghost-button" onClick={() => setNotice('气氛音效将在音频设备配置完成后启用。')}>🎉 欢呼</button><button type="button" className="ktv-ghost-button" onClick={() => setNotice('升降调需要媒体音频滤镜支持，当前版本保留入口。')}>升降调</button></div></section><aside className="ktv-utility-panel ktv-playback-up-next"><div className="ktv-utility-panel-head"><div><span className="ktv-utility-kicker">UP NEXT</span><h3>接下来播放</h3><p>{waitingQueue.length} 首等待播放</p></div><ListMusic aria-hidden="true" /></div>{waitingQueue.slice(0, 5).map((item, index) => <div className="ktv-preview-row" key={item.id}><span>{String(index + 1).padStart(2, '0')}</span><div><strong>{item.title}</strong><small>{item.artists || '未知歌手'} · {item.requestedByNickname}</small></div><button type="button" aria-label={'插播' + item.title} className="ktv-insert" disabled={pendingControl !== '' || item.status === 'ProbeFailed'} onClick={() => void queueInsert(item)}><MonitorPlay aria-hidden="true" /></button></div>)}{waitingQueue.length === 0 && <p className="ktv-empty">队列为空</p>}</aside><section className="ktv-utility-panel ktv-audio-status"><div><Wifi aria-hidden="true" /><strong>主输出设备</strong><span>播放器通过内置音频设备输出</span></div><div><SlidersHorizontal aria-hidden="true" /><strong>伴奏 / 原唱</strong><span>{audioTracks.length > 0 ? audioTracks.length + ' 条音轨可选' : '随媒体自动识别'}</span></div><div><Volume2 aria-hidden="true" /><strong>当前音量</strong><span>{Math.round(volumeDraft)}%</span></div></section></div> }
+  function renderRoomPage() { const onlineGuests = Array.isArray(guests) ? guests.filter(guest => !guest.isRevoked && guest.role !== 'Host') : []; return <section className="ktv-room-dashboard"><section className="ktv-utility-panel ktv-room-qr"><div className="ktv-utility-panel-head"><div><span className="ktv-utility-kicker">ROOM ACCESS</span><h2>扫码加入今晚的歌局</h2><p>手机连接与主机相同的 Wi‑Fi 后，用相机扫描二维码即可点歌。</p></div><QrCode aria-hidden="true" /></div><div className="ktv-qr-layout"><div className="ktv-qr-frame"><img src={qrUrl} alt={'扫码加入房间 ' + room.joinCode} /><span>AI-KTV</span></div><div className="ktv-room-actions"><button type="button" className="ktv-gradient-button" onClick={() => void copyJoinUrl()}><Copy aria-hidden="true" />{copied ? '已复制加入链接' : '复制加入链接'}</button><a className="ktv-ghost-button" href={qrUrl} download={'AI-KTV-' + room.joinCode + '.png'}><Download aria-hidden="true" />保存二维码</a><button type="button" className="ktv-ghost-button" onClick={() => setQrRevision(value => value + 1)}><RefreshCw aria-hidden="true" />刷新二维码</button><button type="button" className="ktv-ghost-button" onClick={() => setNotice('已准备在 MV 屏幕显示二维码；播放窗口叠加功能将在播放器 OSD 接口启用后生效。')}><MonitorPlay aria-hidden="true" />投到 MV 屏幕</button></div></div></section><section className="ktv-utility-panel ktv-room-info"><span className="ktv-utility-kicker">ROOM CODE</span><h3>{room.joinCode}</h3><p>{joinUrl}</p><div className="ktv-wifi-hint"><Wifi aria-hidden="true" /><span>请让手机连接与主机相同的 Wi‑Fi，使用 4G/5G 可能无法访问。</span></div><div className="ktv-guest-head"><strong>在线成员</strong><span>{onlineGuests.length} 台手机</span></div><div className="ktv-guest-list">{onlineGuests.map(guest => <div key={guest.id}><Users aria-hidden="true" /><span>{guest.nickname}</span><small>已加入</small></div>)}{onlineGuests.length === 0 && <p>还没有手机访客加入</p>}</div></section></section> }
+  function renderCatalogPage() { const mountStatus = health && Array.isArray(health.components) ? health.components.find(item => item.name === '媒体挂载') : undefined; return <div className="ktv-catalog-dashboard"><section className="ktv-catalog-stats"><div><span>歌曲</span><strong>{result?.total ?? '—'}</strong><small>当前索引可检索</small></div><div><span>歌手</span><strong>{artists.length || '—'}</strong><small>热门歌手字典</small></div><div><span>媒体挂载</span><strong>{settings.storage.mediaMountRoot || '未设置'}</strong><small>{mountStatus?.summary ?? '等待检查'}</small></div><div><span>音轨探测</span><strong>按需</strong><small>播放前自动探测，不重复导入</small></div></section><section className="ktv-utility-panel ktv-catalog-import"><div className="ktv-utility-panel-head"><div><span className="ktv-utility-kicker">CATALOG IMPORT</span><h2>导入或更新曲库</h2><p>JSON/JSONL 只保存相对路径；更换电脑盘符时，只修改挂载路径即可，不会重复生成歌曲。</p></div><Library aria-hidden="true" /></div><label>索引文件路径<input value={indexPath} onChange={event => setIndexPath(event.target.value)} placeholder={'例如 D:\\\\data\\\\ktv_songs_index.json'} /></label><label>媒体挂载路径<input value={importRoot} onChange={event => setImportRoot(event.target.value)} placeholder={'例如 Z:\\\\KTV'} /></label><div className="ktv-utility-actions"><button type="button" className="ktv-gradient-button" disabled={importing} onClick={() => void importCatalog()}><Upload aria-hidden="true" />{importing ? '导入中…' : '导入并重建索引'}</button><button type="button" className="ktv-ghost-button" onClick={() => navigateTo('settings')}>设置挂载路径</button></div></section><section className="ktv-utility-panel ktv-catalog-tools"><span className="ktv-utility-kicker">HEALTH CHECK</span><h2>曲库健康状态</h2><p>远端文件不可用时保留索引，只显示为离线，避免重新挂载后重复导入。</p><div className="ktv-diagnostic-list">{(health && Array.isArray(health.components) ? health.components : []).map(item => <div key={item.name}><span>{item.name}</span><strong className={'level-' + item.level}>{item.summary}</strong></div>)}</div><button type="button" className="ktv-ghost-button" onClick={() => navigateTo('songs')}>返回电脑点歌</button></section></div> }
+  function renderSettingsPage() { const tabs: Array<[SettingsTab, string]> = [['storage', '曲库存储'], ['playback', '播放与显示'], ['audio', '音频伴奏'], ['room', '房间系统']]; return <section className="ktv-utility-panel ktv-settings-page"><div className="ktv-utility-panel-head"><div><span className="ktv-utility-kicker">SETTINGS & DIAGNOSTICS</span><h2>设置与诊断</h2><p>主机配置只在本机保存。修改挂载路径后，重新导入会复用原有曲库来源。</p></div><Settings aria-hidden="true" /></div><div className="ktv-settings-tabs" role="tablist">{tabs.map(([value, label]) => <button type="button" role="tab" aria-selected={settingsTab === value} className={settingsTab === value ? 'active' : ''} key={value} onClick={() => setSettingsTab(value)}>{label}</button>)}</div>{settingsTab === 'storage' && <div className="ktv-settings-form"><label>曲库数据目录<input value={settings.storage.dataDirectory} onChange={event => setSettings(current => ({ ...current, storage: { ...current.storage, dataDirectory: event.target.value } }))} /></label><label>媒体挂载路径<input value={settings.storage.mediaMountRoot} onChange={event => setSettings(current => ({ ...current, storage: { ...current.storage, mediaMountRoot: event.target.value } }))} placeholder={'例如 Z:\\\\KTV'} /></label><p className="ktv-form-hint">这里填写当前电脑实际挂载的盘符或目录；路径变化不会创建第二套曲库。</p></div>}{settingsTab === 'playback' && <div className="ktv-settings-form"><label>播放器路径<input value={settings.player.executablePath} readOnly placeholder={'优先使用程序内置 tools\\\\mpv.exe'} /></label><label>命令超时（秒）<input type="number" min="1" max="60" value={settings.player.commandTimeoutSeconds} onChange={event => setSettings(current => ({ ...current, player: { ...current.player, commandTimeoutSeconds: Number(event.target.value) } }))} /></label><p className="ktv-form-hint">播放器与 ffprobe 发布时随程序提供，普通用户无需另行安装。</p></div>}{settingsTab === 'audio' && <div className="ktv-settings-form"><div className="ktv-setting-readonly"><Volume2 aria-hidden="true" /><span><strong>主输出音量</strong><small>正在播放页面可实时调节</small></span><b>{Math.round(volumeDraft)}%</b></div><div className="ktv-setting-readonly"><Mic2 aria-hidden="true" /><span><strong>原唱 / 伴奏</strong><small>按媒体内嵌音轨切换</small></span><b>{audioTracks.length ? audioTracks.length + ' 条' : '自动'}</b></div></div>}{settingsTab === 'room' && <div className="ktv-settings-form"><div className="ktv-diagnostic-list"><div><span>房间服务</span><strong>{connectionText}</strong></div><div><span>房间码</span><strong>{room.joinCode}</strong></div><div><span>队列上限</span><strong>{room.maxQueuedSongsPerGuest} 首/访客</strong></div></div></div>}<div className="ktv-utility-actions"><button type="button" className="ktv-gradient-button" disabled={savingSettings} onClick={() => void saveSettings()}>{savingSettings ? '保存中…' : '保存设置'}</button><button type="button" className="ktv-ghost-button" onClick={() => navigateTo('songs')}>返回电脑点歌</button></div></section> }
+  function renderUtilityPage() { if (navTarget === 'overview') return <div className="ktv-utility-grid"><section className="ktv-utility-panel ktv-utility-hero"><span className="ktv-utility-kicker">ROOM OVERVIEW</span><h2>今晚想唱什么？</h2><p>房间已准备好，电脑和手机都可以直接点歌。</p><div className="ktv-utility-actions"><button type="button" className="ktv-gradient-button" onClick={() => navigateTo('songs')}>开始点歌</button><button type="button" className="ktv-ghost-button" onClick={() => navigateTo('room')}>查看房间码</button></div></section><section className="ktv-stat-card"><span>正在播放</span><strong>{currentSong?.title ?? '暂无歌曲'}</strong><small>{currentSong?.artists || '等待点歌'}</small></section><section className="ktv-stat-card"><span>接下来播放</span><strong>{waitingQueue.length} 首</strong><small>队列实时同步</small></section><section className="ktv-stat-card"><span>服务状态</span><strong>{connectionText}</strong><small>房间码 {room.joinCode}</small></section></div>; if (navTarget === 'playback') return renderPlaybackPage(); if (navTarget === 'queue') return <section className="ktv-utility-panel ktv-queue-page"><div className="ktv-utility-panel-head"><div><span className="ktv-utility-kicker">UP NEXT</span><h2>点歌队列</h2><p>{waitingQueue.length} 首歌曲等待播放</p></div><button type="button" className="ktv-ghost-button" onClick={() => navigateTo('songs')}>继续点歌</button></div>{waitingQueue.length === 0 ? <p className="ktv-empty">队列为空，先去点一首喜欢的歌吧。</p> : <div className="ktv-utility-queue-list">{waitingQueue.map((item, index) => <div className="ktv-utility-queue-row" key={item.id}><span className="ktv-queue-number">{String(index + 1).padStart(2, '0')}</span><div><strong>{item.title}</strong><small>{item.artists || item.requestedByNickname} · {statusLabels[item.status]}</small></div><button type="button" className="ktv-ghost-button" disabled={pendingControl !== '' || item.status === 'ProbeFailed'} onClick={() => void queueInsert(item)}>插到下一首</button></div>)}</div>}</section>; if (navTarget === 'room') return renderRoomPage(); if (navTarget === 'catalog') return renderCatalogPage(); return renderSettingsPage() }
   const pageMeta = desktopNavMeta[navTarget]
+  const miniPlayer = <div className="ktv-mini-bar"><div className="ktv-mini-art"><Disc3 aria-hidden="true" /></div><div><span>{currentSong ? '正在播放' : '等待点歌'}</span><strong>{currentSong?.title ?? '暂无歌曲'}</strong><small>{currentSong?.artists || '选择一首歌开始今晚的歌局'}</small></div><div className="ktv-mini-progress"><span style={{ width: progress + '%' }}></span></div><div className="ktv-mini-actions">{playerControls(true)}<button type="button" className="ktv-mini-queue-link" onClick={() => navigateTo('queue')}>队列 {waitingQueue.length} 首</button></div></div>
 
-  return <div className="ktv-app">
-    <div className="ktv-window">
-      <aside className="ktv-sidebar">
-        <div className="ktv-brand"><span className="ktv-logo"><Music2 aria-hidden="true" /></span><span className="ktv-brand-copy"><strong>AI-KTV</strong><small>STATION 主控</small></span></div>
-        <nav className="ktv-nav" aria-label="主控导航">
-          <button type="button" className={navTarget === 'overview' ? 'active' : ''} onClick={() => navigateTo('overview')}><Home aria-hidden="true" /><span>总览</span></button>
-          <button type="button" className={navTarget === 'playback' ? 'active' : ''} onClick={() => navigateTo('playback')}><Play aria-hidden="true" /><span>正在播放</span></button>
-          <button type="button" className={navTarget === 'songs' ? 'active' : ''} onClick={() => navigateTo('songs')}><Search aria-hidden="true" /><span>电脑点歌</span></button>
-          <button type="button" className={navTarget === 'queue' ? 'active' : ''} onClick={() => navigateTo('queue')}><ListMusic aria-hidden="true" /><span>点歌队列</span></button>
-          <button type="button" className={navTarget === 'catalog' ? 'active' : ''} onClick={() => navigateTo('catalog')}><Library aria-hidden="true" /><span>曲库管理</span></button>
-          <button type="button" className={navTarget === 'room' ? 'active' : ''} onClick={() => navigateTo('room')}><QrCode aria-hidden="true" /><span>房间与二维码</span></button>
-          <button type="button" className={navTarget === 'settings' ? 'active' : ''} onClick={() => navigateTo('settings')}><Settings aria-hidden="true" /><span>设置与诊断</span></button>
-        </nav>
-        <div className="ktv-side-status"><strong><span className="ktv-online-dot"></span>{connectionText}</strong><div className="ktv-side-status-copy">队列 {waitingQueue.length} 首 · 房间码 {room.joinCode}</div></div>
-      </aside>
-
-      <main className="ktv-main">
-        <header className="ktv-header">
-          <div><h1>{pageMeta.title}</h1><p>{pageMeta.subtitle}</p></div>
-          <div className="ktv-room"><span className="ktv-room-name">客厅 KTV · {room.joinCode}</span><span className="ktv-room-live">● 房间已开启</span></div>
-        </header>
-        {notice && <p className="ktv-header-notice" role="status">{notice}</p>}
-
-        {navTarget === 'songs' ? <div className="ktv-layout">
-          <section className="ktv-catalog" aria-label="电脑点歌区">
-            <form className="ktv-search" onSubmit={submitSearch}>
-              <label className="ktv-search-input"><Search aria-hidden="true" /><span className="sr-only">搜索歌曲</span><input type="search" value={searchText} onChange={event => setSearchText(event.target.value)} placeholder="输入歌名、歌手或拼音" /></label>
-              <button type="submit" className={searchField === 'Title' ? 'primary' : ''} onClick={() => setSearchField('Title')}>按歌名</button>
-              <button type="submit" className={searchField === 'Artist' ? 'primary' : ''} onClick={() => setSearchField('Artist')}>按歌手</button>
-            </form>
-
-            <div className="ktv-tabs" role="tablist" aria-label="点歌浏览方式">
-              {([['songs', '歌曲'], ['artists', '歌星'], ['language', '语种'], ['style', '风格'], ['favorites', '收藏']] as const).map(([value, label]) => <button type="button" role="tab" aria-selected={view === value} key={value} className={view === value ? 'active' : ''} onClick={() => selectView(value)}>{label}</button>)}
-            </div>
-
-            {filterOptions.length > 0 && <div className="ktv-artist-filters" aria-label="二级筛选">{filterOptions.map(value => {
-              const selected = view === 'artists' ? (value === '全部' ? artistGroup === '' : artistGroup === value) : view === 'language' ? (value === '全部' ? language === '' : language === value) : (value === '全部' ? style === '' : style === value)
-              return <button type="button" key={value} className={selected ? 'active' : ''} onClick={() => selectFilter(value)}>{value}</button>
-            })}</div>}
-
-            <div className="ktv-section-head"><strong>{resultTitle}</strong><span>{resultCount}</span></div>
-
-            {view === 'artists' ? <><div className="ktv-artist-grid" aria-label="歌手列表">{artistLoading ? <p className="ktv-empty">正在加载歌手…</p> : artists.length === 0 ? <p className="ktv-empty">该分类下暂无歌手数据</p> : visibleArtists.map(artist => {
-              const image = artist.imageUrl ?? artist.avatarUrl
-              return <button type="button" className="ktv-artist" key={artist.artistId ?? artist.id ?? artist.name} onClick={() => chooseArtist(artist)}><span className="ktv-avatar" style={{ background: image ? 'transparent' : `linear-gradient(145deg, ${avatarColor(artist.name)}, #24133f)` }}>{image ? <img src={image} alt="" onError={event => { event.currentTarget.style.display = 'none' }} /> : artist.name.trim().slice(0, 1)}</span><span>{artist.name}</span><small>{artist.songCount} 首</small></button>
-            })}</div>{artists.length > artistPageSize && <div className="ktv-pagination ktv-artist-pagination"><button type="button" disabled={artistPage <= 1} onClick={() => setArtistPage(value => Math.max(1, value - 1))}>上一页</button><span>第 {artistPage} / {artistTotalPages} 页</span><button type="button" disabled={artistPage >= artistTotalPages} onClick={() => setArtistPage(value => Math.min(artistTotalPages, value + 1))}>下一页</button></div>}</> : <div className="ktv-song-list" aria-label="歌曲列表">{loading && !result && <p className="ktv-empty">正在搜索曲库…</p>}{!loading && songs.length === 0 && <p className="ktv-empty">没有找到歌曲</p>}{songs.map((song, index) => <div className="ktv-song-row" key={song.songId}><span className="ktv-song-index">{String((page - 1) * 20 + index + 1).padStart(2, '0')}</span><span className="ktv-song-copy"><strong>{song.title}</strong><small>{song.artists || '未知歌手'}{('language' in song && song.language) ? ` · ${song.language}` : ''}{('category' in song && song.category) ? ` · ${song.category}` : ''}</small></span>{'quality' in song && song.quality && <span className="ktv-quality">{song.quality}</span>}<button type="button" className={queue.some(item => item.songId === song.songId) ? 'ktv-request queued' : 'ktv-request'} disabled={requestingId === song.songId || ('availability' in song && song.availability !== 'Available')} onClick={() => void requestSong(song)}>{requestingId === song.songId ? '…' : queue.some(item => item.songId === song.songId) ? '已点' : '点歌'}</button></div>)}{view !== 'favorites' && result && <div className="ktv-pagination"><button type="button" disabled={loading || page <= 1} onClick={() => setPage(value => Math.max(1, value - 1))}>上一页</button><span>第 {page} / {totalPages} 页</span><button type="button" disabled={loading || page >= totalPages} onClick={() => setPage(value => Math.min(totalPages, value + 1))}>下一页</button></div>}</div>}
-          </section>
-
-          <aside className="ktv-queue" id="ktv-queue" aria-label="播放与队列">
-            <section className="ktv-now" id="ktv-now-playing">
-              <span className="ktv-now-label">NOW PLAYING</span><strong>{currentSong?.title ?? '暂无歌曲'}</strong><small>{currentSong?.artists || '等待点歌'} · {playbackState === 'Paused' ? '已暂停' : playbackState === 'Playing' ? '播放中' : '等待播放'}</small>
-              <div className="ktv-progress"><span style={{ width: `${progress}%` }}></span></div><div className="ktv-time"><span>{formatClock(playbackPosition)}</span><span>{formatClock(playbackDuration)}</span></div>
-              <div className="ktv-mini-seek"><input aria-label="播放进度" type="range" min="0" max={duration} step="1" value={Math.min(positionDraft, duration)} onPointerDown={() => setPositionDragging(true)} onChange={event => updatePosition(Number(event.target.value))} onPointerUp={commitPosition} /></div>
-              <div className="ktv-player-actions"><button type="button" aria-label={playbackState === 'Playing' ? '暂停' : '播放'} disabled={pendingControl !== ''} onClick={() => void playbackControl(playbackState === 'Playing' ? 'pause' : 'play')}>{playbackState === 'Playing' ? <Pause aria-hidden="true" /> : <Play aria-hidden="true" />}</button><button type="button" aria-label="切歌" disabled={pendingControl !== '' || !currentSong} onClick={() => void playbackControl('skip')}><SkipForward aria-hidden="true" /></button><button type="button" aria-label="原唱伴奏" className={controlPanel === 'tracks' ? 'selected' : ''} onClick={() => setControlPanel(current => current === 'tracks' ? null : 'tracks')}><Mic2 aria-hidden="true" /></button><button type="button" aria-label="音量" className={controlPanel === 'volume' ? 'selected' : ''} onClick={() => setControlPanel(current => current === 'volume' ? null : 'volume')}><Volume2 aria-hidden="true" /></button></div>
-              {controlPanel === 'volume' && <div className="ktv-control-panel ktv-volume-panel"><div><strong>音量</strong><span>{Math.round(volumeDraft)}%</span></div><input aria-label="音量" type="range" min="0" max="100" value={volumeDraft} onPointerDown={() => setVolumeDragging(true)} onChange={event => updateVolume(Number(event.target.value))} onPointerUp={() => setVolumeDragging(false)} /></div>}
-              {controlPanel === 'tracks' && <div className="ktv-control-panel ktv-track-panel">{audioTracks.length > 0 ? <label>原唱 / 伴奏<select aria-label="原唱伴奏" value={playerState?.audioTrackId ?? ''} onChange={event => void playbackCommand('/api/playback/audio', { streamId: Number(event.target.value) })}>{audioTracks.map(track => <option key={track.streamId} value={track.streamId}>{trackName(track)}</option>)}</select></label> : <span>当前媒体没有可切换的音轨</span>}{subtitleTracks.length > 0 && <label>字幕<select aria-label="字幕" value={playerState?.subtitleTrackId ?? ''} onChange={event => void playbackCommand('/api/playback/subtitle', { streamId: event.target.value ? Number(event.target.value) : null })}><option value="">关闭字幕</option>{subtitleTracks.map(track => <option key={track.streamId} value={track.streamId}>{trackName(track)}</option>)}</select></label>}</div>}
-            </section>
-            <div className="ktv-queue-head"><strong>接下来播放</strong><span>{waitingQueue.length} 首</span></div>
-            <div className="ktv-queue-list">{waitingQueue.length === 0 ? <p className="ktv-empty">队列为空</p> : waitingQueue.map((item, index) => <div className="ktv-queue-row" key={item.id}><span>{index + 1}</span><span className="ktv-queue-copy"><strong>{item.title}</strong><small>{item.artists || item.requestedByNickname} · {statusLabels[item.status]}</small></span><button type="button" className="ktv-insert" aria-label={`插播${item.title}`} disabled={pendingControl !== '' || item.status === 'ProbeFailed'} onClick={() => void queueInsert(item)}><MonitorPlay aria-hidden="true" /></button></div>)}</div>
-            <div className="ktv-room-tools"><QrCode aria-hidden="true" /><div><strong>手机加入</strong><small>房间码 {room.joinCode}</small></div><button type="button" onClick={() => void copyJoinUrl()}><Copy aria-hidden="true" />{copied ? '已复制' : '复制链接'}</button></div>
-          </aside>
-        </div> : renderUtilityPage()}
-      </main>
-    </div>
-  </div>
+  return <div className="ktv-app"><div className="ktv-window"><aside className="ktv-sidebar"><div className="ktv-brand"><span className="ktv-logo"><Music2 aria-hidden="true" /></span><span className="ktv-brand-copy"><strong>AI-KTV</strong><small>STATION 主控</small></span></div><nav className="ktv-nav" aria-label="主控导航"><button type="button" className={navTarget === 'overview' ? 'active' : ''} onClick={() => navigateTo('overview')}><Home aria-hidden="true" /><span>总览</span></button><button type="button" className={navTarget === 'playback' ? 'active' : ''} onClick={() => navigateTo('playback')}><Play aria-hidden="true" /><span>正在播放</span></button><button type="button" className={navTarget === 'songs' ? 'active' : ''} onClick={() => navigateTo('songs')}><Search aria-hidden="true" /><span>电脑点歌</span></button><button type="button" className={navTarget === 'queue' ? 'active' : ''} onClick={() => navigateTo('queue')}><ListMusic aria-hidden="true" /><span>点歌队列</span></button><button type="button" className={navTarget === 'catalog' ? 'active' : ''} onClick={() => navigateTo('catalog')}><Library aria-hidden="true" /><span>曲库管理</span></button><button type="button" className={navTarget === 'room' ? 'active' : ''} onClick={() => navigateTo('room')}><QrCode aria-hidden="true" /><span>房间与二维码</span></button><button type="button" className={navTarget === 'settings' ? 'active' : ''} onClick={() => navigateTo('settings')}><Settings aria-hidden="true" /><span>设置与诊断</span></button></nav><div className="ktv-side-status"><strong><span className="ktv-online-dot"></span>{connectionText}</strong><div className="ktv-side-status-copy">队列 {waitingQueue.length} 首 · 房间码 {room.joinCode}</div></div></aside><main className="ktv-main"><header className="ktv-header"><div><h1>{pageMeta.title}</h1><p>{pageMeta.subtitle}</p></div><div className="ktv-room"><span className="ktv-room-name">客厅 KTV · {room.joinCode}</span><span className="ktv-room-live">● 房间已开启</span></div></header>{notice && <p className="ktv-header-notice" role="status">{notice}</p>}{error && <p className="ktv-header-error" role="alert">{error}</p>}{navTarget === 'songs' ? <div className="ktv-layout"><section className="ktv-catalog" aria-label="电脑点歌区"><form className="ktv-search" onSubmit={event => submitSearch(event)}><label className="ktv-search-input"><Search aria-hidden="true" /><span className="sr-only">搜索歌曲</span><input type="search" value={searchText} onChange={event => setSearchText(event.target.value)} placeholder="输入歌名、歌手或拼音" /></label><button type="button" className={searchField === 'Title' ? 'primary' : ''} onClick={() => submitSearch(undefined, 'Title')}>按歌名</button><button type="button" className={searchField === 'Artist' ? 'primary' : ''} onClick={() => submitSearch(undefined, 'Artist')}>按歌手</button></form><div className="ktv-tabs" role="tablist" aria-label="点歌浏览方式">{([['songs', '歌曲'], ['artists', '歌星'], ['language', '语种'], ['style', '风格'], ['favorites', '收藏']] as const).map(([value, label]) => <button type="button" role="tab" aria-selected={view === value} key={value} className={view === value ? 'active' : ''} onClick={() => selectView(value)}>{label}</button>)}</div>{filterOptions.length > 0 && <div className="ktv-artist-filters" aria-label="二级筛选">{filterOptions.map(value => { const selected = view === 'artists' ? (value === '全部' ? artistGroup === '' : artistGroup === value) : view === 'language' ? (value === '全部' ? language === '' : language === value) : value === '全部' ? style === '' : style === value; return <button type="button" key={value} className={selected ? 'active' : ''} onClick={() => selectFilter(value)}>{value}</button> })}</div>}<div className="ktv-section-head"><strong>{resultTitle}</strong><span>{resultCount}</span></div>{view === 'artists' ? <><div className="ktv-artist-grid" aria-label="歌手列表">{artistLoading ? <p className="ktv-empty">正在加载歌手…</p> : artists.length === 0 ? <p className="ktv-empty">该分类下暂无歌手数据</p> : visibleArtists.map(artist => { const image = artist.imageUrl ?? artist.avatarUrl; return <button type="button" className="ktv-artist" key={artist.artistId ?? artist.id ?? artist.name} onClick={() => chooseArtist(artist)}><span className="ktv-avatar" style={{ background: image ? 'transparent' : 'linear-gradient(145deg, ' + avatarColor(artist.name) + ', #24133f)' }}>{image ? <img src={image} alt="" onError={event => { event.currentTarget.style.display = 'none' }} /> : artist.name.trim().slice(0, 1)}</span><span>{artist.name}</span><small>{artist.songCount} 首</small></button> })}</div>{artists.length > artistPageSize && <div className="ktv-pagination ktv-artist-pagination"><button type="button" disabled={artistPage <= 1} onClick={() => setArtistPage(value => Math.max(1, value - 1))}>上一页</button><span>热门歌手 {artistPage} / {artistTotalPages}</span><button type="button" disabled={artistPage >= artistTotalPages} onClick={() => setArtistPage(value => Math.min(artistTotalPages, value + 1))}>下一页</button></div>}</> : <div className="ktv-song-list" aria-label="歌曲列表">{loading && !result && <p className="ktv-empty">正在搜索曲库…</p>}{!loading && songs.length === 0 && <p className="ktv-empty">{submittedText || language || style ? '没有找到歌曲' : '请在上方输入关键词，或切换到歌星浏览'}</p>}{songs.map((song, index) => <div className="ktv-song-row" key={song.songId}><span className="ktv-song-index">{String(index + 1).padStart(2, '0')}</span><span className="ktv-song-copy"><strong>{song.title}</strong><small>{song.artists || '未知歌手'}{('language' in song && song.language) ? ' · ' + song.language : ''}{('category' in song && song.category) ? ' · ' + song.category : ''}</small></span>{'quality' in song && song.quality && <span className="ktv-quality">{song.quality}</span>}<button type="button" className={queue.some(item => item.songId === song.songId) ? 'ktv-request queued' : 'ktv-request'} disabled={requestingId === song.songId || ('availability' in song && song.availability !== 'Available')} onClick={() => void requestSong(song)}>{requestingId === song.songId ? '…' : queue.some(item => item.songId === song.songId) ? <><Check aria-hidden="true" />已点</> : '点歌'}</button></div>)}{view !== 'favorites' && hasMore && <div className="ktv-pagination"><button type="button" className="ktv-gradient-button" disabled={loading} onClick={() => setPage(value => value + 1)}>{loading ? '加载中…' : '继续加载（' + (result?.items.length ?? 0) + '/' + (result?.total ?? 0) + '）'}</button></div>}</div>}</section></div> : renderUtilityPage()}{navTarget === 'songs' && miniPlayer}</main></div></div>
 }
