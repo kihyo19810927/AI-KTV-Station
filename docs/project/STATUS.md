@@ -5,10 +5,10 @@
 ## 当前基线
 
 - 分支：`codex/KTVS-090-tray-package`
-- 版本：`0.1.0-rc.38`（代码与测试完成；含真实曲库的候选包等待指定 seed 数据库可用）
+- 版本：`0.1.0-rc.39`（代码、测试与含真实曲库的本地候选包完成）
 - 阶段：Phase 10：持续验收问题修复、托盘启动与 Web 桌面主控
 - 已完成：KTVS-001 至 KTVS-057；KTVS-058 软件验证完成；KTVS-060 至 KTVS-090 用户反馈与回归修复完成；KTVS-091 至 KTVS-096 Web 桌面主控软件实现完成
-- 当前任务：KTVS-096 已完成：完成 RC36 后的桌面主控重构、管理接口和发布前回归，待用户实机验收
+- 当前任务：KTVS-096 已完成：完成 RC36 后的桌面主控重构、管理接口、含真实曲库的 RC39 本地包和发布前回归，待用户实机验收
 
 ## 调查结果
 
@@ -76,8 +76,8 @@
 - 播放页补齐当前歌曲、歌手/点歌人、进度、播放控制、队列前瞻、音量和原唱/伴奏状态；重唱、气氛音效和升降调入口先以明确提示保留，待 `IPlayerAdapter` 增加对应能力后再接真实控制。
 - 房间页新增大二维码、复制/保存/刷新、房间码、局域网提示和在线访客；Server 增加 loopback-only 二维码 PNG 与访客查询接口，托盘拉起 Edge 时使用全屏参数。
 - 曲库页改为导入/健康状态控制台；新增本机只读统计接口，首次进入即可显示歌曲、歌手、媒体和探测失败计数，不依赖点歌页默认查询；设置页拆为曲库存储、播放与显示、音频伴奏、房间系统四个 tab，挂载路径放在曲库存储 tab，均通过现有本机管理 API 保存。
-- KTVS-096 软件验证：Core `181/181`、Desktop `18/18`、Web `38/38`、TypeScript、Vite production build、Server Release 构建全部通过。指定的 `D:\Applications\AI-KTV-Station\data\station.db` 当前不存在，因此没有用其他数据库冒充真实 seed，也未修改任何数据库或媒体。
-- RC38：`artifacts/AI-KTV-Station-0.1.0-rc.38-win-x64.zip`，450 项，SHA-256 `34927a60c774e19fcf792e562596f49b39db7482aa288c02db4d06d814b03224`；发布校验和解压启动冒烟（冷启动待机、托盘生命周期、进程清理）通过。该包不含 `data/station.db`，等待指定 seed 数据库恢复后重发含库包。
+- KTVS-096 软件验证：Core `181/181`、Desktop `18/18`、Web `38/38`、TypeScript、Vite production build、Server Release 构建全部通过；RC39 发布校验与隔离启动冒烟（冷启动待机、托盘生命周期、进程清理）通过。指定数据库已确认存在，源文件大小 `127,692,800` bytes，发布过程未修改源库或媒体。
+- RC39：`artifacts/AI-KTV-Station-0.1.0-rc.39-win-x64.zip`，451 项，333,754,540 bytes，SHA-256 `43cd61086b5407cea967c58f6054d11c754cc368252ce700b97d7629db88d975`；包内含单个 `data/station.db`，无 WAL/SHM，并包含 mpv/FFmpeg 运行文件及许可证材料。数据库来自 `D:\Applications\AI-KTV-Station\data\station.db` 的 SQLite Backup API 只读快照，仅限本地验收/交付，不得推送或公开分发。
 
 ## 最近验证
 
