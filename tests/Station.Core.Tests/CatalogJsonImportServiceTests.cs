@@ -46,6 +46,7 @@ public sealed class CatalogJsonImportServiceTests
             Assert.Equal(2, jay.SongCount);
             Assert.Equal("华语男歌手", jay.Group);
             Assert.NotNull(jay.ImageUrl);
+            Assert.Equal(2, await database.Artists.CountAsync());
 
             var second = await importer.ImportAsync(indexPath, root);
             Assert.True(second.IsSuccess, second.Error.Code);

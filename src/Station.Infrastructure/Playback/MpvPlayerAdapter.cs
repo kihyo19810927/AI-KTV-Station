@@ -37,6 +37,8 @@ public sealed class MpvPlayerAdapter : IPlayerAdapter
     // none of those events can finish the newly assigned playback id.
     private bool replacementEndFilePending;
     private bool explicitSkipPending;
+    private long? activePlaylistEntryId;
+    private readonly HashSet<long> stalePlaylistEntryIds = [];
     private CancellationTokenSource? overlayLifetime;
     private bool disposed;
 
@@ -79,6 +81,8 @@ public sealed class MpvPlayerAdapter : IPlayerAdapter
         {
             replacementEndFilePending = false;
             explicitSkipPending = false;
+            activePlaylistEntryId = null;
+            stalePlaylistEntryIds.Clear();
         }
         var pipeName = $"ai-ktv-station-{Environment.ProcessId}-{Guid.NewGuid():N}";
         var startInfo = new ProcessStartInfo
@@ -146,6 +150,8 @@ public sealed class MpvPlayerAdapter : IPlayerAdapter
             {
                 replacementEndFilePending = false;
                 explicitSkipPending = false;
+                activePlaylistEntryId = null;
+                stalePlaylistEntryIds.Clear();
             }
             if (before.PlaybackId is { } playbackId && before.State is PlayerLifecycleState.Preparing or PlayerLifecycleState.Playing or PlayerLifecycleState.Paused)
                 Publish(new PlaybackEndedEvent(Guid.NewGuid(), DateTimeOffset.UtcNow, playbackId, PlaybackEndReason.Stopped));
@@ -190,7 +196,16 @@ public sealed class MpvPlayerAdapter : IPlayerAdapter
             var before = CurrentSnapshot();
             if (before.PlaybackId is { } previous && before.State is PlayerLifecycleState.Preparing or PlayerLifecycleState.Playing or PlayerLifecycleState.Paused)
             {
-                lock (stateGate) replacementEndFilePending = true;
+                lock (stateGate)
+                {
+                    replacementEndFilePending = true;
+                    if (activePlaylistEntryId is { } previousEntryId)
+                    {
+                        stalePlaylistEntryIds.Add(previousEntryId);
+                        while (stalePlaylistEntryIds.Count > 8)
+                            stalePlaylistEntryIds.Remove(stalePlaylistEntryIds.First());
+                    }
+                }
                 Publish(new PlaybackEndedEvent(Guid.NewGuid(), DateTimeOffset.UtcNow, previous, PlaybackEndReason.Replaced));
             }
             ChangeState(PlayerLifecycleState.Preparing, request.PlaybackId, null);
@@ -451,7 +466,16 @@ public sealed class MpvPlayerAdapter : IPlayerAdapter
         if (eventName == "file-loaded")
         {
             TaskCompletionSource<bool>? completion;
-            lock (stateGate) completion = fileLoaded;
+            lock (stateGate)
+            {
+                if (TryGetPlaylistEntryId(root) is { } entryId)
+                {
+                    activePlaylistEntryId = entryId;
+                    stalePlaylistEntryIds.Remove(entryId);
+                }
+                replacementEndFilePending = false;
+                completion = fileLoaded;
+            }
             completion?.TrySetResult(true);
             return;
         }
@@ -459,23 +483,29 @@ public sealed class MpvPlayerAdapter : IPlayerAdapter
         var current = CurrentSnapshot();
         if (current.PlaybackId is not { } playbackId) return;
         var reason = root.TryGetProperty("reason", out var reasonElement) ? reasonElement.GetString() : null;
+        var playlistEntryId = TryGetPlaylistEntryId(root);
         // `loadfile ... replace` emits an end-file event for the old media. The
         // adapter has already assigned the new playback id by then. mpv can
-        // report that event as `replaced`, `stop`, or with no reason, and more
-        // than one stale event may arrive. Ignore every non-EOF event while a
-        // replacement is fenced; the fence is released by a real EOF or an
-        // explicit user skip.
+        // report that event as `replaced`, `stop`, `eof`, or with no reason.
+        // The playlist entry id is the authoritative media generation; the
+        // fallback fence covers older mpv builds that omit it.
         bool replacementPending;
         bool explicitSkip;
+        bool staleEntry;
+        bool differentActiveEntry;
         lock (stateGate)
         {
             replacementPending = replacementEndFilePending;
-            explicitSkip = explicitSkipPending;
-            if (explicitSkipPending) explicitSkipPending = false;
-            if (replacementPending && reason == "eof") replacementEndFilePending = false;
+            staleEntry = playlistEntryId is { } entryId && stalePlaylistEntryIds.Contains(entryId);
+            differentActiveEntry = playlistEntryId is { } eventEntryId && activePlaylistEntryId is { } activeEntryId && eventEntryId != activeEntryId;
+            // A stale end-file must not consume the explicit-skip marker. The
+            // real current-media end-file may arrive immediately afterwards.
+            explicitSkip = !staleEntry && !differentActiveEntry && explicitSkipPending;
+            if (explicitSkip) explicitSkipPending = false;
         }
+        if (staleEntry || differentActiveEntry) return;
         if (reason == "replaced" && !explicitSkip) return;
-        if (replacementPending && !explicitSkip && reason != "eof" && reason != "error") return;
+        if (replacementPending && !explicitSkip && reason != "error") return;
         if (reason == "error")
         {
             var failure = new PlayerFailure(
@@ -494,6 +524,13 @@ public sealed class MpvPlayerAdapter : IPlayerAdapter
             reason == "eof" ? PlaybackEndReason.Completed : PlaybackEndReason.Stopped,
             string.IsNullOrWhiteSpace(reason) ? "缺少 reason" : reason,
             explicitSkip));
+    }
+
+    private static long? TryGetPlaylistEntryId(JsonElement root)
+    {
+        if (root.TryGetProperty("playlist_entry_id", out var entryId) && entryId.TryGetInt64(out var value))
+            return value;
+        return null;
     }
 
     private void OnProcessExited(object? sender, EventArgs e)

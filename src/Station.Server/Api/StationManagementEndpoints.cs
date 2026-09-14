@@ -154,7 +154,8 @@ public static class StationManagementEndpoints
         if (!IsLocal(context)) return LocalOnly();
 
         var songCount = await database.Songs.AsNoTracking().LongCountAsync(cancellationToken);
-        var artistCount = await database.Artists.AsNoTracking().LongCountAsync(cancellationToken);
+        var artistCount = await database.Artists.AsNoTracking().Where(x => x.NormalizedName != string.Empty)
+            .Select(x => x.NormalizedName).Distinct().LongCountAsync(cancellationToken);
         var mediaCount = await database.MediaFiles.AsNoTracking().LongCountAsync(cancellationToken);
         var probedCount = await database.MediaFiles.AsNoTracking()
             .LongCountAsync(file => file.ProbeFingerprint != null || file.DurationSeconds != null, cancellationToken);

@@ -18,6 +18,7 @@ public static class SongSearchKeyUpdater
         foreach (var link in song.Artists)
         {
             var artist = link.Artist;
+            if (artist is null) continue;
             var keys = normalizer.CreateKeys(artist.Name);
             changed |= Assign(artist.NormalizedName, keys.Normalized, value => artist.NormalizedName = value);
             changed |= Assign(artist.SimplifiedName, keys.Simplified, value => artist.SimplifiedName = value);

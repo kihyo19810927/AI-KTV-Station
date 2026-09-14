@@ -55,6 +55,11 @@ public sealed class CatalogJsonImportService(
         var sourceIds = sources.Select(x => x.Id).Append(source.Id).Distinct().ToArray();
         var existing = (await database.MediaFiles.Where(x => sourceIds.Contains(x.MediaSourceId))
             .Select(x => x.RelativePath).ToListAsync(cancellationToken)).ToHashSet(StringComparer.OrdinalIgnoreCase);
+        var artistIds = await database.Artists.AsNoTracking()
+            .GroupBy(x => x.NormalizedName)
+            .Select(x => x.OrderBy(artist => artist.Id).First())
+            .ToDictionaryAsync(x => x.NormalizedName, x => x.Id, StringComparer.OrdinalIgnoreCase, cancellationToken);
+        var fallbackNormalizer = normalizer;
         long read = 0, added = 0, skipped = 0, errors = 0;
         await foreach (var record in ReadAsync(indexPath, cancellationToken))
         {
@@ -72,8 +77,17 @@ public sealed class CatalogJsonImportService(
                 var song = new Song { Title = title, NormalizedTitle = titleKeys.Normalized, SimplifiedTitle = titleKeys.Simplified, TraditionalTitle = titleKeys.Traditional, TitlePinyin = titleKeys.Pinyin, TitleInitials = titleKeys.Initials, CompactTitle = titleKeys.Compact, Language = record.Language, Category = record.Category, ArtistGroup = group, Year = InferYear(relative), Availability = AvailabilityStatus.Available };
                 for (var order = 0; order < artists.Count; order++)
                 {
-                    var name = artists[order].Trim(); var keys = normalizer.CreateKeys(name);
-                    song.Artists.Add(new SongArtist { Order = order, Artist = new Artist { Name = name, NormalizedName = keys.Normalized, SimplifiedName = keys.Simplified, TraditionalName = keys.Traditional, Pinyin = keys.Pinyin, Initials = keys.Initials, CompactName = keys.Compact } });
+                    var name = artists[order].Trim(); var keys = fallbackNormalizer.CreateKeys(name);
+                    if (artistIds.TryGetValue(keys.Normalized, out var artistId))
+                    {
+                        song.Artists.Add(new SongArtist { Order = order, ArtistId = artistId });
+                    }
+                    else
+                    {
+                        var artist = new Artist { Name = name, NormalizedName = keys.Normalized, SimplifiedName = keys.Simplified, TraditionalName = keys.Traditional, Pinyin = keys.Pinyin, Initials = keys.Initials, CompactName = keys.Compact };
+                        artistIds[keys.Normalized] = artist.Id;
+                        song.Artists.Add(new SongArtist { Order = order, Artist = artist });
+                    }
                 }
                 database.MediaFiles.Add(new MediaFile { Song = song, MediaSourceId = sourceId, RelativePath = relative, SizeBytes = record.SizeBytes ?? 0, LastWriteTime = DateTimeOffset.UnixEpoch, DurationSeconds = record.DurationMs is null ? null : record.DurationMs / 1000d, Availability = AvailabilityStatus.Available });
                 existing.Add(relative); added++;

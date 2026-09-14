@@ -69,7 +69,7 @@ public sealed class StationDbContext(DbContextOptions<StationDbContext> options,
             e.Property(x => x.Pinyin).HasMaxLength(800);
             e.Property(x => x.Initials).HasMaxLength(200);
             e.Property(x => x.CompactName).HasMaxLength(200);
-            e.HasIndex(x => x.NormalizedName);
+            e.HasIndex(x => x.NormalizedName).IsUnique();
         });
         model.Entity<SongArtist>(e => { e.HasKey(x => new { x.SongId, x.ArtistId }); e.HasIndex(x => new { x.SongId, x.Order }).IsUnique(); });
         model.Entity<MediaSource>(e => { e.Property(x => x.Name).HasMaxLength(200); e.Property(x => x.Availability).HasConversion<string>(); });
