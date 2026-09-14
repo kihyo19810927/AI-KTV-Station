@@ -7,8 +7,8 @@
 - 分支：`codex/KTVS-090-tray-package`
 - 版本：`0.1.0-rc.39`（代码、测试与含真实曲库的本地候选包完成）
 - 阶段：Phase 10：持续验收问题修复、托盘启动与 Web 桌面主控
-- 已完成：KTVS-001 至 KTVS-057；KTVS-058 软件验证完成；KTVS-060 至 KTVS-090 用户反馈与回归修复完成；KTVS-091 至 KTVS-097 Web 桌面主控软件实现完成
-- 当前任务：KTVS-097 已完成：修复连续换歌时旧 mpv `end-file` 事件误推进队列、移除播放页重复进度条，并接通二维码投屏 OSD；待用户实机验收
+- 已完成：KTVS-001 至 KTVS-057；KTVS-058 软件验证完成；KTVS-060 至 KTVS-090 用户反馈与回归修复完成；KTVS-091 至 KTVS-098 Web 桌面主控软件与 RC40 本地发布包完成
+- 当前任务：KTVS-098 已完成：生成含已验收曲库快照、mpv/FFmpeg 等运行文件的 RC40 自包含托盘包；待用户下载安装验收
 
 ## 调查结果
 
@@ -85,6 +85,12 @@
 - 播放页删除装饰性进度条，仅保留一个可拖动的进度滑块；Web 回归确认页面只渲染一个“播放进度”滑块。
 - 房间页“投到 MV 屏幕”不再是占位通知：Server 生成高对比度 QR 原始 BGRA 位图，通过 `IPlayerAdapter` 的 mpv `overlay-add` 显示在视频左上角，15 秒后 `overlay-remove`；本机管理接口仍仅 loopback 可用。
 - KTVS-097 验证：Core 非外部 `189/189`、Desktop `18/18`、Web `38/38`、TypeScript、Web production build、Server Release 均通过；mpv 外部 `4/4` 通过，新增快速连续换歌回归，确认新播放不会被旧媒体事件结束。真实电视画面、不同 mpv 构建、长队列和实际扫码仍待用户实机验收。
+
+## KTVS-098 已完成
+
+- RC40：`artifacts/AI-KTV-Station-0.1.0-rc.40-win-x64.zip`，451 项，339,407,106 bytes，SHA-256 `aa3c19b4e961726b2d17adfd5961d138e110379bfea3340cc7566abc25597e63`；包含 `Station.Tray.exe`、mpv、Vulkan loader、FFmpeg/ffprobe、许可证材料和单个 `data/station.db`，无 WAL/SHM。
+- 发布校验 `RELEASE_PACKAGE=passed`、Windows 发布 `WINDOWS_PUBLISH=passed`；托盘包冒烟 `PACKAGE_SMOKE=passed`，冷启动待机、Server 健康、托盘生命周期和进程清理均通过。
+- 因用户指定的外部数据库路径当前不存在，RC40 使用 RC39 已验收包内的 `station.db` 只读快照作为种子；数据库大小 `127,692,800` bytes，SHA-256 `3852968bf9356aa6a2b1c9d706737b316c1b3970ef50e26ae14bc8391185cd7e`，源 RC39 包未修改。
 
 ## 最近验证
 

@@ -159,6 +159,7 @@
 | KTVS-096 | RC36 复盘后的桌面 Web 主控重构与本地候选包 | KTVS-095 | Done | `/desk` 完成宽屏点歌、歌手热度卡片、显式搜索、底部播放条、播放/队列/二维码/曲库/设置内页；新增本机二维码与访客管理接口、四组设置页、Edge 全屏启动；通过全量回归并生成含真实曲库的 RC39 本地包 | RC39 已使用指定 `D:\Applications\AI-KTV-Station\data\station.db` 的 SQLite Backup API 只读快照；真实 Edge/手机/硬件视觉仍待验收 |
 
 | KTVS-097 | 连续播放事件隔离、重复进度条与二维码投屏 | KTVS-096 | Done | mpv 换歌时隔离旧媒体延迟 `end-file` 事件，`Replaced` 不推进队列；播放页只保留一个可操作进度条；房间页二维码可通过 mpv OSD 位图叠加显示 15 秒并自动移除；补齐 Core/Web/API 回归 | 真实电视画面、不同 mpv 构建和长队列仍待用户实机验收 |
+| KTVS-098 | RC40 自包含可执行发布包 | KTVS-097 | Done | 使用已验收曲库快照生成 `Station.Tray.exe` 发布包；包含 mpv、FFmpeg、ffprobe、Vulkan loader、许可证和单个 `data/station.db`；完成发布校验与托盘冷启动冒烟 | 指定外部数据库路径当前不存在，本包回退使用 RC39 内置的同一数据库快照；真实设备仍待验收 |
 
 ## 后续阶段门禁
 
