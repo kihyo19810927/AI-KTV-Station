@@ -9,6 +9,8 @@ using Station.Application.Catalog;
 using Station.Application.Configuration;
 using Station.Application.Health;
 using Station.Application.Playback;
+using Station.Domain.Models;
+using Station.Infrastructure.Persistence;
 using Station.Server.Hosting;
 
 namespace Station.Core.Tests;
@@ -38,6 +40,24 @@ public sealed class StationEmbeddedHostTests
             Assert.Equal(HttpStatusCode.OK, managementHealth.StatusCode);
             var catalogStats = await client.GetFromJsonAsync<System.Text.Json.JsonDocument>("/api/manage/catalog/stats");
             Assert.Equal(0, catalogStats!.RootElement.GetProperty("songCount").GetInt64());
+            await using (var dbScope = app.Services.CreateAsyncScope())
+            {
+                var database = dbScope.ServiceProvider.GetRequiredService<StationDbContext>();
+                database.PlaybackErrors.Add(new PlaybackError
+                {
+                    ErrorCode = "player.unexpected_end_file",
+                    Stage = "Playback",
+                    DiagnosticSummary = "播放器在歌曲完成前结束了媒体（mpv 原因：stop）。",
+                    OccurredAt = DateTimeOffset.UtcNow,
+                });
+                await database.SaveChangesAsync();
+            }
+            var playbackFailuresResponse = await client.GetAsync("/api/manage/playback/failures?count=1");
+            var playbackFailuresBody = await playbackFailuresResponse.Content.ReadAsStringAsync();
+            Assert.True(playbackFailuresResponse.IsSuccessStatusCode, $"{playbackFailuresResponse.StatusCode}: {playbackFailuresBody}");
+            var playbackFailures = System.Text.Json.JsonDocument.Parse(playbackFailuresBody);
+            Assert.Equal("player.unexpected_end_file", playbackFailures!.RootElement[0].GetProperty("errorCode").GetString());
+            Assert.Contains("stop", playbackFailures.RootElement[0].GetProperty("diagnosticSummary").GetString(), StringComparison.Ordinal);
             var qr = await client.GetAsync("/api/manage/qr?content=https%3A%2F%2Fexample.test%2Fjoin");
             Assert.Equal(HttpStatusCode.OK, qr.StatusCode);
             Assert.Equal("image/png", qr.Content.Headers.ContentType?.MediaType);

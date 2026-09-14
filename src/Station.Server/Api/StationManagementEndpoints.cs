@@ -33,6 +33,7 @@ public static class StationManagementEndpoints
         management.MapPost("/catalog/import", ImportCatalogAsync).WithName("ImportPortableCatalog");
         management.MapGet("/health", CheckHealthAsync).WithName("CheckStationHealth");
         management.MapGet("/diagnostics/recent", ReadDiagnosticsAsync).WithName("ReadStationDiagnostics");
+        management.MapGet("/playback/failures", ReadPlaybackFailuresAsync).WithName("ReadPlaybackFailures");
         management.MapPost("/diagnostics/export", ExportDiagnosticsAsync).WithName("ExportStationDiagnostics");
         return endpoints;
     }
@@ -207,6 +208,30 @@ public static class StationManagementEndpoints
         if (!IsLocal(context)) return LocalOnly();
         var bounded = Math.Clamp(count, 1, 200);
         return Results.Ok(await log.ReadRecentAsync(bounded, cancellationToken));
+    }
+
+    private static async Task<IResult> ReadPlaybackFailuresAsync(
+        HttpContext context,
+        StationDbContext database,
+        int count = 5,
+        CancellationToken cancellationToken = default)
+    {
+        if (!IsLocal(context)) return LocalOnly();
+        var bounded = Math.Clamp(count, 1, 20);
+        var failures = await database.PlaybackErrors.FromSqlInterpolated(
+                $"SELECT * FROM PlaybackErrors ORDER BY OccurredAt DESC LIMIT {bounded}")
+            .AsNoTracking()
+            .ToArrayAsync(cancellationToken);
+        return Results.Ok(failures.Select(item => new
+        {
+            item.Id,
+            item.MediaFileId,
+            item.ErrorCode,
+            item.Stage,
+            item.IsRetryable,
+            item.DiagnosticSummary,
+            item.OccurredAt,
+        }));
     }
 
     private static async Task<IResult> ExportDiagnosticsAsync(HttpContext context, IDiagnosticExportService diagnostics, IStationSettingsStore store, CancellationToken cancellationToken)

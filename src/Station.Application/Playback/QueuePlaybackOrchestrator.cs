@@ -134,6 +134,20 @@ public sealed class QueuePlaybackOrchestrator(
                     // the next file. It must never finish the newly active item.
                     break;
                 case PlaybackEndedEvent ended when ended.Reason == PlaybackEndReason.Stopped:
+                    if (!ended.IsUserInitiated && !string.IsNullOrWhiteSpace(ended.Detail))
+                    {
+                        var failure = new PlayerFailure(
+                            "player.unexpected_end_file",
+                            PlayerFailureKind.Unknown,
+                            false,
+                            $"播放器在歌曲完成前结束了媒体（mpv 原因：{ended.Detail}）。");
+                        lastErrorCode = failure.Code;
+                        await recovery.RecordAsync(
+                            active.Item.MediaFileId == Guid.Empty ? null : active.Item.MediaFileId,
+                            PlaybackFailureStage.Playback,
+                            failure,
+                            cancellationToken).ConfigureAwait(false);
+                    }
                     await FinishCurrentAsync(QueueItemStatus.Skipped, PlaybackOutcome.Skipped, null, cancellationToken).ConfigureAwait(false);
                     await StartNextCoreAsync(cancellationToken).ConfigureAwait(false);
                     break;

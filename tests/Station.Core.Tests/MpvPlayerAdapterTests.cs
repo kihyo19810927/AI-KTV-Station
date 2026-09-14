@@ -79,7 +79,9 @@ public sealed class MpvPlayerAdapterTests
         Assert.True(afterReplacement.IsSuccess, afterReplacement.Error.Code);
         Assert.Equal(PlayerLifecycleState.Playing, afterReplacement.Value.State);
         Assert.True((await player.SkipAsync(timeout.Token)).IsSuccess);
-        Assert.Equal(PlaybackEndReason.Stopped, (await skippedTask).Reason);
+        var skipped = await skippedTask;
+        Assert.Equal(PlaybackEndReason.Stopped, skipped.Reason);
+        Assert.True(skipped.IsUserInitiated);
         Assert.Equal(processId, player.ProcessId);
         Assert.False(Process.GetProcessById(processId).HasExited);
 

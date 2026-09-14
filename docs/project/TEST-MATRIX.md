@@ -109,5 +109,6 @@
 | KTVS-096 RC36 复盘后的桌面 Web 主控重构与 RC39 包 | Core/Desktop xUnit + Web Vitest + TypeScript + Vite production build + Server Release + package verify/smoke | 通过（Core 181/181、Desktop 18/18、Web 38/38、Server 0 警告/0 错误、RC39 451 项；使用指定 seed 数据库生成单个 `data/station.db`，覆盖宽屏点歌、显式歌名/歌手搜索、播放/队列/二维码/曲库统计/设置内页与管理接口，托盘冷启动/退出清理通过） | 真实 Edge App、手机、媒体和硬件待验收 |
 | KTVS-097 连续播放事件隔离、重复进度条与二维码投屏 | Core/Desktop xUnit + Web Vitest + TypeScript + Vite production build + Server Release + mpv external | 通过（Core 非外部 189/189、Desktop 18/18、Web 38/38、Server 0 警告/0 错误、mpv 外部 4/4；覆盖快速连续换歌、`Replaced` 事件不推进队列、单进度滑块、loopback QR overlay API） | 真实电视画面、不同 mpv 构建、长队列和实际扫码待实机验收 |
 | KTVS-098 RC40 自包含托盘发布包 | `publish-windows.ps1` + `verify-release-package.ps1` + `test-packaged-app.ps1` | 通过（451 项，339,407,106 bytes，SHA-256 `aa3c19b4e961726b2d17adfd5961d138e110379bfea3340cc7566abc25597e63`；含 mpv/FFmpeg/ffprobe/Vulkan loader、许可证、单个 `data/station.db`；发布校验、健康、冷启动待机、托盘生命周期和进程清理通过） | 指定外部数据库路径当前不存在，使用 RC39 已验收数据库快照；真实 Windows/媒体/设备仍待用户验收 |
+| KTVS-099 播放诊断与桌面 Toast 反馈 | Core xUnit + Server embedded host + Web Vitest + TypeScript + Vite production build | 通过（Core 非外部 191/191、Web 39/39、Server/Web 编译与生产构建通过；覆盖非用户主动 `end-file` 原因入库、主动切歌不记失败、管理接口读取和播放器页展示） | 真实 mpv 原因分布、长队列连续播放和电视设备仍待实机验收 |
 
 禁止把替身、模拟器或文档审阅结果写成真实设备通过。

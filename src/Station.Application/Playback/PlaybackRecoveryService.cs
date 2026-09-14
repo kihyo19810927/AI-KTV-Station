@@ -55,6 +55,13 @@ public sealed class PlaybackRecoveryPolicy(int maximumRetries = 2, TimeSpan? bas
 
 public sealed class PlaybackRecoveryService(IPlaybackFailureStore store, PlaybackRecoveryPolicy policy)
 {
+    public Task RecordAsync(
+        Guid? mediaFileId,
+        PlaybackFailureStage stage,
+        PlayerFailure failure,
+        CancellationToken cancellationToken = default) =>
+        RecordFailureAsync(mediaFileId, stage, failure, failure.PublicMessage, cancellationToken);
+
     public async Task<Result<PlaybackRecoveryDecision>> DecideAndRecordAsync(
         Guid? mediaFileId,
         PlaybackFailureStage stage,
@@ -70,17 +77,27 @@ public sealed class PlaybackRecoveryService(IPlaybackFailureStore store, Playbac
             return Result<PlaybackRecoveryDecision>.Failure(new Error("playback_recovery.invalid_retry_count", "Retry count cannot be negative."));
         }
 
-        var error = new PlaybackError
+        await RecordFailureAsync(mediaFileId, stage, failure, $"{failure.PublicMessage}（{failure.Kind}:{decision.Action}）", cancellationToken).ConfigureAwait(false);
+        return Result<PlaybackRecoveryDecision>.Success(decision);
+    }
+
+    private async Task RecordFailureAsync(
+        Guid? mediaFileId,
+        PlaybackFailureStage stage,
+        PlayerFailure failure,
+        string diagnosticSummary,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(failure);
+        await store.RecordAsync(new PlaybackError
         {
             MediaFileId = mediaFileId,
             ErrorCode = failure.Code,
             Stage = stage.ToString(),
             IsRetryable = failure.IsRetryable,
-            DiagnosticSummary = $"{failure.Kind}:{decision.Action}",
+            DiagnosticSummary = diagnosticSummary,
             OccurredAt = DateTimeOffset.UtcNow,
-        };
-        await store.RecordAsync(error, AvailabilityImpact(failure.Kind), cancellationToken).ConfigureAwait(false);
-        return Result<PlaybackRecoveryDecision>.Success(decision);
+        }, AvailabilityImpact(failure.Kind), cancellationToken).ConfigureAwait(false);
     }
 
     private static AvailabilityStatus? AvailabilityImpact(PlayerFailureKind kind) => kind switch

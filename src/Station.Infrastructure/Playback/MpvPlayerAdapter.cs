@@ -478,16 +478,22 @@ public sealed class MpvPlayerAdapter : IPlayerAdapter
         if (replacementPending && !explicitSkip && reason != "eof" && reason != "error") return;
         if (reason == "error")
         {
-            var failure = new PlayerFailure("player.media_load_failed", PlayerFailureKind.MediaLoadFailed, true, "The media could not be played.");
+            var failure = new PlayerFailure(
+                "player.media_load_failed",
+                PlayerFailureKind.MediaLoadFailed,
+                true,
+                $"播放器无法播放媒体（mpv 原因：{reason}）。");
             lock (stateGate) fileLoaded?.TrySetException(new MpvCommandException("media load failed"));
             ChangeState(PlayerLifecycleState.Failed, playbackId, failure);
             Publish(new PlaybackFailedEvent(Guid.NewGuid(), DateTimeOffset.UtcNow, playbackId, failure));
-            Publish(new PlaybackEndedEvent(Guid.NewGuid(), DateTimeOffset.UtcNow, playbackId, PlaybackEndReason.Failed));
+            Publish(new PlaybackEndedEvent(Guid.NewGuid(), DateTimeOffset.UtcNow, playbackId, PlaybackEndReason.Failed, reason));
             return;
         }
         ChangeState(PlayerLifecycleState.Ended, playbackId, null);
         Publish(new PlaybackEndedEvent(Guid.NewGuid(), DateTimeOffset.UtcNow, playbackId,
-            reason == "eof" ? PlaybackEndReason.Completed : PlaybackEndReason.Stopped));
+            reason == "eof" ? PlaybackEndReason.Completed : PlaybackEndReason.Stopped,
+            string.IsNullOrWhiteSpace(reason) ? "缺少 reason" : reason,
+            explicitSkip));
     }
 
     private void OnProcessExited(object? sender, EventArgs e)

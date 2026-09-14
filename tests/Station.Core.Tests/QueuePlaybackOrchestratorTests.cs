@@ -126,6 +126,43 @@ public sealed class QueuePlaybackOrchestratorTests
     }
 
     [Fact]
+    public async Task Unexpected_stopped_event_records_the_player_reason_before_advancing()
+    {
+        var player = new FakePlayer();
+        var store = new MemoryPlaybackStore(Item(1), Item(2));
+        var errors = new MemoryFailureStore();
+        var service = Create(player, store, maximumRetries: 0, errors);
+        await service.StartAsync(store.RoomId);
+        var playbackId = service.Current.PlaybackId!.Value;
+
+        await service.HandleAsync(new PlaybackEndedEvent(
+            Guid.NewGuid(), DateTimeOffset.UtcNow, playbackId, PlaybackEndReason.Stopped, "stop"));
+
+        var error = Assert.Single(errors.Errors);
+        Assert.Equal("player.unexpected_end_file", error.ErrorCode);
+        Assert.Equal("Playback", error.Stage);
+        Assert.Contains("stop", error.DiagnosticSummary, StringComparison.Ordinal);
+        Assert.Equal(store.Items[1].QueueItemId, service.Current.QueueItemId);
+    }
+
+    [Fact]
+    public async Task User_initiated_stopped_event_does_not_record_a_failure()
+    {
+        var player = new FakePlayer();
+        var store = new MemoryPlaybackStore(Item(1), Item(2));
+        var errors = new MemoryFailureStore();
+        var service = Create(player, store, maximumRetries: 0, errors);
+        await service.StartAsync(store.RoomId);
+        var playbackId = service.Current.PlaybackId!.Value;
+
+        await service.HandleAsync(new PlaybackEndedEvent(
+            Guid.NewGuid(), DateTimeOffset.UtcNow, playbackId, PlaybackEndReason.Stopped, "stop", true));
+
+        Assert.Empty(errors.Errors);
+        Assert.Equal(store.Items[1].QueueItemId, service.Current.QueueItemId);
+    }
+
+    [Fact]
     public async Task Run_loop_loads_item_added_after_room_started_empty()
     {
         var player = new FakePlayer();

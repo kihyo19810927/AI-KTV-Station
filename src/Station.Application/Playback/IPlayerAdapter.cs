@@ -93,8 +93,22 @@ public sealed record PlaybackPausedEvent : PlayerEvent
 }
 public sealed record PlaybackEndedEvent : PlayerEvent
 {
-    public PlaybackEndedEvent(Guid eventId, DateTimeOffset occurredAt, Guid playbackId, PlaybackEndReason reason) : base(eventId, occurredAt, playbackId) => Reason = reason;
+    public PlaybackEndedEvent(
+        Guid eventId,
+        DateTimeOffset occurredAt,
+        Guid playbackId,
+        PlaybackEndReason reason,
+        string? detail = null,
+        bool isUserInitiated = false) : base(eventId, occurredAt, playbackId)
+    {
+        Reason = reason;
+        Detail = detail;
+        IsUserInitiated = isUserInitiated;
+    }
+
     public PlaybackEndReason Reason { get; }
+    public string? Detail { get; }
+    public bool IsUserInitiated { get; }
 }
 public sealed record PlaybackFailedEvent(Guid EventId, DateTimeOffset OccurredAt, Guid? PlaybackId, PlayerFailure Failure) : PlayerEvent(EventId, OccurredAt, PlaybackId);
 public sealed record PlayerTracksChangedEvent : PlayerEvent

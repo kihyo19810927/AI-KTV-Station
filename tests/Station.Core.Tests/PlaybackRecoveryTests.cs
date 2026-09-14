@@ -53,7 +53,7 @@ public sealed class PlaybackRecoveryTests
         Assert.True(result.IsSuccess);
         Assert.Equal(AvailabilityStatus.Offline, store.Availability);
         Assert.Equal("player.media_http_403", store.Error!.ErrorCode);
-        Assert.Equal("MediaUnavailable:RetryCurrent", store.Error.DiagnosticSummary);
+        Assert.Equal("Media is unavailable.（MediaUnavailable:RetryCurrent）", store.Error.DiagnosticSummary);
         Assert.DoesNotContain("\\", store.Error.DiagnosticSummary);
     }
 

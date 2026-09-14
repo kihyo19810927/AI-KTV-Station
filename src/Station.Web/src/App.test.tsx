@@ -150,6 +150,22 @@ describe('mobile application shell', () => {
       expect(calls.some(([url, init]) => String(url) === '/api/playback/subtitle' && init?.method === 'POST' && String(init.body).includes('3'))).toBe(true)
     })
   })
+  it('shows the recorded playback failure reason on the desktop player page', async () => {
+    vi.mocked(fetch).mockImplementation(async url => {
+      const path = String(url)
+      if (path === '/api/manage/room/ensure') return new Response(JSON.stringify({ room: { id: 'room-1', joinCode: 'KTV826', maxQueuedSongsPerGuest: 100 }, host: { token: 'host-token', roomId: 'room-1', guestId: 'host-1', nickname: '主持人', role: 'Host', expiresAt: '2099-01-01T00:00:00Z' }, joinUrl: 'http://192.168.1.20:5090/join?code=KTV826' }), { status: 200, headers: { 'Content-Type': 'application/json' } })
+      if (path === '/api/library/favorites') return new Response(JSON.stringify([]), { status: 200, headers: { 'Content-Type': 'application/json' } })
+      if (path === '/api/playback') return new Response(JSON.stringify({ state: 'Failed', volume: 80, tracks: [], failure: { code: 'player.unexpected_end_file', publicMessage: '播放器在歌曲完成前结束了媒体（mpv 原因：stop）。' } }), { status: 200, headers: { 'Content-Type': 'application/json' } })
+      if (path.startsWith('/api/manage/playback/failures')) return new Response(JSON.stringify([{ id: 'failure-1', errorCode: 'player.unexpected_end_file', stage: 'Playback', isRetryable: false, diagnosticSummary: '播放器在歌曲完成前结束了媒体（mpv 原因：stop）。', occurredAt: '2099-01-01T00:00:00Z' }]), { status: 200, headers: { 'Content-Type': 'application/json' } })
+      return new Response(JSON.stringify({ items: [], total: 0, page: 1, pageSize: 20 }), { status: 200, headers: { 'Content-Type': 'application/json' } })
+    })
+    renderApp('/desk')
+    await screen.findByRole('heading', { name: '电脑点歌' })
+    fireEvent.click(screen.getByRole('button', { name: '正在播放' }))
+    const diagnostic = await screen.findByRole('alert')
+    expect(diagnostic).toHaveTextContent('mpv 原因：stop')
+    expect(diagnostic).toHaveTextContent('错误码：player.unexpected_end_file')
+  })
   it('restores a valid session and renders the approved discovery shell', async () => { sessionStorage.setItem('ai-ktv-station.room-session.v1', JSON.stringify(validSession)); renderApp('/room/discover'); expect(await screen.findByText('小明 · 访客 · 已连接')).toBeInTheDocument(); expect(screen.getByPlaceholderText('输入关键字后点击按歌名或按歌手')).toBeInTheDocument(); expect(screen.getByRole('navigation', { name: '主导航' })).toBeInTheDocument() })
   it('joins a room and persists the short-lived session', async () => {
     vi.mocked(fetch).mockResolvedValue(new Response(JSON.stringify({ ...validSession, guestId: 'guest-1' }), { status: 200, headers: { 'Content-Type': 'application/json' } }))
