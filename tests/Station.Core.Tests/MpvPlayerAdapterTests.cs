@@ -31,11 +31,12 @@ public sealed class MpvPlayerAdapterTests
         var media = Environment.GetEnvironmentVariable("KTV_STATION_MEDIA_FIXTURE");
         Assert.False(string.IsNullOrWhiteSpace(executable));
         Assert.False(string.IsNullOrWhiteSpace(media));
+        var diagnostic = new RecordingDiagnostic();
         await using var player = new MpvPlayerAdapter(new PlayerOptions
         {
             ExecutablePath = executable!,
             CommandTimeoutSeconds = 10,
-        });
+        }, diagnostic);
 
         var start = await player.StartAsync();
         Assert.True(start.IsSuccess, start.Error.Code);
@@ -48,6 +49,11 @@ public sealed class MpvPlayerAdapterTests
         var load = await player.LoadAsync(new PlayerLoadRequest(playbackId, media!), timeout.Token);
         Assert.True(load.IsSuccess, load.Error.Code);
         Assert.Equal(PlayerLifecycleState.Playing, load.Value.State);
+        Assert.Contains(diagnostic.Entries, entry => entry.Code == "player.load.begin" && entry.Message.Contains(playbackId.ToString(), StringComparison.Ordinal));
+        Assert.Contains(diagnostic.Entries, entry => entry.Code == "player.load.accepted");
+        Assert.Contains(diagnostic.Entries, entry => entry.Code == "player.event" && entry.Message.Contains("event=start-file", StringComparison.Ordinal));
+        Assert.Contains(diagnostic.Entries, entry => entry.Code == "player.event" && entry.Message.Contains("event=file-loaded", StringComparison.Ordinal));
+        Assert.DoesNotContain(diagnostic.Entries, entry => entry.Message.Contains(media!, StringComparison.Ordinal));
         Assert.InRange(load.Value.Duration!.Value.TotalSeconds, 9.5, 10.5);
         var audio = load.Value.Tracks.Where(x => x.Type == MediaTrackType.Audio).ToArray();
         Assert.Equal(2, audio.Length);
@@ -203,5 +209,18 @@ public sealed class MpvPlayerAdapterTests
         await foreach (var item in player.WatchEventsAsync(cancellationToken))
             if (item is PlaybackFailedEvent failure) return failure;
         throw new InvalidOperationException("Player event stream ended before a process failure was reported.");
+    }
+
+    private sealed class RecordingDiagnostic : ILocalDiagnosticLog
+    {
+        public List<DiagnosticLogEntry> Entries { get; } = [];
+        public Task WriteAsync(string level, string code, string message, CancellationToken cancellationToken = default)
+        {
+            Entries.Add(new(DateTimeOffset.UtcNow, level, code, message));
+            return Task.CompletedTask;
+        }
+
+        public Task<IReadOnlyList<DiagnosticLogEntry>> ReadRecentAsync(int count, CancellationToken cancellationToken = default) =>
+            Task.FromResult<IReadOnlyList<DiagnosticLogEntry>>(Entries.TakeLast(count).ToArray());
     }
 }

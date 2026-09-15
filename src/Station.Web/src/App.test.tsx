@@ -123,9 +123,14 @@ describe('mobile application shell', () => {
     fireEvent.click(screen.getByRole('button', { name: '暂停' }))
     await waitFor(() => expect(vi.mocked(fetch).mock.calls.some(([url, init]) => String(url) === '/api/playback/pause' && init?.method === 'POST')).toBe(true))
   })
-  it('controls desktop volume, progress, audio and subtitle tracks through playback APIs', async () => {
+  it('shows artwork and icon controls, cycles audio directly and hides historical failures during playback', async () => {
+    realtime.snapshot = { version: 3, roomId: 'room-1', queue: [
+      { id: 'item-playing', songId: 'song-playing', title: '海阔天空', artists: 'Beyond', requestedByGuestId: 'host-1', requestedByNickname: '主持人', position: 1, status: 'Playing', requestedAt: '2099-01-01T00:00:00Z' },
+    ] }
     vi.mocked(fetch).mockImplementation(async (url, init) => {
       const path = String(url)
+      if (path.endsWith('/artwork')) return Response.json({ imageUrl: '/test-artist.png' })
+      if (path.startsWith('/api/manage/playback/failures')) return Response.json([{ id: 'old', diagnosticSummary: '旧的超时错误', occurredAt: '2000-01-01' }])
       if (path === '/api/manage/room/ensure') return new Response(JSON.stringify({ room: { id: 'room-1', joinCode: 'KTV826', maxQueuedSongsPerGuest: 100 }, host: { token: 'host-token', roomId: 'room-1', guestId: 'host-1', nickname: '主持人', role: 'Host', expiresAt: '2099-01-01T00:00:00Z' }, joinUrl: 'http://192.168.1.20:5090/join?code=KTV826' }), { status: 200, headers: { 'Content-Type': 'application/json' } })
       if (path.startsWith('/api/library/favorites')) return new Response(JSON.stringify([]), { status: 200, headers: { 'Content-Type': 'application/json' } })
       if (path === '/api/playback') return new Response(JSON.stringify({ state: 'Playing', volume: 62, position: '00:01:05', duration: '00:05:00', audioTrackId: 1, subtitleTrackId: 3, tracks: [{ streamId: 1, type: 'Audio', title: '原唱' }, { streamId: 2, type: 'Audio', title: '伴奏' }, { streamId: 3, type: 'Subtitle', language: '中文' }] }), { status: 200, headers: { 'Content-Type': 'application/json' } })
@@ -137,17 +142,21 @@ describe('mobile application shell', () => {
      await screen.findByRole('heading', { name: '电脑点歌' })
      fireEvent.click(screen.getByRole('button', { name: '正在播放' }))
      await waitFor(() => expect(screen.getByText('01:05')).toBeInTheDocument())
+    expect(await screen.findByRole('img', { name: 'Beyond' })).toHaveAttribute('src', '/test-artist.png')
+    await waitFor(() => expect(vi.mocked(fetch).mock.calls.some(([url]) => String(url).includes('/failures'))).toBe(true))
+    expect(screen.queryByText('旧的超时错误')).not.toBeInTheDocument()
+    fireEvent.error(screen.getByRole('img', { name: 'Beyond' }))
+    expect(screen.queryByRole('img', { name: 'Beyond' })).not.toBeInTheDocument()
     expect(screen.getAllByRole('slider', { name: '播放进度' })).toHaveLength(1)
     fireEvent.click(screen.getByRole('button', { name: '音量' }))
     fireEvent.change(screen.getByRole('slider', { name: '音量' }), { target: { value: '48' } })
     fireEvent.click(screen.getByRole('button', { name: '原唱伴奏' }))
-    fireEvent.change(screen.getByRole('combobox', { name: '原唱伴奏' }), { target: { value: '2' } })
-    fireEvent.change(screen.getByRole('combobox', { name: '字幕' }), { target: { value: '3' } })
+    expect(screen.queryByRole('combobox', { name: '原唱伴奏' })).not.toBeInTheDocument()
+    for (const name of ['暂停', '切歌', '重唱', '原唱伴奏', '音量']) expect(screen.getByRole('button', { name }).textContent).toBe('')
     await waitFor(() => {
       const calls = vi.mocked(fetch).mock.calls
       expect(calls.some(([url, init]) => String(url) === '/api/playback/volume' && init?.method === 'POST' && String(init.body).includes('48'))).toBe(true)
       expect(calls.some(([url, init]) => String(url) === '/api/playback/audio' && init?.method === 'POST' && String(init.body).includes('2'))).toBe(true)
-      expect(calls.some(([url, init]) => String(url) === '/api/playback/subtitle' && init?.method === 'POST' && String(init.body).includes('3'))).toBe(true)
     })
   })
   it('shows the recorded playback failure reason on the desktop player page', async () => {

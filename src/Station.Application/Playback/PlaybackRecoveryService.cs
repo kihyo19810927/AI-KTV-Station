@@ -41,8 +41,13 @@ public sealed class PlaybackRecoveryPolicy(int maximumRetries = 2, TimeSpan? bas
                 "This song cannot be played and will be skipped.");
 
         if (completedRetries >= maximumRetries)
+        {
+            if (failure.Kind is PlayerFailureKind.CommandTimeout or PlayerFailureKind.ConnectionTimeout or PlayerFailureKind.ProtocolError)
+                return new(PlaybackRecoveryAction.HaltPlayback, TimeSpan.Zero, false, completedRetries,
+                    "播放器通信未恢复，已停止自动推进队列，请检查播放器后重试。");
             return new(PlaybackRecoveryAction.SkipCurrent, TimeSpan.Zero, false, completedRetries,
                 "Playback did not recover and this song will be skipped.");
+        }
 
         var multiplier = Math.Pow(2, completedRetries);
         var delay = TimeSpan.FromMilliseconds(Math.Min(maximumDelay.TotalMilliseconds, baseDelay.TotalMilliseconds * multiplier));

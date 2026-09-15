@@ -209,7 +209,10 @@ public static class StationApiEndpoints
         if (identity.IsFailure) return Problem(identity.Error);
         var result = await queue.MoveToTopAsync(identity.Value, itemId, cancellationToken);
         if (result.IsFailure) return Problem(result.Error);
-        await PublishAsync(context, identity.Value.RoomId, "queue.reordered", result.Value, cancellationToken);
+        var ordered = await queue.ListAsync(identity.Value, cancellationToken);
+        if (ordered.IsSuccess)
+            foreach (var entry in ordered.Value)
+                await PublishAsync(context, identity.Value.RoomId, "queue.reordered", entry, cancellationToken);
         return Results.Ok(result.Value);
     }
 
@@ -224,7 +227,10 @@ public static class StationApiEndpoints
         if (identity.IsFailure) return Problem(identity.Error);
         var result = await queue.InsertNextAsync(identity.Value, itemId, cancellationToken);
         if (result.IsFailure) return Problem(result.Error);
-        await PublishAsync(context, identity.Value.RoomId, "queue.reordered", result.Value, cancellationToken);
+        var ordered = await queue.ListAsync(identity.Value, cancellationToken);
+        if (ordered.IsSuccess)
+            foreach (var entry in ordered.Value)
+                await PublishAsync(context, identity.Value.RoomId, "queue.reordered", entry, cancellationToken);
         return Results.Ok(result.Value);
     }
 

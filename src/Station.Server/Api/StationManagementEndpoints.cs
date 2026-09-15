@@ -29,6 +29,7 @@ public static class StationManagementEndpoints
         management.MapPost("/room/qr-overlay", ShowQrOverlayAsync).WithName("ShowRoomQrOverlay");
         management.MapGet("/qr", RenderQrAsync).WithName("RenderManagementQr");
         management.MapGet("/catalog/stats", GetCatalogStatsAsync).WithName("GetCatalogStats");
+        management.MapGet("/catalog/songs/{songId:guid}/artwork", GetSongArtworkAsync);
         management.MapPut("/settings", SaveSettingsAsync).WithName("SaveStationSettings");
         management.MapPost("/catalog/import", ImportCatalogAsync).WithName("ImportPortableCatalog");
         management.MapGet("/health", CheckHealthAsync).WithName("CheckStationHealth");
@@ -36,6 +37,16 @@ public static class StationManagementEndpoints
         management.MapGet("/playback/failures", ReadPlaybackFailuresAsync).WithName("ReadPlaybackFailures");
         management.MapPost("/diagnostics/export", ExportDiagnosticsAsync).WithName("ExportStationDiagnostics");
         return endpoints;
+    }
+
+    private static async Task<IResult> GetSongArtworkAsync(HttpContext context, Guid songId,
+        StationDbContext database, Station.Infrastructure.Search.ArtistLexicon lexicon, CancellationToken cancellationToken)
+    {
+        if (!IsLocal(context)) return LocalOnly();
+        var names = await database.Songs.AsNoTracking().Where(song => song.Id == songId)
+            .SelectMany(song => song.Artists).OrderBy(link => link.Order)
+            .Select(link => link.Artist.Name).ToArrayAsync(cancellationToken);
+        return Results.Ok(new { imageUrl = names.Select(name => lexicon.Resolve(name).ImageUrl).FirstOrDefault(url => !string.IsNullOrWhiteSpace(url)) });
     }
 
     private static async Task<IResult> EnsureHostRoomAsync(
@@ -108,39 +119,7 @@ public static class StationManagementEndpoints
         if (request is null || string.IsNullOrWhiteSpace(request.Content))
             return StationApiEndpoints.Problem(new Error("qr.content_required", "QR content is required."));
 
-        using var data = QRCodeGenerator.GenerateQrCode(request.Content.Trim(), QRCodeGenerator.ECCLevel.Q);
-        var matrix = data.ModuleMatrix;
-        const int quietZone = 4;
-        const int moduleScale = 5;
-        var size = (matrix.Count + quietZone * 2) * moduleScale;
-        var pixels = new byte[size * size * 4];
-        for (var y = 0; y < size; y++)
-        {
-            var moduleY = y / moduleScale - quietZone;
-            for (var x = 0; x < size; x++)
-            {
-                var moduleX = x / moduleScale - quietZone;
-                var dark = moduleY >= 0 && moduleY < matrix.Count && moduleX >= 0 && moduleX < matrix.Count && matrix[moduleY][moduleX];
-                var color = dark ? (byte)23 : (byte)255;
-                var offset = (y * size + x) * 4;
-                pixels[offset] = color;
-                pixels[offset + 1] = color;
-                pixels[offset + 2] = color;
-                pixels[offset + 3] = 255;
-            }
-        }
-
-        var result = await player.ShowOverlayAsync(new PlayerOverlayRequest(
-            Id: 7,
-            X: 24,
-            Y: 24,
-            Width: size,
-            Height: size,
-            Stride: size * 4,
-            DisplayWidth: 280,
-            DisplayHeight: 280,
-            Bgra: pixels,
-            Duration: TimeSpan.FromSeconds(15)), cancellationToken);
+        var result = await player.ShowOverlayAsync(Station.Server.Playback.RoomQrOverlay.Create(request.Content.Trim()), cancellationToken);
         return result.IsSuccess
             ? Results.Ok(new { displayed = true, durationSeconds = 15 })
             : StationApiEndpoints.Problem(result.Error);

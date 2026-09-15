@@ -16,6 +16,7 @@ public sealed class MpvPlayerAdapter : IPlayerAdapter
 {
     private readonly string executablePath;
     private readonly TimeSpan commandTimeout;
+    private readonly ILocalDiagnosticLog? diagnosticLog;
     private readonly SemaphoreSlim operationGate = new(1, 1);
     private readonly SemaphoreSlim writeGate = new(1, 1);
     private readonly ConcurrentDictionary<long, TaskCompletionSource<JsonElement>> pending = new();
@@ -32,9 +33,8 @@ public sealed class MpvPlayerAdapter : IPlayerAdapter
     private PlayerSnapshot snapshot = EmptySnapshot(PlayerLifecycleState.Stopped);
     private long requestId;
     private bool stopping;
-    // Replacing a file can produce more than one delayed end-file event for
-    // the old media. Keep a fence until the new media reaches a real EOF so
-    // none of those events can finish the newly assigned playback id.
+    // Fence the previous media until the new file is loaded; entry ids keep
+    // delayed end-file events isolated after that point.
     private bool replacementEndFilePending;
     private bool explicitSkipPending;
     private long? activePlaylistEntryId;
@@ -42,11 +42,12 @@ public sealed class MpvPlayerAdapter : IPlayerAdapter
     private CancellationTokenSource? overlayLifetime;
     private bool disposed;
 
-    public MpvPlayerAdapter(PlayerOptions options)
+    public MpvPlayerAdapter(PlayerOptions options, ILocalDiagnosticLog? diagnosticLog = null)
     {
         ArgumentNullException.ThrowIfNull(options);
         executablePath = options.ExecutablePath;
         commandTimeout = TimeSpan.FromSeconds(options.CommandTimeoutSeconds);
+        this.diagnosticLog = diagnosticLog;
     }
 
     internal int? ProcessId
@@ -194,27 +195,33 @@ public sealed class MpvPlayerAdapter : IPlayerAdapter
         return await ExecuteAsync(async () =>
         {
             var before = CurrentSnapshot();
+            lock (stateGate)
+            {
+                if (activePlaylistEntryId is { } oldEntry) stalePlaylistEntryIds.Add(oldEntry);
+                while (stalePlaylistEntryIds.Count > 8) stalePlaylistEntryIds.Remove(stalePlaylistEntryIds.First());
+                activePlaylistEntryId = null;
+                replacementEndFilePending = true;
+            }
             if (before.PlaybackId is { } previous && before.State is PlayerLifecycleState.Preparing or PlayerLifecycleState.Playing or PlayerLifecycleState.Paused)
             {
-                lock (stateGate)
-                {
-                    replacementEndFilePending = true;
-                    if (activePlaylistEntryId is { } previousEntryId)
-                    {
-                        stalePlaylistEntryIds.Add(previousEntryId);
-                        while (stalePlaylistEntryIds.Count > 8)
-                            stalePlaylistEntryIds.Remove(stalePlaylistEntryIds.First());
-                    }
-                }
                 Publish(new PlaybackEndedEvent(Guid.NewGuid(), DateTimeOffset.UtcNow, previous, PlaybackEndReason.Replaced));
             }
             ChangeState(PlayerLifecycleState.Preparing, request.PlaybackId, null);
+            await TraceAsync("load.begin", $"playback={request.PlaybackId}");
             var loaded = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
             lock (stateGate) fileLoaded = loaded;
             try
             {
                 await SendCommandAsync(cancellationToken, "loadfile", request.MediaPath, "replace").ConfigureAwait(false);
-                await loaded.Task.WaitAsync(commandTimeout, cancellationToken).ConfigureAwait(false);
+                await TraceAsync("load.accepted", $"playback={request.PlaybackId}; waiting=file-loaded");
+                try
+                {
+                    await loaded.Task.WaitAsync(TimeSpan.FromSeconds(Math.Max(120, commandTimeout.TotalSeconds)), cancellationToken).ConfigureAwait(false);
+                }
+                catch (TimeoutException)
+                {
+                    throw new TimeoutException("等待 file-loaded 超时（媒体加载等待上限至少 120 秒）。");
+                }
                 // mpv retains the previous pause property when replacing a file.
                 // Every queue item must start playing unless the user pauses it afterwards.
                 await SendCommandAsync(cancellationToken, "set_property", "pause", false).ConfigureAwait(false);
@@ -345,9 +352,27 @@ public sealed class MpvPlayerAdapter : IPlayerAdapter
             }
             try { return Result<PlayerSnapshot>.Success(await action().ConfigureAwait(false)); }
             catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) { throw; }
-            catch (TimeoutException) { return Result<PlayerSnapshot>.Failure(new Error("player.command_timeout", "The player command timed out.")); }
-            catch (MpvCommandException) { return Result<PlayerSnapshot>.Failure(new Error(code, message)); }
-            catch (Exception) { return Result<PlayerSnapshot>.Failure(new Error("player.protocol_error", "The player communication failed.")); }
+            catch (TimeoutException exception)
+            {
+                var current = CurrentSnapshot();
+                long? entryId;
+                lock (stateGate) entryId = activePlaylistEntryId;
+                await TraceAsync("timeout", $"playback={current.PlaybackId}; entry={entryId}; {exception.Message}");
+                var detail = $"{exception.Message} 播放编号={current.PlaybackId}; 媒体编号={entryId}; 状态={current.State}; 进度={current.Position.TotalSeconds:F1}s。";
+                ChangeState(PlayerLifecycleState.Failed, current.PlaybackId,
+                    new PlayerFailure("player.command_timeout", PlayerFailureKind.CommandTimeout, true, detail));
+                return Result<PlayerSnapshot>.Failure(new Error("player.command_timeout", detail));
+            }
+            catch (MpvCommandException exception)
+            {
+                await TraceAsync("command.error", $"operation={code}; playback={CurrentSnapshot().PlaybackId}; message={exception.Message}");
+                return Result<PlayerSnapshot>.Failure(new Error(code, message));
+            }
+            catch (Exception exception)
+            {
+                await TraceAsync("protocol.error", $"operation={code}; playback={CurrentSnapshot().PlaybackId}; type={exception.GetType().Name}; message={exception.Message}");
+                return Result<PlayerSnapshot>.Failure(new Error("player.protocol_error", "The player communication failed."));
+            }
         }
         finally { operationGate.Release(); }
     }
@@ -408,7 +433,13 @@ public sealed class MpvPlayerAdapter : IPlayerAdapter
                 throw new MpvCommandException(error.GetString() ?? "invalid response");
             return response;
         }
-        catch (TimeoutException) { throw; }
+        catch (TimeoutException)
+        {
+            // Only log command/property names: media paths may contain private data.
+            var operation = command.Length > 1 && command[0] is "get_property" or "set_property"
+                ? $"{command[0]} {command[1]}" : command[0].ToString();
+            throw new TimeoutException($"等待 mpv 命令响应超时：{operation}；请求编号={id}；上限={commandTimeout.TotalSeconds:F0} 秒。");
+        }
         finally { pending.TryRemove(id, out _); }
     }
 
@@ -463,6 +494,17 @@ public sealed class MpvPlayerAdapter : IPlayerAdapter
 
     private void HandleMpvEvent(string? eventName, JsonElement root)
     {
+        if (eventName is "start-file" or "file-loaded" or "end-file")
+        {
+            var eventReason = root.TryGetProperty("reason", out var value) ? value.ToString() : "missing";
+            _ = TraceAsync("event", $"playback={CurrentSnapshot().PlaybackId}; event={eventName}; entry={TryGetPlaylistEntryId(root)}; reason={eventReason}");
+        }
+        // mpv attaches playlist_entry_id to start-file, not file-loaded.
+        if (eventName == "start-file")
+        {
+            lock (stateGate) activePlaylistEntryId = TryGetPlaylistEntryId(root);
+            return;
+        }
         if (eventName == "file-loaded")
         {
             TaskCompletionSource<bool>? completion;
@@ -503,7 +545,11 @@ public sealed class MpvPlayerAdapter : IPlayerAdapter
             explicitSkip = !staleEntry && !differentActiveEntry && explicitSkipPending;
             if (explicitSkip) explicitSkipPending = false;
         }
-        if (staleEntry || differentActiveEntry) return;
+        if (staleEntry || differentActiveEntry)
+        {
+            _ = TraceAsync("end.ignored", $"playback={playbackId}; entry={playlistEntryId}; stale={staleEntry}; different={differentActiveEntry}");
+            return;
+        }
         if (reason == "replaced" && !explicitSkip) return;
         if (replacementPending && !explicitSkip && reason != "error") return;
         if (reason == "error")
@@ -533,6 +579,13 @@ public sealed class MpvPlayerAdapter : IPlayerAdapter
         return null;
     }
 
+    private async Task TraceAsync(string code, string message)
+    {
+        if (diagnosticLog is null) return;
+        try { await diagnosticLog.WriteAsync("Info", "player." + code, message).ConfigureAwait(false); }
+        catch (Exception) { }
+    }
+
     private void OnProcessExited(object? sender, EventArgs e)
     {
         foreach (var completion in pending.Values) completion.TrySetException(new MpvCommandException("process exited"));
@@ -543,6 +596,7 @@ public sealed class MpvPlayerAdapter : IPlayerAdapter
     {
         var current = CurrentSnapshot();
         if (current.State is PlayerLifecycleState.Failed or PlayerLifecycleState.Stopped) return;
+        _ = TraceAsync("process.exited", $"playback={current.PlaybackId}; state={current.State}; position={current.Position.TotalSeconds:F1}s");
         var failure = new PlayerFailure("player.process_exited", PlayerFailureKind.ProcessExited, true, "The player stopped unexpectedly.");
         ChangeState(PlayerLifecycleState.Failed, current.PlaybackId, failure);
         Publish(new PlaybackFailedEvent(Guid.NewGuid(), DateTimeOffset.UtcNow, current.PlaybackId, failure));

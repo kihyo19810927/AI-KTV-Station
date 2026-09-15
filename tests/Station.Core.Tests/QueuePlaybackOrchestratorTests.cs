@@ -228,6 +228,45 @@ public sealed class QueuePlaybackOrchestratorTests
         Assert.Single(player.Loads);
     }
 
+    [Fact]
+    public async Task Load_timeout_retries_current_then_halts_without_consuming_the_next_song()
+    {
+        var player = new FakePlayer { FailLoad = true };
+        var store = new MemoryPlaybackStore(Item(1), Item(2), Item(3));
+        var errors = new MemoryFailureStore();
+        var service = Create(player, store, 2, errors);
+        await service.StartAsync(store.RoomId);
+        Assert.True(service.Current.IsHalted);
+        Assert.Equal(3, player.Loads.Count);
+        Assert.Single(player.Loads.Select(x => x.MediaPath).Distinct());
+        Assert.Single(store.Completed);
+        Assert.Equal(3, errors.Errors.Count);
+        Assert.Equal(QueueItemStatus.Waiting, store.Statuses[store.Items[0].QueueItemId]);
+        Assert.All(errors.Errors, error => Assert.True(error.IsRetryable));
+        Assert.Contains("HaltPlayback", errors.Errors.Last().DiagnosticSummary);
+    }
+
+    [Fact]
+    public async Task Every_successful_queue_load_notifies_the_overlay_observer()
+    {
+        var player = new FakePlayer();
+        var store = new MemoryPlaybackStore(Item(1), Item(2));
+        var observer = new RecordingObserver();
+        var service = new QueuePlaybackOrchestrator(player, store,
+            new PlaybackRecoveryService(new MemoryFailureStore(), new PlaybackRecoveryPolicy()),
+            TimeProvider.System, startedObserver: observer);
+        await service.StartAsync(store.RoomId);
+        var first = service.Current.PlaybackId!.Value;
+        await service.HandleAsync(new PlaybackEndedEvent(Guid.NewGuid(), DateTimeOffset.UtcNow, first, PlaybackEndReason.Completed));
+        Assert.Equal(new[] { first, service.Current.PlaybackId!.Value }, observer.Starts);
+    }
+
+    private sealed class RecordingObserver : IPlaybackStartedObserver
+    {
+        public List<Guid> Starts { get; } = [];
+        public Task OnStartedAsync(Guid playbackId, CancellationToken cancellationToken) { Starts.Add(playbackId); return Task.CompletedTask; }
+    }
+
     private static QueuePlaybackOrchestrator Create(
         FakePlayer player,
         MemoryPlaybackStore store,
@@ -251,6 +290,7 @@ public sealed class QueuePlaybackOrchestratorTests
         public List<PlayerLoadRequest> Loads { get; } = [];
         public int StartCount { get; private set; }
         public int StopCount { get; private set; }
+        public bool FailLoad { get; init; }
 
         public Task<Result<PlayerSnapshot>> StartAsync(CancellationToken cancellationToken = default)
         {
@@ -267,6 +307,7 @@ public sealed class QueuePlaybackOrchestratorTests
         public Task<Result<PlayerSnapshot>> LoadAsync(PlayerLoadRequest request, CancellationToken cancellationToken = default)
         {
             Loads.Add(request);
+            if (FailLoad) return Task.FromResult(Result<PlayerSnapshot>.Failure(new Error("player.command_timeout", "等待 file-loaded 超时")));
             snapshot = Snapshot(PlayerLifecycleState.Playing, request.PlaybackId);
             return Success();
         }
