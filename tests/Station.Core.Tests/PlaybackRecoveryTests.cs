@@ -68,6 +68,20 @@ public sealed class PlaybackRecoveryTests
     }
 
     [Fact]
+    public async Task Retryable_media_load_failure_is_recorded_without_permanently_disabling_media()
+    {
+        var store = new RecordingStore();
+        var result = await new PlaybackRecoveryService(store, new PlaybackRecoveryPolicy())
+            .DecideAndRecordAsync(Guid.NewGuid(), PlaybackFailureStage.Load,
+                new PlayerFailure("player.media_load_failed", PlayerFailureKind.MediaLoadFailed, true, "Mounted media could not be loaded."), 0);
+
+        Assert.True(result.IsSuccess);
+        Assert.Equal(PlaybackRecoveryAction.RetryCurrent, result.Value.Action);
+        Assert.Null(store.Availability);
+        Assert.Equal("player.media_load_failed", store.Error!.ErrorCode);
+    }
+
+    [Fact]
     public async Task Ef_store_marks_media_offline_but_retains_catalog_and_error_history()
     {
         var connection = new SqliteConnection("Data Source=:memory:");

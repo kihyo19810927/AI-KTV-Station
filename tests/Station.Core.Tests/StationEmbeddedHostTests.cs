@@ -40,9 +40,11 @@ public sealed class StationEmbeddedHostTests
             Assert.Equal(HttpStatusCode.OK, managementHealth.StatusCode);
             var catalogStats = await client.GetFromJsonAsync<System.Text.Json.JsonDocument>("/api/manage/catalog/stats");
             Assert.Equal(0, catalogStats!.RootElement.GetProperty("songCount").GetInt64());
+            var desktopFavoriteSongId = Guid.NewGuid();
             await using (var dbScope = app.Services.CreateAsyncScope())
             {
                 var database = dbScope.ServiceProvider.GetRequiredService<StationDbContext>();
+                database.Songs.Add(new Song { Id = desktopFavoriteSongId, Title = "电脑收藏测试歌" });
                 database.PlaybackErrors.Add(new PlaybackError
                 {
                     ErrorCode = "player.unexpected_end_file",
@@ -52,6 +54,10 @@ public sealed class StationEmbeddedHostTests
                 });
                 await database.SaveChangesAsync();
             }
+            Assert.Empty((await client.GetFromJsonAsync<Station.Application.Library.FavoriteSong[]>("/api/manage/library/favorites"))!);
+            Assert.Equal(HttpStatusCode.OK, (await client.PutAsJsonAsync($"/api/manage/library/favorites/{desktopFavoriteSongId}", new { favorite = true })).StatusCode);
+            var desktopFavorites = await client.GetFromJsonAsync<Station.Application.Library.FavoriteSong[]>("/api/manage/library/favorites");
+            Assert.Equal("电脑收藏测试歌", Assert.Single(desktopFavorites!).Title);
             var playbackFailuresResponse = await client.GetAsync("/api/manage/playback/failures?count=1");
             var playbackFailuresBody = await playbackFailuresResponse.Content.ReadAsStringAsync();
             Assert.True(playbackFailuresResponse.IsSuccessStatusCode, $"{playbackFailuresResponse.StatusCode}: {playbackFailuresBody}");

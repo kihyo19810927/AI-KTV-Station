@@ -2,6 +2,7 @@ using Station.Application.Catalog;
 using Station.Application.Common;
 using Station.Application.Configuration;
 using Station.Application.Health;
+using Station.Application.Library;
 using Station.Application.Playback;
 using Station.Application.Rooms;
 using Station.Server.Security;
@@ -11,6 +12,7 @@ using System.Net;
 using System.Net.NetworkInformation;
 using System.Net.Sockets;
 using QRCoder;
+using Station.Server.Realtime;
 
 namespace Station.Server.Api;
 
@@ -30,6 +32,8 @@ public static class StationManagementEndpoints
         management.MapGet("/qr", RenderQrAsync).WithName("RenderManagementQr");
         management.MapGet("/catalog/stats", GetCatalogStatsAsync).WithName("GetCatalogStats");
         management.MapGet("/catalog/songs/{songId:guid}/artwork", GetSongArtworkAsync);
+        management.MapGet("/library/favorites", GetDesktopFavoritesAsync).WithName("GetDesktopFavorites");
+        management.MapPut("/library/favorites/{songId:guid}", SetDesktopFavoriteAsync).WithName("SetDesktopFavorite");
         management.MapPut("/settings", SaveSettingsAsync).WithName("SaveStationSettings");
         management.MapPost("/catalog/import", ImportCatalogAsync).WithName("ImportPortableCatalog");
         management.MapGet("/health", CheckHealthAsync).WithName("CheckStationHealth");
@@ -47,6 +51,37 @@ public static class StationManagementEndpoints
             .SelectMany(song => song.Artists).OrderBy(link => link.Order)
             .Select(link => link.Artist.Name).ToArrayAsync(cancellationToken);
         return Results.Ok(new { imageUrl = names.Select(name => lexicon.Resolve(name).ImageUrl).FirstOrDefault(url => !string.IsNullOrWhiteSpace(url)) });
+    }
+
+    private static async Task<IResult> GetDesktopFavoritesAsync(
+        HttpContext context,
+        ProfileLibraryService profiles,
+        CancellationToken cancellationToken)
+    {
+        if (!IsLocal(context)) return LocalOnly();
+        var profile = await EnsureDesktopProfileAsync(profiles, cancellationToken);
+        return Results.Ok(await profiles.ListFavoritesAsync(profile.Id, cancellationToken));
+    }
+
+    private static async Task<IResult> SetDesktopFavoriteAsync(
+        HttpContext context,
+        Guid songId,
+        DesktopFavoriteRequest request,
+        ProfileLibraryService profiles,
+        CancellationToken cancellationToken)
+    {
+        if (!IsLocal(context)) return LocalOnly();
+        var profile = await EnsureDesktopProfileAsync(profiles, cancellationToken);
+        var result = await profiles.SetFavoriteAsync(profile.Id, songId, request.Favorite, cancellationToken);
+        return result.IsSuccess ? Results.Ok(new { favorite = result.Value }) : StationApiEndpoints.Problem(result.Error);
+    }
+
+    private static async Task<HouseholdProfile> EnsureDesktopProfileAsync(ProfileLibraryService profiles, CancellationToken cancellationToken)
+    {
+        const string desktopProfileName = "电脑主控";
+        var existing = (await profiles.ListProfilesAsync(cancellationToken))
+            .FirstOrDefault(profile => string.Equals(profile.DisplayName, desktopProfileName, StringComparison.Ordinal));
+        return existing ?? (await profiles.CreateAsync(desktopProfileName, null, cancellationToken)).Profile;
     }
 
     private static async Task<IResult> EnsureHostRoomAsync(
@@ -93,11 +128,14 @@ public static class StationManagementEndpoints
         HttpContext context,
         Guid roomId,
         RoomAuthenticationService authentication,
+        RoomPresenceTracker presence,
         CancellationToken cancellationToken)
     {
         if (!IsLocal(context)) return LocalOnly();
         var result = await authentication.ListGuestsAsync(roomId, cancellationToken);
-        return result.IsSuccess ? Results.Ok(result.Value) : StationApiEndpoints.Problem(result.Error);
+        if (result.IsFailure) return StationApiEndpoints.Problem(result.Error);
+        var connected = presence.ConnectedGuests(roomId);
+        return Results.Ok(result.Value.Where(guest => guest.Role == RoomRole.Host || connected.Contains(guest.Id)));
     }
 
     private static IResult RenderQrAsync(HttpContext context, string? content)
@@ -228,6 +266,7 @@ public static class StationManagementEndpoints
 
     public sealed record LocalCatalogImportRequest(string? IndexPath, string? MountRoot);
     public sealed record LocalQrOverlayRequest(string? Content);
+    public sealed record DesktopFavoriteRequest(bool Favorite);
     public sealed record LocalHostRoomRequest(string? HostNickname, int? MaxQueuedSongsPerGuest);
     public sealed record LocalHostRoomResponse(RoomAdminDetails Room, IssuedRoomToken Host, string JoinUrl);
 }

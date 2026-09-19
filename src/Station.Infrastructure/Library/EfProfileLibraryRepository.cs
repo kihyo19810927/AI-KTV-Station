@@ -84,8 +84,8 @@ public sealed class EfProfileLibraryRepository(StationDbContext database, TimePr
         var rows = await database.ProfilePlaylistItems.AsNoTracking()
             .Where(x => x.ProfilePlaylist.UserProfileId == profileId && x.ProfilePlaylist.Kind == ProfilePlaylistKind.Favorites)
             .Include(x => x.Song).ThenInclude(x => x.Artists).ThenInclude(x => x.Artist)
-            .OrderByDescending(x => x.AddedAt).ToArrayAsync(cancellationToken);
-        return rows.Select(x => new FavoriteSong(x.SongId, x.Song.Title,
+            .ToArrayAsync(cancellationToken);
+        return rows.OrderByDescending(x => x.AddedAt).Select(x => new FavoriteSong(x.SongId, x.Song.Title,
             string.Join(" / ", x.Song.Artists.OrderBy(a => a.Order).Select(a => a.Artist.Name)), x.AddedAt)).ToArray();
     }
 

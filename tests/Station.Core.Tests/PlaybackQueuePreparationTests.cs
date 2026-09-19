@@ -10,6 +10,40 @@ namespace Station.Core.Tests;
 public sealed class PlaybackQueuePreparationTests
 {
     [Fact]
+    public async Task Previously_unreadable_media_is_retried_when_its_source_is_online()
+    {
+        var databasePath = Path.Combine(Path.GetTempPath(), $"ai-ktv-queue-retry-{Guid.NewGuid():N}.db");
+        try
+        {
+            var options = new DbContextOptionsBuilder<StationDbContext>()
+                .UseSqlite($"Data Source={databasePath};Pooling=False")
+                .Options;
+            await using var database = new StationDbContext(options);
+            await database.Database.MigrateAsync();
+            var source = new MediaSource { Name = "fixture", RootPath = Path.GetTempPath(), Availability = AvailabilityStatus.Available };
+            var media = CreateMedia(source, "retry.mkv", 10, DateTimeOffset.Parse("2026-09-01T00:00:00Z"));
+            media.Availability = AvailabilityStatus.Unreadable;
+            media.ProbeFingerprint = "already-probed";
+            var room = new RoomSession { JoinCode = "654321", CreatedAt = DateTimeOffset.UtcNow };
+            var guest = new Guest { RoomSession = room, Nickname = "主持人", TokenHash = Guid.NewGuid().ToString("N"), JoinedAt = DateTimeOffset.UtcNow, ExpiresAt = DateTimeOffset.UtcNow.AddHours(1) };
+            var item = new QueueItem { RoomSession = room, Song = media.Song, RequestedByGuest = guest, Position = 1, Status = QueueItemStatus.Waiting, RequestedAt = DateTimeOffset.UtcNow };
+            database.AddRange(source, guest, item);
+            await database.SaveChangesAsync();
+
+            var selected = await new EfPlaybackQueueStore(database).GetNextAsync(room.Id);
+
+            Assert.NotNull(selected);
+            Assert.Equal(item.Id, selected!.QueueItemId);
+            Assert.Equal(media.Id, selected.MediaFileId);
+            Assert.Null(selected.PreflightFailure);
+        }
+        finally
+        {
+            if (File.Exists(databasePath)) File.Delete(databasePath);
+        }
+    }
+
+    [Fact]
     public async Task Probe_failed_head_is_skipped_without_a_fourth_probe_and_next_waiting_item_is_probed()
     {
         var databasePath = Path.Combine(Path.GetTempPath(), $"ai-ktv-queue-probe-{Guid.NewGuid():N}.db");

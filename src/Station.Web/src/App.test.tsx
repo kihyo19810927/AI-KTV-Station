@@ -44,7 +44,43 @@ describe('mobile application shell', () => {
     fireEvent.click(screen.getByRole('button', { name: '按歌手' }))
     await waitFor(() => expect(vi.mocked(fetch).mock.calls.some(([url]) => String(url).includes('field=Artist') && String(url).includes('text=%E5%91%A8%E6%9D%B0%E4%BC%A6'))).toBe(true))
     fireEvent.click(screen.getByRole('tab', { name: '歌星' }))
+    const artist = await screen.findByRole('button', { name: /周杰伦/ })
+    fireEvent.error(artist.querySelector('img')!)
+    expect(within(artist).getByText('周')).toBeInTheDocument()
+    fireEvent.click(artist)
+    expect(await screen.findByRole('button', { name: '返回歌手列表' })).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: '返回歌手列表' }))
     expect(await screen.findByRole('button', { name: /周杰伦/ })).toBeInTheDocument()
+  })
+
+  it('uses previous and next paging and keeps desktop favorites separate from guest favorites', async () => {
+    const first = { songId: 'song-1', title: '第一页', artists: '歌手甲', availability: 'Available' }
+    const second = { songId: 'song-2', title: '第二页', artists: '歌手乙', availability: 'Available' }
+    vi.mocked(fetch).mockImplementation(async (url, init) => {
+      const path = String(url)
+      if (path === '/api/manage/room/ensure') return Response.json({ room: { id: 'room-1', joinCode: 'KTV826', maxQueuedSongsPerGuest: 100 }, host: { token: 'host-token', roomId: 'room-1', guestId: 'host-1', nickname: '主持人', role: 'Host', expiresAt: '2099-01-01T00:00:00Z' } })
+      if (path === '/api/manage/library/favorites' && (!init?.method || init.method === 'GET')) return Response.json([])
+      if (path === '/api/manage/library/favorites/song-1' && init?.method === 'PUT') return Response.json({ favorite: true })
+      if (path.startsWith('/api/catalog/search')) {
+        const requestedPage = new URL(path, 'http://station').searchParams.get('page')
+        return Response.json({ items: [requestedPage === '2' ? second : first], total: 21, page: Number(requestedPage), pageSize: 20 })
+      }
+      return Response.json({ items: [], total: 0, page: 1, pageSize: 20 })
+    })
+    renderApp('/desk')
+    await screen.findByRole('heading', { name: '电脑点歌' })
+    fireEvent.click(screen.getByRole('tab', { name: '歌曲' }))
+    fireEvent.change(screen.getByPlaceholderText('输入歌名、歌手或拼音'), { target: { value: '测试' } })
+    fireEvent.click(screen.getByRole('button', { name: '按歌名' }))
+    await screen.findByText('第一页')
+    fireEvent.click(screen.getByRole('button', { name: '收藏 第一页' }))
+    await waitFor(() => expect(vi.mocked(fetch).mock.calls.some(([url, init]) => String(url) === '/api/manage/library/favorites/song-1' && init?.method === 'PUT')).toBe(true))
+    fireEvent.click(screen.getByRole('button', { name: '下一页' }))
+    await screen.findByText('第二页')
+    expect(screen.queryByText('第一页')).not.toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: '上一页' }))
+    expect(await screen.findByText('第一页')).toBeInTheDocument()
+    expect(vi.mocked(fetch).mock.calls.some(([url]) => String(url) === '/api/library/favorites')).toBe(false)
   })
   it('keeps the desktop artist visual tree bounded with 24-card pages', async () => {
     const artists = Array.from({ length: 25 }, (_, index) => ({ id: `artist-${index}`, name: `歌手 ${String(index + 1).padStart(2, '0')}`, songCount: 1 }))
@@ -110,7 +146,8 @@ describe('mobile application shell', () => {
     vi.mocked(fetch).mockImplementation(async url => {
       const path = String(url)
       if (path === '/api/manage/room/ensure') return new Response(JSON.stringify({ room: { id: 'room-1', joinCode: 'KTV826', maxQueuedSongsPerGuest: 100 }, host: { token: 'host-token', roomId: 'room-1', guestId: 'host-1', nickname: '主持人', role: 'Host', expiresAt: '2099-01-01T00:00:00Z' }, joinUrl: 'http://192.168.1.20:5090/join?code=KTV826' }), { status: 200, headers: { 'Content-Type': 'application/json' } })
-      if (path.startsWith('/api/library/favorites')) return new Response(JSON.stringify([]), { status: 200, headers: { 'Content-Type': 'application/json' } })
+      if (path === '/api/manage/library/favorites') return Response.json([])
+      if (path.startsWith('/api/library/history')) return Response.json({ items: [{ id: 'history-1', songId: 'song-old', title: '已唱歌曲', artists: '歌手丙', outcome: 'Completed', startedAt: '2099-01-01T00:00:00Z' }], total: 1, page: 1, pageSize: 30 })
       if (path === '/api/playback/pause') return new Response(JSON.stringify({}), { status: 200, headers: { 'Content-Type': 'application/json' } })
       return new Response(JSON.stringify({ items: [], total: 0, page: 1, pageSize: 20 }), { status: 200, headers: { 'Content-Type': 'application/json' } })
      })
@@ -118,6 +155,9 @@ describe('mobile application shell', () => {
      await screen.findByRole('heading', { name: '电脑点歌' })
      fireEvent.click(screen.getByRole('button', { name: '点歌队列' }))
      expect(screen.getByText('晴天')).toBeInTheDocument()
+     expect(await screen.findByText('已唱歌曲')).toBeInTheDocument()
+     expect(screen.getByRole('button', { name: '移除 晴天' })).toBeInTheDocument()
+     expect(screen.getByRole('button', { name: '清空队列' })).toBeInTheDocument()
      fireEvent.click(screen.getByRole('button', { name: '正在播放' }))
      expect(await screen.findByText('海阔天空')).toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: '暂停' }))

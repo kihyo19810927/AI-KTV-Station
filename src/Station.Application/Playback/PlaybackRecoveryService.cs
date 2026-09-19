@@ -102,13 +102,14 @@ public sealed class PlaybackRecoveryService(IPlaybackFailureStore store, Playbac
             IsRetryable = failure.IsRetryable,
             DiagnosticSummary = diagnosticSummary,
             OccurredAt = DateTimeOffset.UtcNow,
-        }, AvailabilityImpact(failure.Kind), cancellationToken).ConfigureAwait(false);
+        }, AvailabilityImpact(failure), cancellationToken).ConfigureAwait(false);
     }
 
-    private static AvailabilityStatus? AvailabilityImpact(PlayerFailureKind kind) => kind switch
+    private static AvailabilityStatus? AvailabilityImpact(PlayerFailure failure) => failure.Kind switch
     {
         PlayerFailureKind.MediaUnavailable => AvailabilityStatus.Offline,
-        PlayerFailureKind.MediaLoadFailed or PlayerFailureKind.Unsupported => AvailabilityStatus.Unreadable,
+        PlayerFailureKind.Unsupported => AvailabilityStatus.Unreadable,
+        PlayerFailureKind.MediaLoadFailed when !failure.IsRetryable => AvailabilityStatus.Unreadable,
         _ => null,
     };
 }

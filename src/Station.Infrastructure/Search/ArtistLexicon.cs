@@ -13,8 +13,14 @@ public sealed class ArtistLexicon
 
     internal ArtistLexicon(IReadOnlyDictionary<string, ArtistLexiconEntry> entries) => this.entries = entries;
 
-    public ArtistLexiconEntry Resolve(string name) =>
-        entries.TryGetValue(name.Trim(), out var entry) ? entry : new("其他", 0, null);
+    public ArtistLexiconEntry Resolve(string name)
+    {
+        if (!entries.TryGetValue(name.Trim(), out var entry)) return new("其他", 0, null);
+        var imageUrl = entry.ImageUrl?.StartsWith("http://", StringComparison.OrdinalIgnoreCase) == true
+            ? "https://" + entry.ImageUrl[7..]
+            : entry.ImageUrl;
+        return entry with { ImageUrl = imageUrl };
+    }
 
     private static IReadOnlyDictionary<string, ArtistLexiconEntry> LoadEmbedded()
     {

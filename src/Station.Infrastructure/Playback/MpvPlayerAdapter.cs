@@ -554,11 +554,13 @@ public sealed class MpvPlayerAdapter : IPlayerAdapter
         if (replacementPending && !explicitSkip && reason != "error") return;
         if (reason == "error")
         {
+            var detail = MpvEndFileDetail(root, playlistEntryId);
             var failure = new PlayerFailure(
                 "player.media_load_failed",
                 PlayerFailureKind.MediaLoadFailed,
                 true,
-                $"播放器无法播放媒体（mpv 原因：{reason}）。");
+                $"播放器无法播放媒体（{detail}）。");
+            _ = TraceAsync("media.error", $"playback={playbackId}; {detail}");
             lock (stateGate) fileLoaded?.TrySetException(new MpvCommandException("media load failed"));
             ChangeState(PlayerLifecycleState.Failed, playbackId, failure);
             Publish(new PlaybackFailedEvent(Guid.NewGuid(), DateTimeOffset.UtcNow, playbackId, failure));
@@ -577,6 +579,20 @@ public sealed class MpvPlayerAdapter : IPlayerAdapter
         if (root.TryGetProperty("playlist_entry_id", out var entryId) && entryId.TryGetInt64(out var value))
             return value;
         return null;
+    }
+
+    private static string MpvEndFileDetail(JsonElement root, long? playlistEntryId)
+    {
+        var details = new List<string> { "reason=error" };
+        foreach (var property in new[] { "error", "file_error" })
+        {
+            if (!root.TryGetProperty(property, out var value)) continue;
+            var text = value.ToString().Replace('\r', ' ').Replace('\n', ' ').Trim();
+            if (text.Length > 160) text = text[..160];
+            if (!string.IsNullOrWhiteSpace(text)) details.Add($"{property}={text}");
+        }
+        if (playlistEntryId is { } entryId) details.Add($"entry={entryId}");
+        return string.Join("; ", details);
     }
 
     private async Task TraceAsync(string code, string message)

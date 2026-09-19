@@ -32,7 +32,12 @@ public sealed class EfPlaybackQueueStore(StationDbContext database, IMediaProbe?
             .ToArray();
         var media = candidates
             .Where(x => x.Availability == AvailabilityStatus.Available && x.MediaSource.IsEnabled && x.MediaSource.Availability == AvailabilityStatus.Available)
-            .FirstOrDefault();
+            .FirstOrDefault()
+            // A prior transient CloudDrive/mpv read failure may have marked a
+            // file unreadable. Keep it eligible for a later real playback
+            // attempt while the source itself is online.
+            ?? candidates.FirstOrDefault(x => x.Availability == AvailabilityStatus.Unreadable &&
+                x.MediaSource.IsEnabled && x.MediaSource.Availability == AvailabilityStatus.Available);
         if (media is null)
         {
             var knownMedia = candidates.FirstOrDefault();

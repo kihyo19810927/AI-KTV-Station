@@ -5,7 +5,7 @@ using Station.Domain.Models;
 namespace Station.Application.Library;
 
 public sealed record FavoriteSong(Guid SongId, string Title, string Artists, DateTimeOffset FavoritedAt);
-public sealed record PlaybackHistoryEntry(Guid Id, Guid SongId, string Title, PlaybackOutcome Outcome, DateTimeOffset StartedAt, DateTimeOffset? EndedAt);
+public sealed record PlaybackHistoryEntry(Guid Id, Guid SongId, string Title, string Artists, PlaybackOutcome Outcome, DateTimeOffset StartedAt, DateTimeOffset? EndedAt);
 public sealed record PopularSong(Guid SongId, string Title, string Artists, int PlayCount, DateTimeOffset LastPlayedAt);
 public sealed record PagedResult<T>(IReadOnlyList<T> Items, int Page, int PageSize, long Total);
 
