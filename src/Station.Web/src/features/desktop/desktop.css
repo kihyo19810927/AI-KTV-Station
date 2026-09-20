@@ -71,7 +71,7 @@
 .ktv-song-copy strong { font-size: 14px; font-weight: 500; }
 .ktv-song-copy small { margin-top: 3px; color: var(--ktv-muted); font-size: 11px; }
 .ktv-quality { padding: 4px 7px; border-radius: 7px; color: var(--ktv-purple); background: var(--ktv-purple-soft); font-size: 10px; }
-.ktv-request { min-width: 60px; height: 34px; border: 0; border-radius: 9px; background: linear-gradient(135deg, #d963e9, #a84bdf); color: #fff; cursor: pointer; transition: transform .16s ease, filter .16s ease; box-shadow: 0 6px 16px rgba(189, 77, 222, .22); }
+.ktv-request { min-width: 64px; height: 34px; padding: 0 10px; flex-shrink: 0; white-space: nowrap; border: 0; border-radius: 9px; background: linear-gradient(135deg, #d963e9, #a84bdf); color: #fff; cursor: pointer; transition: transform .16s ease, filter .16s ease; box-shadow: 0 6px 16px rgba(189, 77, 222, .22); }
 .ktv-request:hover:not(:disabled) { filter: brightness(1.08); transform: translateY(-1px); }
 .ktv-request:disabled { cursor: not-allowed; opacity: .55; }
 .ktv-request.queued { background: rgba(77, 213, 164, .16); color: var(--ktv-green); box-shadow: none; }

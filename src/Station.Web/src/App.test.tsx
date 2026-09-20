@@ -125,6 +125,7 @@ describe('mobile application shell', () => {
      await screen.findByText('夜曲')
     fireEvent.click(screen.getByRole('button', { name: '点歌' }))
     expect(await screen.findByRole('status')).toHaveTextContent('已点播《夜曲》')
+    expect(screen.getByRole('button', { name: '已点' })).toHaveClass('queued')
       fireEvent.click(screen.getByRole('button', { name: '曲库管理' }))
       expect(await screen.findByRole('heading', { name: '导入或更新曲库', level: 2 })).toBeInTheDocument()
       expect(await screen.findByText('12345')).toBeInTheDocument()
