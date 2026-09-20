@@ -263,10 +263,10 @@ describe('mobile application shell', () => {
     fireEvent.click(screen.getByRole('link', { name: '已点' })); expect(await screen.findByText('夜曲')).toBeInTheDocument()
     expect(vi.mocked(fetch).mock.calls.filter(([, init]) => init?.method === 'POST')).toHaveLength(1)
   })
-  it('lists only my songs and removes a waiting item', async () => {
+  it('lists the room queue but only allows changes to my waiting songs', async () => {
     const items = [{ id: 'mine-1', songId: 'song-1', title: '我的歌', requestedByGuestId: 'guest-1', requestedByNickname: '小明', position: 1, status: 'Waiting', requestedAt: '2026-09-10T00:00:00Z' }, { id: 'other-1', songId: 'song-2', title: '别人的歌', requestedByGuestId: 'guest-2', requestedByNickname: '朋友', position: 2, status: 'Waiting', requestedAt: '2026-09-10T00:00:00Z' }]
     realtime.snapshot = { version: 5, roomId: 'room-1', queue: items }; vi.mocked(fetch).mockImplementation(async (_url, init) => init?.method === 'DELETE' ? new Response(null, { status: 204 }) : new Response(JSON.stringify(items), { status: 200, headers: { 'Content-Type': 'application/json' } }))
-    sessionStorage.setItem('ai-ktv-station.room-session.v1', JSON.stringify(validSession)); renderApp('/room/queue'); await screen.findByText('我的歌'); expect(screen.queryByText('别人的歌')).not.toBeInTheDocument(); expect(screen.getByText('我已点 1 首 · 房间共 2 首')).toBeInTheDocument(); fireEvent.click(screen.getByRole('button', { name: '删除 我的歌' })); await waitFor(() => expect(screen.queryByText('我的歌')).not.toBeInTheDocument())
+    sessionStorage.setItem('ai-ktv-station.room-session.v1', JSON.stringify({ ...validSession, expiresAt: new Date(Date.now() + 60_000).toISOString() })); renderApp('/room/queue'); await screen.findByText('我的歌'); expect(screen.getByText('别人的歌')).toBeInTheDocument(); expect(screen.getByText('朋友 点播')).toBeInTheDocument(); expect(screen.getByText('我已点 1 首 · 房间共 2 首')).toBeInTheDocument(); expect(screen.queryByRole('button', { name: '删除 别人的歌' })).not.toBeInTheDocument(); expect(screen.queryByRole('button', { name: '插播 别人的歌' })).not.toBeInTheDocument(); fireEvent.click(screen.getByRole('button', { name: '删除 我的歌' })); await waitFor(() => expect(screen.queryByText('我的歌')).not.toBeInTheDocument())
   })
   it('translates the server-side guest queue limit', async () => {
     const song = { songId: 'song-1', title: '夜曲', artists: '周杰伦', availability: 'Available' }
