@@ -12,6 +12,8 @@ public interface IProfileLibraryRepository
     Task<ProfileLibrarySession> CreateAsync(string displayName, string? avatarUrl, CancellationToken cancellationToken = default);
     Task<ProfileLibrarySession?> ResolveAsync(string deviceToken, CancellationToken cancellationToken = default);
     Task<ProfileLibrarySession?> ActivateAsync(Guid profileId, string? pin, CancellationToken cancellationToken = default);
+    Task<Result<bool>> SetPinAsync(Guid profileId, string? deviceToken, string? currentPin, string? newPin, CancellationToken cancellationToken = default);
+    Task<Result<bool>> RevokeDeviceAsync(Guid profileId, string? deviceToken, bool allDevices, CancellationToken cancellationToken = default);
     Task<IReadOnlyList<ProfilePlaylistSummary>> ListPlaylistsAsync(Guid profileId, CancellationToken cancellationToken = default);
     Task<Result<ProfilePlaylistSummary>> CreatePlaylistAsync(Guid profileId, string name, bool isFamilyShared, CancellationToken cancellationToken = default);
     Task<Result<bool>> SetFavoriteAsync(Guid profileId, Guid songId, bool favorite, CancellationToken cancellationToken = default);
@@ -35,6 +37,12 @@ public sealed class ProfileLibraryService(IProfileLibraryRepository repository)
 
     public Task<ProfileLibrarySession?> ActivateAsync(Guid profileId, string? pin, CancellationToken cancellationToken = default) =>
         profileId == Guid.Empty ? Task.FromResult<ProfileLibrarySession?>(null) : repository.ActivateAsync(profileId, pin, cancellationToken);
+
+    public Task<Result<bool>> SetPinAsync(Guid profileId, string? deviceToken, string? currentPin, string? newPin, CancellationToken cancellationToken = default) =>
+        repository.SetPinAsync(profileId, deviceToken, currentPin, newPin, cancellationToken);
+
+    public Task<Result<bool>> RevokeDeviceAsync(Guid profileId, string? deviceToken, bool allDevices, CancellationToken cancellationToken = default) =>
+        repository.RevokeDeviceAsync(profileId, deviceToken, allDevices, cancellationToken);
 
     public Task<IReadOnlyList<ProfilePlaylistSummary>> ListPlaylistsAsync(Guid profileId, CancellationToken cancellationToken = default) => repository.ListPlaylistsAsync(profileId, cancellationToken);
     public Task<Result<ProfilePlaylistSummary>> CreatePlaylistAsync(Guid profileId, string name, bool isFamilyShared, CancellationToken cancellationToken = default) => repository.CreatePlaylistAsync(profileId, name, isFamilyShared, cancellationToken);

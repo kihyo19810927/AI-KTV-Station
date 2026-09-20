@@ -1,4 +1,5 @@
 using System.Net;
+using System.Collections.Concurrent;
 using Station.Application.Common;
 using Station.Application.Library;
 using Station.Application.Playback;
@@ -37,6 +38,9 @@ public static class StationApiEndpoints
         api.MapGet("/profiles", ListProfilesAsync).WithName("ListHouseholdProfiles");
         api.MapPost("/profiles", CreateProfileAsync).WithName("CreateHouseholdProfile");
         api.MapPost("/profiles/{profileId:guid}/activate", ActivateProfileAsync).WithName("ActivateHouseholdProfile");
+        api.MapPut("/profiles/{profileId:guid}/pin", SetProfilePinAsync).WithName("SetHouseholdProfilePin");
+        api.MapPost("/profiles/{profileId:guid}/devices/revoke-current", RevokeCurrentProfileDeviceAsync).WithName("RevokeCurrentProfileDevice");
+        api.MapPost("/profiles/{profileId:guid}/devices/revoke-all", RevokeAllProfileDevicesAsync).WithName("RevokeAllProfileDevices");
         api.MapGet("/profiles/session", ResolveProfileAsync).WithName("ResolveHouseholdProfile");
         api.MapGet("/profiles/{profileId:guid}/playlists", ListProfilePlaylistsAsync).WithName("ListProfilePlaylists");
         api.MapGet("/profiles/{profileId:guid}/favorites", ListProfileFavoritesAsync).WithName("ListProfileFavorites");
@@ -128,6 +132,8 @@ public static class StationApiEndpoints
         HttpContext context,
         RoomAuthenticationService authentication,
         ISongSearchIndex search,
+        IArtistBrowseService artistBrowse,
+        ISearchTextNormalizer normalizer,
         string? text,
         int page = 1,
         int pageSize = 20,
@@ -145,7 +151,27 @@ public static class StationApiEndpoints
         var identity = await AuthorizeAsync(context, authentication, RoomPermission.ViewCatalog, cancellationToken);
         if (identity.IsFailure) return Problem(identity.Error);
         var result = await search.SearchAsync(new(text, page, pageSize, language, category, quality, yearFrom, yearTo, sort, artistGroup, artist, field), cancellationToken);
-        return result.IsSuccess ? Results.Ok(result.Value) : Problem(result.Error);
+        if (result.IsFailure) return Problem(result.Error);
+        if (string.IsNullOrWhiteSpace(text)) return Results.Ok(result.Value);
+
+        // Artist suggestions are deliberately capped. The browse service already combines
+        // the embedded artist baseline with play/favorite statistics and stable ordering.
+        var queryKeys = normalizer.CreateKeys(text);
+        var queryCandidates = new[] { queryKeys.Normalized, queryKeys.Simplified, queryKeys.Traditional, queryKeys.Pinyin, queryKeys.Initials, queryKeys.Compact }
+            .Where(x => !string.IsNullOrWhiteSpace(x)).Select(SearchTextNormalization.Compact).Where(x => x.Length > 0).Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
+        if (queryCandidates.Length == 0) return Results.Ok(result.Value);
+        var artists = (await artistBrowse.ListAsync(null, 5_000, cancellationToken))
+            .Where(x =>
+            {
+                var artistKeys = normalizer.CreateKeys(x.Name);
+                var aliases = new[] { artistKeys.Normalized, artistKeys.Simplified, artistKeys.Traditional, artistKeys.Pinyin, artistKeys.Initials, artistKeys.Compact }
+                    .Where(value => !string.IsNullOrWhiteSpace(value)).Select(SearchTextNormalization.Compact);
+                return aliases.Any(alias => queryCandidates.Any(candidate => alias.Contains(candidate, StringComparison.OrdinalIgnoreCase)));
+            })
+            .Take(5)
+            .Select(x => new ArtistSearchItem(x.ArtistId, x.Name, x.SongCount, x.Popularity, x.ImageUrl))
+            .ToArray();
+        return Results.Ok(result.Value with { Artists = artists });
     }
 
     private static async Task<IResult> BrowseArtistsAsync(HttpContext context, RoomAuthenticationService authentication,
@@ -319,8 +345,36 @@ public static class StationApiEndpoints
     {
         var identity = await AuthorizeAsync(context, authentication, RoomPermission.ViewCatalog, cancellationToken);
         if (identity.IsFailure) return Problem(identity.Error);
+        var key = $"{profileId:N}:{identity.Value.GuestId:N}";
+        if (!ProfileActivationRateLimiter.TryAllow(key)) return Problem(new Error("profile.rate_limited", "Too many PIN attempts. Try again later."));
         var session = await profiles.ActivateAsync(profileId, request.Pin, cancellationToken);
+        if (session is null) ProfileActivationRateLimiter.RecordFailure(key); else ProfileActivationRateLimiter.Clear(key);
         return session is null ? Problem(new Error("profile.activation_denied", "Profile was not found or its PIN is incorrect.")) : Results.Ok(session);
+    }
+
+    private static async Task<IResult> SetProfilePinAsync(Guid profileId, HttpContext context, ProfilePinRequest request, RoomAuthenticationService authentication, ProfileLibraryService profiles, CancellationToken cancellationToken)
+    {
+        var identity = await AuthorizeAsync(context, authentication, RoomPermission.ViewCatalog, cancellationToken);
+        if (identity.IsFailure) return Problem(identity.Error);
+        var result = await profiles.SetPinAsync(profileId, context.Request.Headers["X-Station-Profile-Token"].ToString(), request.CurrentPin, request.NewPin, cancellationToken);
+        return result.IsSuccess ? Results.Ok(new { RequiresPin = request.NewPin is not null }) : Problem(result.Error);
+    }
+
+    private static async Task<IResult> RevokeCurrentProfileDeviceAsync(Guid profileId, HttpContext context, RoomAuthenticationService authentication, ProfileLibraryService profiles, CancellationToken cancellationToken)
+    {
+        var identity = await AuthorizeAsync(context, authentication, RoomPermission.ViewCatalog, cancellationToken);
+        if (identity.IsFailure) return Problem(identity.Error);
+        var result = await profiles.RevokeDeviceAsync(profileId, context.Request.Headers["X-Station-Profile-Token"].ToString(), false, cancellationToken);
+        return result.IsSuccess ? Results.NoContent() : Problem(result.Error);
+    }
+
+    private static async Task<IResult> RevokeAllProfileDevicesAsync(Guid profileId, HttpContext context, RoomAuthenticationService authentication, ProfileLibraryService profiles, CancellationToken cancellationToken)
+    {
+        if (!LocalRequestPolicy.IsLocal(context.Connection.RemoteIpAddress)) return Problem(new Error("auth.local_only", "Device administration is available only on the host."));
+        var identity = await AuthorizeAsync(context, authentication, RoomPermission.ManageRoom, cancellationToken);
+        if (identity.IsFailure) return Problem(identity.Error);
+        var result = await profiles.RevokeDeviceAsync(profileId, null, true, cancellationToken);
+        return result.IsSuccess ? Results.NoContent() : Problem(result.Error);
     }
 
     private static async Task<IResult> ResolveProfileAsync(HttpContext context, RoomAuthenticationService authentication, ProfileLibraryService profiles, CancellationToken cancellationToken)
@@ -433,6 +487,7 @@ public static class StationApiEndpoints
         {
             "auth.token_required" or "auth.token_invalid" or "auth.token_expired" or "auth.token_revoked" or "auth.room_closed" => StatusCodes.Status401Unauthorized,
             "auth.forbidden" or "auth.local_only" or "auth.room_mismatch" or "queue.forbidden" or "profile.forbidden" => StatusCodes.Status403Forbidden,
+            "profile.rate_limited" => StatusCodes.Status429TooManyRequests,
             var code when code.EndsWith("not_found", StringComparison.Ordinal) => StatusCodes.Status404NotFound,
             "room.already_open" or "scan.already_running" or "scan.operation_finished" or "queue.guest_limit_reached" or "queue.item_not_mutable" => StatusCodes.Status409Conflict,
             _ => StatusCodes.Status400BadRequest,
@@ -453,4 +508,30 @@ public sealed record SubtitleTrackRequest(int? StreamId);
 public sealed record FavoriteRequest(bool Favorite);
 public sealed record CreateProfileRequest(string DisplayName, string? AvatarUrl);
 public sealed record ActivateProfileRequest(string? Pin);
+public sealed record ProfilePinRequest(string? CurrentPin, string? NewPin);
 public sealed record CreatePlaylistRequest(string Name, bool IsFamilyShared);
+
+internal static class ProfileActivationRateLimiter
+{
+    private static readonly ConcurrentDictionary<string, Queue<DateTimeOffset>> Failures = new(StringComparer.Ordinal);
+    private static readonly TimeSpan Window = TimeSpan.FromMinutes(1);
+
+    public static bool TryAllow(string key)
+    {
+        var now = DateTimeOffset.UtcNow;
+        var queue = Failures.GetOrAdd(key, _ => new Queue<DateTimeOffset>());
+        lock (queue)
+        {
+            while (queue.Count > 0 && now - queue.Peek() >= Window) queue.Dequeue();
+            return queue.Count < 5;
+        }
+    }
+
+    public static void RecordFailure(string key)
+    {
+        var queue = Failures.GetOrAdd(key, _ => new Queue<DateTimeOffset>());
+        lock (queue) queue.Enqueue(DateTimeOffset.UtcNow);
+    }
+
+    public static void Clear(string key) => Failures.TryRemove(key, out _);
+}

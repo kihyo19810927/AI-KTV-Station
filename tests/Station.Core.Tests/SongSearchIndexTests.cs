@@ -41,6 +41,18 @@ public sealed class SongSearchIndexTests
     }
 
     [Fact]
+    public async Task Falls_back_to_cjk_middle_substring_when_fts_has_no_match()
+    {
+        await using var fixture = await SearchFixture.CreateAsync();
+        await fixture.AddAsync("月亮代表我的心", "邓丽君", "国语", "经典", "1080P", 1977);
+        await fixture.Index.RebuildAsync();
+
+        var result = await fixture.Search("代表");
+
+        Assert.Equal("月亮代表我的心", Assert.Single(result.Items).Title);
+    }
+
+    [Fact]
     public async Task Supports_stable_paging_sorting_update_delete_and_query_validation()
     {
         await using var fixture = await SearchFixture.CreateAsync();

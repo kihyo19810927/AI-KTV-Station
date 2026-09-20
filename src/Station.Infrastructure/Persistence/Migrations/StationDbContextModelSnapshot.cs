@@ -315,6 +315,9 @@ namespace Station.Infrastructure.Persistence.Migrations
                     b.Property<DateTimeOffset>("CreatedAt")
                         .HasColumnType("TEXT");
 
+                    b.Property<DateTimeOffset>("ExpiresAt")
+                        .HasColumnType("TEXT");
+
                     b.Property<DateTimeOffset>("LastUsedAt")
                         .HasColumnType("TEXT");
 

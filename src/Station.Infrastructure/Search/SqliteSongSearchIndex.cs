@@ -53,6 +53,7 @@ public sealed class SqliteSongSearchIndex(StationDbContext database, ISearchText
         var validation = Validate(query);
         if (validation is not null) return Result<SongSearchPage>.Failure(validation);
         var match = CompileMatch(query.Text, query.Field);
+        CjkFallback? fallback = null;
         var where = new List<string>();
         if (match is not null) where.Add("SongSearchFts MATCH @match");
         if (!string.IsNullOrWhiteSpace(query.Language)) where.Add("d.Language = @language COLLATE NOCASE");
@@ -66,7 +67,7 @@ public sealed class SqliteSongSearchIndex(StationDbContext database, ISearchText
             ? "SongSearchDocuments d"
             : "SongSearchFts JOIN SongSearchDocuments d ON d.rowid = SongSearchFts.rowid";
         var predicate = where.Count == 0 ? string.Empty : $" WHERE {string.Join(" AND ", where)}";
-        var rank = match is null ? "0.0" : "bm25(SongSearchFts)";
+        var rank = match is null ? "0.0" : "bm25(SongSearchFts, 1.5, 1.0)";
         var order = query.Sort switch
         {
             SongSearchSort.Title => "d.NormalizedTitle, d.SongId",
@@ -80,10 +81,30 @@ public sealed class SqliteSongSearchIndex(StationDbContext database, ISearchText
         try
         {
             var connection = database.Database.GetDbConnection();
-            var total = await CountAsync(connection, from, predicate, query, match, cancellationToken);
+            var total = await CountAsync(connection, from, predicate, query, match, fallback, cancellationToken);
+            if (total == 0 && !string.IsNullOrWhiteSpace(query.Text) && query.Text.Any(c => c is >= '\u4e00' and <= '\u9fff'))
+            {
+                fallback = CompileCjkContains(query.Text, query.Field);
+                if (fallback is not null)
+                {
+                    from = "SongSearchDocuments d";
+                    where.Remove("SongSearchFts MATCH @match");
+                    where.Add(fallback.Sql);
+                    predicate = $" WHERE {string.Join(" AND ", where)}";
+                    total = await CountAsync(connection, from, predicate, query, null, fallback, cancellationToken);
+                    rank = "0.0";
+                    order = query.Sort switch
+                    {
+                        SongSearchSort.Title => "d.NormalizedTitle, d.SongId",
+                        SongSearchSort.YearDescending => "d.Year DESC, d.NormalizedTitle, d.SongId",
+                        SongSearchSort.RecentlyAdded => "d.AddedAt DESC, d.NormalizedTitle, d.SongId",
+                        _ => "d.NormalizedTitle, d.SongId",
+                    };
+                }
+            }
             await using var command = connection.CreateCommand();
             command.CommandText = $"SELECT d.SongId, d.Title, d.Artists, d.Language, d.Category, d.Quality, d.Year, d.Availability, d.AddedAt, {rank} AS Rank FROM {from}{predicate} ORDER BY {order} LIMIT @limit OFFSET @offset";
-            AddParameters(command, query, match);
+            AddParameters(command, query, match, fallback);
             Add(command, "@limit", query.PageSize);
             Add(command, "@offset", (long)(query.Page - 1) * query.PageSize);
             var items = new List<SongSearchItem>();
@@ -190,17 +211,19 @@ public sealed class SqliteSongSearchIndex(StationDbContext database, ISearchText
         return null;
     }
 
-    private static async Task<long> CountAsync(DbConnection connection, string from, string predicate, SongSearchQuery query, string? match, CancellationToken cancellationToken)
+    private static async Task<long> CountAsync(DbConnection connection, string from, string predicate, SongSearchQuery query, string? match, CjkFallback? fallback, CancellationToken cancellationToken)
     {
         await using var command = connection.CreateCommand();
         command.CommandText = $"SELECT COUNT(*) FROM {from}{predicate}";
-        AddParameters(command, query, match);
+        AddParameters(command, query, match, fallback);
         return Convert.ToInt64(await command.ExecuteScalarAsync(cancellationToken), System.Globalization.CultureInfo.InvariantCulture);
     }
 
-    private static void AddParameters(DbCommand command, SongSearchQuery query, string? match)
+    private static void AddParameters(DbCommand command, SongSearchQuery query, string? match, CjkFallback? fallback)
     {
         if (match is not null) Add(command, "@match", match);
+        if (fallback is not null)
+            for (var index = 0; index < fallback.Values.Length; index++) Add(command, $"@contains{index}", $"%{fallback.Values[index]}%");
         if (!string.IsNullOrWhiteSpace(query.Language)) Add(command, "@language", query.Language.Trim());
         if (!string.IsNullOrWhiteSpace(query.Category)) Add(command, "@category", query.Category.Trim());
         if (!string.IsNullOrWhiteSpace(query.ArtistGroup)) Add(command, "@artistGroup", query.ArtistGroup.Trim());
@@ -209,6 +232,27 @@ public sealed class SqliteSongSearchIndex(StationDbContext database, ISearchText
         if (query.YearFrom is not null) Add(command, "@yearFrom", query.YearFrom);
         if (query.YearTo is not null) Add(command, "@yearTo", query.YearTo);
     }
+
+    private CjkFallback? CompileCjkContains(string? text, SongSearchField field)
+    {
+        if (string.IsNullOrWhiteSpace(text)) return null;
+        var keys = normalizer.CreateKeys(text.Trim());
+        var candidates = new[] { keys.Normalized, keys.Simplified, keys.Traditional, keys.Compact }
+            .Where(x => !string.IsNullOrWhiteSpace(x)).Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
+        if (candidates.Length == 0) return null;
+        var columns = field switch
+        {
+            SongSearchField.Title => new[] { "d.TitleTerms" },
+            SongSearchField.Artist => new[] { "d.ArtistTerms" },
+            _ => new[] { "d.TitleTerms", "d.ArtistTerms" },
+        };
+        var parts = new List<string>();
+        for (var index = 0; index < candidates.Length; index++)
+            foreach (var column in columns) parts.Add($"{column} LIKE @contains{index} COLLATE NOCASE");
+        return new CjkFallback($"({string.Join(" OR ", parts)})", candidates);
+    }
+
+    private sealed record CjkFallback(string Sql, string[] Values);
 
     private static void Add(DbCommand command, string name, object? value)
     {

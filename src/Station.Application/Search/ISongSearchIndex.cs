@@ -28,7 +28,15 @@ public sealed record SongSearchQuery(
     string? Artist = null,
     SongSearchField Field = SongSearchField.Any);
 
-public sealed record SongSearchPage(IReadOnlyList<SongSearchItem> Items, long Total, int Page, int PageSize);
+public sealed record SongSearchPage(
+    IReadOnlyList<SongSearchItem> Items,
+    long Total,
+    int Page,
+    int PageSize,
+    IReadOnlyList<ArtistSearchItem>? Artists = null);
+
+/// <summary>Popular artist suggestions for a text search. Suggestions are intentionally capped by the API.</summary>
+public sealed record ArtistSearchItem(Guid ArtistId, string Name, int SongCount, int Popularity, string? ImageUrl = null);
 
 public sealed record SongSearchItem(
     Guid SongId,

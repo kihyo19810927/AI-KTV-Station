@@ -112,7 +112,6 @@ public sealed class RoomAuthenticationService(
             var protectedToken = tokens.Create();
             host.Nickname = normalizedNickname;
             host.TokenHash = protectedToken.Hash;
-            host.JoinedAt = now;
             host.ExpiresAt = now.Add(HostLifetime);
             foreach (var duplicate in hosts.Skip(1)) duplicate.RevokedAt = now;
             await repository.SaveChangesAsync(cancellationToken).ConfigureAwait(false);

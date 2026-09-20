@@ -7,7 +7,8 @@ import type { QueueEntry } from '../queue/types'
 
 interface HostRoomResponse { room: { id: string; joinCode: string; maxQueuedSongsPerGuest: number }; host: { token: string; roomId: string; guestId: string; nickname: string; role: RoomRole; expiresAt: string }; joinUrl?: string }
 interface SongSearchItem { songId: string; title: string; artists: string; language?: string; category?: string; quality?: string; availability: 'Available' | 'Offline' | 'Unreadable' }
-interface SongSearchPage { items: SongSearchItem[]; total: number; page: number; pageSize: number }
+interface ArtistSearchItem { artistId: string; name: string; songCount: number; popularity: number; imageUrl?: string }
+interface SongSearchPage { items: SongSearchItem[]; total: number; page: number; pageSize: number; artists?: ArtistSearchItem[] }
 interface FavoriteSong { songId: string; title: string; artists: string; favoritedAt: string }
 interface PlaybackHistoryItem { id: string; songId: string; title: string; artists: string; outcome: string; startedAt: string; endedAt?: string }
 interface PlaybackHistoryPage { items: PlaybackHistoryItem[]; total: number; page: number; pageSize: number }
@@ -133,7 +134,7 @@ function DesktopRoomPage({ room, joinUrl: preferredJoinUrl }: { room: HostRoomRe
   function navigateTo(target: DesktopNavTarget) { setNavTarget(target); if (target === 'songs') selectView(view === 'favorites' ? 'songs' : view); setNotice('') }
   function operationError(value: unknown, fallback: string) { if (value instanceof ApiError && recoverableRoomCodes.has(value.problem.code)) { setRoomRecoveryNeeded(true); return '房间连接已超时。点击“重新连接房间”可恢复主控权限，当前队列不会丢失。' }; return value instanceof ApiError ? value.message : fallback }
   async function recoverRoom() { if (recoveringRoom) return; setRecoveringRoom(true); try { const result = await api.post<HostRoomResponse>('/api/manage/room/ensure', { hostNickname: '主持人', maxQueuedSongsPerGuest: room.maxQueuedSongsPerGuest }); setSession({ ...result.host, roomName: '客厅 KTV' }); setRoomRecoveryNeeded(false); setNotice('房间连接已恢复，可以继续操作。') } catch (value) { setNotice(value instanceof ApiError ? '重新连接失败：' + value.message + '。请重启 AI-KTV Station 后重试。' : '重新连接失败，请重启 AI-KTV Station 后重试。') } finally { setRecoveringRoom(false) } }
-  function submitSearch(event?: FormEvent, requestedField?: SearchField) { event?.preventDefault(); const field = requestedField ?? searchField; setSearchField(field); setSubmittedText(searchText.trim()); setPage(1); setView('songs'); setNavTarget('songs'); setError('') }
+  function submitSearch(event?: FormEvent) { event?.preventDefault(); setSearchField('Any'); setSubmittedText(searchText.trim()); setPage(1); setView('songs'); setNavTarget('songs'); setError('') }
   async function requestSong(song: SongSearchItem | FavoriteSong) { if (requestingId) return; if (queue.some(item => item.songId === song.songId && !['Completed', 'Skipped', 'Failed'].includes(item.status))) { setNotice('《' + song.title + '》已经在队列中。'); return }; setRequestingId(song.songId); setNotice(''); try { addQueueItem(await api.post<QueueEntry>('/api/queue', { songId: song.songId })); setNotice('已点播《' + song.title + '》') } catch (value) { setNotice(value instanceof ApiError ? value.message : '点歌失败，请稍后重试。') } finally { setRequestingId('') } }
   async function queueInsert(item: QueueEntry) { if (pendingControl) return; setPendingControl(item.id); setNotice(''); try { updateQueueItem(await api.post<QueueEntry>('/api/queue/' + item.id + '/insert', {})); setNotice('《' + item.title + '》已插入当前播放的下一首。') } catch (value) { setNotice(value instanceof ApiError ? value.message : '无法插播这首歌。') } finally { setPendingControl('') } }
   async function queueRemove(item: QueueEntry) { if (pendingControl) return; setPendingControl(item.id); setNotice(''); try { await api.delete('/api/queue/' + item.id); setNotice('已从队列移除《' + item.title + '》。') } catch (value) { setNotice(value instanceof ApiError ? value.message : '无法移除这首歌。') } finally { setPendingControl('') } }
@@ -155,6 +156,7 @@ function DesktopRoomPage({ room, joinUrl: preferredJoinUrl }: { room: HostRoomRe
   function commitPosition() { setPositionDragging(false); void playbackCommand('/api/playback/seek', { positionSeconds: positionDraft }) }
   async function copyJoinUrl() { try { await navigator.clipboard.writeText(joinUrl); setCopied(true); window.setTimeout(() => setCopied(false), 1600) } catch { setNotice('请手动输入房间码 ' + room.joinCode) } }
   function chooseArtist(artist: ArtistItem) { setSearchText(artist.name); setSubmittedText(artist.name); setSearchField('Artist'); setLanguage(''); setStyle(''); setPage(1); setArtistDrilldown(true); setView('songs'); setNavTarget('songs') }
+  function showSongVersions(song: SongSearchItem | FavoriteSong) { setSearchText(song.title); setSubmittedText(song.title); setSearchField('Any'); setLanguage(''); setStyle(''); setPage(1); setArtistDrilldown(false); setView('songs'); setNavTarget('songs') }
   function returnToArtists() { setView('artists'); setArtistDrilldown(false); setResult(null); setError('') }
   async function saveSettings() { setSavingSettings(true); setNotice(''); try { await api.put('/api/manage/settings', settings); setNotice('设置已保存，重启主机服务后生效。') } catch (value) { setNotice(value instanceof ApiError ? value.message : '设置保存失败。') } finally { setSavingSettings(false) } }
   async function importCatalog() { if (!indexPath.trim() || !importRoot.trim()) { setNotice('请填写 JSON/JSONL 路径和媒体挂载路径。'); return }; setImporting(true); setNotice('正在导入曲库，完成前请不要关闭页面…'); try { const result = await api.post<{ read: number; added: number; skipped: number; errors: number }>('/api/manage/catalog/import', { indexPath: indexPath.trim(), mountRoot: importRoot.trim() }); setNotice('曲库导入完成：读取 ' + result.read + '，新增 ' + result.added + '，跳过 ' + result.skipped + '，错误 ' + result.errors + '。') } catch (value) { setNotice(value instanceof ApiError ? value.message : '曲库导入失败。') } finally { setImporting(false) } }
@@ -234,9 +236,8 @@ function DesktopRoomPage({ room, joinUrl: preferredJoinUrl }: { room: HostRoomRe
         {error && <p className="ktv-header-error" role="alert">{error}</p>}
         {navTarget === 'songs' ? <div className="ktv-layout"><section className="ktv-catalog" aria-label="电脑点歌区">
           <form className="ktv-search" onSubmit={event => submitSearch(event)}>
-            <label className="ktv-search-input"><Search aria-hidden="true" /><span className="sr-only">搜索歌曲</span><input type="search" value={searchText} onChange={event => setSearchText(event.target.value)} placeholder="输入歌名、歌手或拼音" /></label>
-            <button type="button" className={searchField === 'Title' ? 'primary' : ''} onClick={() => submitSearch(undefined, 'Title')}>按歌名</button>
-            <button type="button" className={searchField === 'Artist' ? 'primary' : ''} onClick={() => submitSearch(undefined, 'Artist')}>按歌手</button>
+            <label className="ktv-search-input"><Search aria-hidden="true" /><span className="sr-only">搜索歌曲</span><input type="search" value={searchText} onChange={event => setSearchText(event.target.value)} placeholder="搜索歌名或歌手" /></label>
+            <button type="submit" className="primary">搜索歌名和歌手</button>
           </form>
           <div className="ktv-tabs" role="tablist" aria-label="点歌浏览方式">{([['songs', '歌曲'], ['artists', '歌星'], ['language', '语种'], ['style', '风格'], ['favorites', '收藏']] as const).map(([value, label]) => <button type="button" role="tab" aria-selected={view === value} key={value} className={view === value ? 'active' : ''} onClick={() => selectView(value)}>{label}</button>)}</div>
           {filterOptions.length > 0 && <div className="ktv-artist-filters" aria-label="二级筛选">{filterOptions.map(value => {
@@ -250,7 +251,7 @@ function DesktopRoomPage({ room, joinUrl: preferredJoinUrl }: { room: HostRoomRe
               return <button type="button" className="ktv-artist" key={artist.artistId ?? artist.id ?? artist.name} onClick={() => chooseArtist(artist)}><span className="ktv-avatar" style={{ background: 'linear-gradient(145deg, ' + avatarColor(artist.name) + ', #24133f)' }}><span aria-hidden="true">{artist.name.trim().slice(0, 1)}</span>{image && <img src={image} alt="" onError={event => { event.currentTarget.style.display = 'none' }} />}</span><span>{artist.name}</span><small>{artist.songCount} 首</small></button>
             })}</div>
             {artists.length > artistPageSize && <div className="ktv-pagination ktv-artist-pagination"><button type="button" disabled={artistPage <= 1} onClick={() => setArtistPage(value => Math.max(1, value - 1))}>上一页</button><span>热门歌手 {artistPage} / {artistTotalPages}</span><button type="button" disabled={artistPage >= artistTotalPages} onClick={() => setArtistPage(value => Math.min(artistTotalPages, value + 1))}>下一页</button></div>}
-          </> : <div className="ktv-song-list" aria-label="歌曲列表">
+          </> : <>{result?.artists && result.artists.length > 0 && <div className="ktv-search-artists" aria-label="匹配歌手"><strong>热门歌手</strong>{result.artists.map(artist => <button type="button" key={artist.artistId} onClick={() => chooseArtist({ artistId: artist.artistId, name: artist.name, songCount: artist.songCount })}>{artist.name}<small>{artist.songCount} 首</small></button>)}</div>}<div className="ktv-song-list" aria-label="歌曲列表">
             {loading && !result && <p className="ktv-empty">正在搜索曲库…</p>}
             {!loading && songs.length === 0 && <p className="ktv-empty">{submittedText || language || style ? '没有找到歌曲' : '请在上方输入关键词，或切换到歌星浏览'}</p>}
             {songs.map((song, index) => {
@@ -258,14 +259,14 @@ function DesktopRoomPage({ room, joinUrl: preferredJoinUrl }: { room: HostRoomRe
               const isQueued = queue.some(item => item.songId === song.songId && !['Completed', 'Skipped', 'Failed'].includes(item.status))
               return <div className="ktv-song-row" key={song.songId}>
                 <span className="ktv-song-index">{String((page - 1) * (result?.pageSize || 20) + index + 1).padStart(2, '0')}</span>
-                <span className="ktv-song-copy"><strong>{song.title}</strong><small>{song.artists || '未知歌手'}{('language' in song && song.language) ? ' · ' + song.language : ''}{('category' in song && song.category) ? ' · ' + song.category : ''}</small></span>
+                <span className="ktv-song-copy"><button type="button" className="ktv-song-title" onClick={() => showSongVersions(song)}>{song.title}</button><small>{song.artists.split(' / ').map((artist, artistIndex) => <span key={`${song.songId}-${artist}`}>{artistIndex > 0 && ' / '}<button type="button" className="ktv-artist-link" onClick={() => chooseArtist({ name: artist, songCount: 0 })}>{artist}</button></span>)}{('language' in song && song.language) ? ' · ' + song.language : ''}{('category' in song && song.category) ? ' · ' + song.category : ''}</small></span>
                 {'quality' in song && song.quality && <span className="ktv-quality">{song.quality}</span>}
                 <button type="button" className={isFavorite ? 'ktv-favorite active' : 'ktv-favorite'} aria-label={(isFavorite ? '取消收藏 ' : '收藏 ') + song.title} onClick={() => void toggleDesktopFavorite(song)}><Heart aria-hidden="true" /></button>
                 <button type="button" className={isQueued ? 'ktv-request queued' : 'ktv-request'} disabled={requestingId === song.songId || ('availability' in song && song.availability !== 'Available')} onClick={() => void requestSong(song)}>{requestingId === song.songId ? '…' : isQueued ? <><Check aria-hidden="true" />已点</> : '点歌'}</button>
               </div>
             })}
             {view !== 'favorites' && result && result.total > result.pageSize && <div className="ktv-pagination"><button type="button" disabled={loading || page <= 1} onClick={() => setPage(value => Math.max(1, value - 1))}>上一页</button><span>第 {page} / {songTotalPages} 页 · 共 {result.total} 首</span><button type="button" disabled={loading || page >= songTotalPages} onClick={() => setPage(value => Math.min(songTotalPages, value + 1))}>下一页</button></div>}
-          </div>}
+          </div></>}
         </section></div> : renderUtilityPage()}
         {navTarget === 'songs' && miniPlayer}
       </main>

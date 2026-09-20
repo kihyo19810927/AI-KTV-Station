@@ -98,6 +98,7 @@ public sealed class StationDbContext(DbContextOptions<StationDbContext> options,
         model.Entity<ProfileDevice>(e =>
         {
             e.Property(x => x.TokenHash).HasMaxLength(64);
+            e.Property(x => x.ExpiresAt).IsRequired();
             e.HasIndex(x => x.TokenHash).IsUnique();
         });
         model.Entity<ProfilePlaylist>(e =>

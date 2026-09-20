@@ -113,5 +113,6 @@
 | KTVS-100 RC40 数据与连续播放收尾修复 | Core/Desktop xUnit + SQLite Backup/迁移副本 + Web Vitest + TypeScript + Vite + 真实 mpv + RC41 package smoke | 通过（真实数据库副本从 72,295 个重复艺术家合并为 26,910 位；Core 非外部 191/191、Desktop 18/18、Web 39/39、mpv 4/4、50/50 耐久且重复结束 0/重启 0；RC41 451 项，SHA-256 `07b0c1f87de9e87442b1f4b8c1de5dfffb30ba82c2b5373c322fc277b0bf1d86`，包健康、托盘生命周期和进程清理通过） | 真实电视/功放、实际长队列和家庭网络仍待实机验收 |
 | KTVS-101 RC41 验收修复与超时诊断 | Core/Web/真实 mpv 与 RC43 包 | 通过（Core 非外部 194/194、Web 39/39、真实 mpv 4/4；解决方案 Release 0 警告/错误；覆盖超时重试同一歌曲、分阶段诊断日志、每首加载通知和二维码模块保真、头像失败回退及直接切轨；RC43 451 项，SHA-256 `62feb24be400213c43ad7f96a69cfa33a4422db718a3682f6a077df6331fecfe`，包校验/托盘生命周期/进程清理通过） | 真实挂载首次超时仍需用户实机观察日志 |
 | KTVS-102 汇总验收修复与播放跳过保护 | Core/Desktop/Web/真实 mpv+ffprobe/RC45 | 通过（Core 非外部 198/198、Desktop 18/18、Web 40/40、真实外部 6/6；TypeScript/Vite/Release 通过且 0 警告；覆盖探测失败仍交给 mpv、可重试加载不永久禁用媒体、在线成员、HTTPS 头像及失败回退、桌面独立收藏与 SQLite 排序、分页/返回、队列历史；RC45 451 项、334,496,179 bytes、SHA-256 `0de99017c9048cf7d71741d784369f3e31f8f71b4f691a406cfb34791b5f2824`，包校验/冷启动/托盘生命周期/进程清理通过） | 真实 115 长队列仍需实机验收；失败时依据增强日志继续定位 |
+| KTVS-109 账户令牌与统一搜索收尾 | Core xUnit + Web Vitest + TypeScript + Vite production build + 解决方案 Release | 通过（Core 非外部 196/196、Web 41/41、TypeScript、Vite、Release 0 警告/0 错误；覆盖设备令牌固定过期、PIN 生命周期、统一歌名歌手搜索、中文中段回退及长时限会话计时） | 真实手机账户切换、令牌自然到期和大曲库热门歌手排序仍待实机验收 |
 
 禁止把替身、模拟器或文档审阅结果写成真实设备通过。
