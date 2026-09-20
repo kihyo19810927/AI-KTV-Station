@@ -97,8 +97,12 @@ describe('mobile application shell', () => {
     await screen.findByRole('button', { name: /歌手 01/ })
     expect(document.querySelectorAll('.ktv-artist')).toHaveLength(24)
     fireEvent.click(screen.getByRole('button', { name: '下一页' }))
-    await screen.findByRole('button', { name: /歌手 25/ })
+    const lastArtist = await screen.findByRole('button', { name: /歌手 25/ })
     expect(document.querySelectorAll('.ktv-artist')).toHaveLength(1)
+    fireEvent.click(lastArtist)
+    fireEvent.click(await screen.findByRole('button', { name: '返回歌手列表' }))
+    expect(await screen.findByRole('button', { name: /歌手 25/ })).toBeInTheDocument()
+    expect(screen.getByText('热门歌手 2 / 2')).toBeInTheDocument()
   })
   it('keeps desktop navigation responsive and submits the visible song request button', async () => {
     const song = { songId: 'song-1', title: '夜曲', artists: '周杰伦', availability: 'Available' }
