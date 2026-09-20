@@ -42,6 +42,9 @@
 .ktv-room-name, .ktv-room-live { padding: 8px 12px; border-radius: 999px; background: rgba(255, 255, 255, .1); border: 1px solid var(--ktv-line); font-size: 12px; white-space: nowrap; }
 .ktv-room-live { color: var(--ktv-green); background: rgba(72, 221, 163, .12); border-color: rgba(122, 226, 189, .28); }
   .ktv-header-notice, .ktv-header-error { position: fixed; right: 28px; bottom: 28px; z-index: 100; width: min(420px, calc(100vw - 56px)); margin: 0; padding: 11px 15px; border: 1px solid rgba(220, 101, 239, .42); border-radius: 14px; color: #ffd6fb; background: rgba(30, 14, 48, .94); box-shadow: 0 12px 30px rgba(0, 0, 0, .3); font-size: 13px; line-height: 1.45; pointer-events: none; animation: ktv-toast-in .18s ease-out; }
+  .ktv-header-notice.recovery { display: grid; gap: 10px; pointer-events: auto; }
+  .ktv-header-notice.recovery button { min-height: 34px; padding: 0 12px; border: 1px solid rgba(255,255,255,.24); border-radius: 9px; color: #fff; background: linear-gradient(135deg, #d963e9, #8e4dd8); cursor: pointer; }
+  .ktv-header-notice.recovery button:disabled { cursor: wait; opacity: .6; }
   @keyframes ktv-toast-in { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
 .ktv-layout { display: grid; grid-template-columns: minmax(0, 1fr) 292px; gap: 16px; align-items: start; }
 .ktv-catalog, .ktv-queue { background: var(--ktv-panel); border: 1px solid var(--ktv-line); border-radius: 17px; box-shadow: inset 0 1px rgba(255, 255, 255, .08), 0 14px 40px rgba(7, 3, 18, .13); }

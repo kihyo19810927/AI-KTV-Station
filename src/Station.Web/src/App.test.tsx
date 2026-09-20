@@ -172,6 +172,24 @@ describe('mobile application shell', () => {
     fireEvent.click(screen.getByRole('button', { name: '暂停' }))
     await waitFor(() => expect(vi.mocked(fetch).mock.calls.some(([url, init]) => String(url) === '/api/playback/pause' && init?.method === 'POST')).toBe(true))
   })
+  it('offers room recovery when the host token expires', async () => {
+    let ensureCalls = 0
+    vi.mocked(fetch).mockImplementation(async (url, init) => {
+      const path = String(url)
+      if (path === '/api/manage/room/ensure') { ensureCalls++; const expiresAt = new Date(Date.now() + 60_000).toISOString(); return Response.json({ room: { id: 'room-1', joinCode: 'KTV826', maxQueuedSongsPerGuest: 100 }, host: { token: ensureCalls === 1 ? 'expired-host-token' : 'refreshed-host-token', roomId: 'room-1', guestId: 'host-1', nickname: '主持人', role: 'Host', expiresAt }, joinUrl: 'http://192.168.1.20:5090/join?code=KTV826' }) }
+      if (path === '/api/playback/play' && init?.method === 'POST') return Response.json({ title: 'The room token expired.', code: 'auth.token_expired' }, { status: 401 })
+      if (path === '/api/playback') return Response.json({ state: 'Idle', volume: 80, tracks: [] })
+      return Response.json([])
+    })
+    renderApp('/desk')
+    await screen.findByRole('heading', { name: '电脑点歌' })
+    fireEvent.click(screen.getByRole('button', { name: '正在播放' }))
+    fireEvent.click(await screen.findByRole('button', { name: '播放' }))
+    expect(await screen.findByRole('alert')).toHaveTextContent('房间连接已超时')
+    fireEvent.click(screen.getByRole('button', { name: '重新连接房间' }))
+    expect(await screen.findByRole('status')).toHaveTextContent('房间连接已恢复')
+    expect(JSON.parse(sessionStorage.getItem('ai-ktv-station.room-session.v1') ?? '{}')).toMatchObject({ token: 'refreshed-host-token' })
+  })
   it('shows artwork and icon controls, cycles audio directly and hides historical failures during playback', async () => {
     realtime.snapshot = { version: 3, roomId: 'room-1', queue: [
       { id: 'item-playing', songId: 'song-playing', title: '海阔天空', artists: 'Beyond', requestedByGuestId: 'host-1', requestedByNickname: '主持人', position: 1, status: 'Playing', requestedAt: '2099-01-01T00:00:00Z' },

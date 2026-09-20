@@ -36,6 +36,7 @@ function seconds(value: string | number | undefined) { if (typeof value === 'num
 function formatClock(value?: string | number) { if (!value) return '--:--'; const total = seconds(value); return String(Math.floor(total / 60)).padStart(2, '0') + ':' + String(Math.floor(total % 60)).padStart(2, '0') }
 function trackName(track: Track) { return track.title?.trim() || track.language?.trim() || (track.type === 'Audio' ? '音轨 ' + track.streamId : '字幕 ' + track.streamId) }
 function blankSettings(): StationSettings { return { server: { bindAddress: '0.0.0.0', port: 5090 }, storage: { dataDirectory: 'data', mediaMountRoot: '' }, player: { executablePath: '', commandTimeoutSeconds: 10 }, scanning: { basicIndexOnly: false, readNfo: false, probeConcurrency: 1 } } }
+const recoverableRoomCodes = new Set(['auth.token_expired', 'auth.token_invalid', 'auth.token_revoked', 'auth.room_closed'])
 
 export function DesktopLandingPage() {
   const { api, setSession } = useSession()
@@ -49,7 +50,7 @@ export function DesktopLandingPage() {
 }
 
 function DesktopRoomPage({ room, joinUrl: preferredJoinUrl }: { room: HostRoomResponse['room']; joinUrl?: string }) {
-  const { api } = useSession()
+  const { api, setSession } = useSession()
   const { queue, playback, connectionStatus, addQueueItem, updateQueueItem } = useRoomRealtime()
   const [view, setView] = useState<DesktopView>('artists')
   const [navTarget, setNavTarget] = useState<DesktopNavTarget>('songs')
@@ -79,6 +80,8 @@ function DesktopRoomPage({ room, joinUrl: preferredJoinUrl }: { room: HostRoomRe
   const [savingSettings, setSavingSettings] = useState(false)
   const [error, setError] = useState('')
   const [notice, setNotice] = useState('')
+  const [roomRecoveryNeeded, setRoomRecoveryNeeded] = useState(false)
+  const [recoveringRoom, setRecoveringRoom] = useState(false)
   const [requestingId, setRequestingId] = useState('')
   const [pendingControl, setPendingControl] = useState('')
   const [copied, setCopied] = useState(false)
@@ -116,7 +119,7 @@ function DesktopRoomPage({ room, joinUrl: preferredJoinUrl }: { room: HostRoomRe
     return () => controller.abort()
   }, [api, currentSong?.songId])
   useEffect(() => { if (playerState && !volumeDragging && Number.isFinite(playerState.volume)) setVolumeDraft(playerState.volume) }, [playerState?.volume, volumeDragging])
-  useEffect(() => { if (!notice) return; const timer = window.setTimeout(() => setNotice(''), 3600); return () => window.clearTimeout(timer) }, [notice])
+  useEffect(() => { if (!notice || roomRecoveryNeeded) return; const timer = window.setTimeout(() => setNotice(''), 3600); return () => window.clearTimeout(timer) }, [notice, roomRecoveryNeeded])
   useEffect(() => { if (navTarget !== 'playback') return; let disposed = false; const refresh = () => api.get<PlaybackFailure[]>('/api/manage/playback/failures?count=5').then(value => { if (!disposed) setRecentFailures(Array.isArray(value) ? value : []) }).catch(() => undefined); void refresh(); const timer = window.setInterval(refresh, 2000); return () => { disposed = true; window.clearInterval(timer) } }, [api, navTarget])
   useEffect(() => { if (!positionDragging) setPositionDraft(seconds(playerState?.position ?? playback?.position)) }, [playerState?.position, playback?.position, positionDragging])
   useEffect(() => { if (view !== 'artists') return; const controller = new AbortController(); const query = artistGroup ? '?artistGroup=' + encodeURIComponent(artistGroup) : ''; setArtistLoading(true); api.get<ArtistItem[]>('/api/catalog/artists' + query, controller.signal).then(items => { const next = Array.isArray(items) ? items : []; setArtists(next); setArtistPage(current => Math.min(current, Math.max(1, Math.ceil(next.length / artistPageSize)))) }).catch(value => { if (!(value instanceof DOMException && value.name === 'AbortError')) setError('歌手列表暂时无法访问。') }).finally(() => { if (!controller.signal.aborted) setArtistLoading(false) }); return () => controller.abort() }, [api, artistGroup, view])
@@ -128,6 +131,8 @@ function DesktopRoomPage({ room, joinUrl: preferredJoinUrl }: { room: HostRoomRe
   function selectView(next: DesktopView) { setView(next); setArtistDrilldown(false); setNavTarget('songs'); setError(''); setPage(1); if (next === 'artists') { setArtistGroup(''); setArtistPage(1) }; if (next === 'songs') { setLanguage(''); setStyle('') } }
   function selectFilter(value: string) { if (view === 'artists') { setArtistGroup(value === '全部' ? '' : value); setArtistPage(1) } else if (view === 'language') { setLanguage(value === '全部' ? '' : value); setStyle(''); setPage(1) } else if (view === 'style') { setStyle(value === '全部' ? '' : value); setLanguage(''); setPage(1) } }
   function navigateTo(target: DesktopNavTarget) { setNavTarget(target); if (target === 'songs') selectView(view === 'favorites' ? 'songs' : view); setNotice('') }
+  function operationError(value: unknown, fallback: string) { if (value instanceof ApiError && recoverableRoomCodes.has(value.problem.code)) { setRoomRecoveryNeeded(true); return '房间连接已超时。点击“重新连接房间”可恢复主控权限，当前队列不会丢失。' }; return value instanceof ApiError ? value.message : fallback }
+  async function recoverRoom() { if (recoveringRoom) return; setRecoveringRoom(true); try { const result = await api.post<HostRoomResponse>('/api/manage/room/ensure', { hostNickname: '主持人', maxQueuedSongsPerGuest: room.maxQueuedSongsPerGuest }); setSession({ ...result.host, roomName: '客厅 KTV' }); setRoomRecoveryNeeded(false); setNotice('房间连接已恢复，可以继续操作。') } catch (value) { setNotice(value instanceof ApiError ? '重新连接失败：' + value.message + '。请重启 AI-KTV Station 后重试。' : '重新连接失败，请重启 AI-KTV Station 后重试。') } finally { setRecoveringRoom(false) } }
   function submitSearch(event?: FormEvent, requestedField?: SearchField) { event?.preventDefault(); const field = requestedField ?? searchField; setSearchField(field); setSubmittedText(searchText.trim()); setPage(1); setView('songs'); setNavTarget('songs'); setError('') }
   async function requestSong(song: SongSearchItem | FavoriteSong) { if (requestingId) return; if (queue.some(item => item.songId === song.songId && !['Completed', 'Skipped', 'Failed'].includes(item.status))) { setNotice('《' + song.title + '》已经在队列中。'); return }; setRequestingId(song.songId); setNotice(''); try { addQueueItem(await api.post<QueueEntry>('/api/queue', { songId: song.songId })); setNotice('已点播《' + song.title + '》') } catch (value) { setNotice(value instanceof ApiError ? value.message : '点歌失败，请稍后重试。') } finally { setRequestingId('') } }
   async function queueInsert(item: QueueEntry) { if (pendingControl) return; setPendingControl(item.id); setNotice(''); try { updateQueueItem(await api.post<QueueEntry>('/api/queue/' + item.id + '/insert', {})); setNotice('《' + item.title + '》已插入当前播放的下一首。') } catch (value) { setNotice(value instanceof ApiError ? value.message : '无法插播这首歌。') } finally { setPendingControl('') } }
@@ -143,8 +148,8 @@ function DesktopRoomPage({ room, joinUrl: preferredJoinUrl }: { room: HostRoomRe
       setNotice(favorite ? '已加入电脑主控收藏《' + song.title + '》' : '已取消收藏《' + song.title + '》')
     } catch (value) { setNotice(value instanceof ApiError ? value.message : '收藏操作失败。') }
   }
-  async function playbackControl(action: 'play' | 'pause' | 'skip') { if (pendingControl) return; setPendingControl(action); setNotice(''); try { setPlayerState(await api.post<PlayerState>('/api/playback/' + action, {})) } catch (value) { setNotice(value instanceof ApiError ? value.message : '播放控制失败。') } finally { setPendingControl('') } }
-  async function playbackCommand(path: string, body?: unknown) { setNotice(''); try { setPlayerState(await api.post<PlayerState>(path, body)) } catch (value) { setNotice(value instanceof ApiError ? value.message : '播放控制失败，请稍后重试。') } }
+  async function playbackControl(action: 'play' | 'pause' | 'skip') { if (pendingControl) return; setPendingControl(action); setNotice(''); try { setPlayerState(await api.post<PlayerState>('/api/playback/' + action, {})) } catch (value) { setNotice(operationError(value, '播放控制失败。')) } finally { setPendingControl('') } }
+  async function playbackCommand(path: string, body?: unknown) { setNotice(''); try { setPlayerState(await api.post<PlayerState>(path, body)) } catch (value) { setNotice(operationError(value, '播放控制失败，请稍后重试。')) } }
   function updateVolume(value: number) { setVolumeDraft(value); setPlayerState(current => current ? { ...current, volume: value } : current); if (volumeTimer.current) window.clearTimeout(volumeTimer.current); volumeTimer.current = window.setTimeout(() => void playbackCommand('/api/playback/volume', { volume: value }), 160) }
   function updatePosition(value: number) { setPositionDraft(value); setPlayerState(current => current ? { ...current, position: value } : current) }
   function commitPosition() { setPositionDragging(false); void playbackCommand('/api/playback/seek', { positionSeconds: positionDraft }) }
@@ -225,7 +230,7 @@ function DesktopRoomPage({ room, joinUrl: preferredJoinUrl }: { room: HostRoomRe
       </aside>
       <main className="ktv-main">
         <header className="ktv-header"><div><h1>{pageMeta.title}</h1><p>{pageMeta.subtitle}</p></div><div className="ktv-room"><span className="ktv-room-name">客厅 KTV · {room.joinCode}</span><span className="ktv-room-live">● 房间已开启</span></div></header>
-        {notice && <p className="ktv-header-notice" role="status">{notice}</p>}
+        {notice && <div className={roomRecoveryNeeded ? 'ktv-header-notice recovery' : 'ktv-header-notice'} role={roomRecoveryNeeded ? 'alert' : 'status'}><span>{notice}</span>{roomRecoveryNeeded && <button type="button" onClick={() => void recoverRoom()} disabled={recoveringRoom}>{recoveringRoom ? '正在重新连接…' : '重新连接房间'}</button>}</div>}
         {error && <p className="ktv-header-error" role="alert">{error}</p>}
         {navTarget === 'songs' ? <div className="ktv-layout"><section className="ktv-catalog" aria-label="电脑点歌区">
           <form className="ktv-search" onSubmit={event => submitSearch(event)}>
