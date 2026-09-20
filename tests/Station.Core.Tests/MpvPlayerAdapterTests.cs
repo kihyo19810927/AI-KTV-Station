@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using System.Diagnostics;
 using Station.Application.Configuration;
 using Station.Application.Playback;
@@ -30,11 +31,12 @@ public sealed class MpvPlayerAdapterTests
         var media = Environment.GetEnvironmentVariable("KTV_STATION_MEDIA_FIXTURE");
         Assert.False(string.IsNullOrWhiteSpace(executable));
         Assert.False(string.IsNullOrWhiteSpace(media));
+        var diagnostic = new RecordingDiagnostic();
         await using var player = new MpvPlayerAdapter(new PlayerOptions
         {
             ExecutablePath = executable!,
             CommandTimeoutSeconds = 10,
-        });
+        }, diagnostic);
 
         var start = await player.StartAsync();
         Assert.True(start.IsSuccess, start.Error.Code);
@@ -47,6 +49,11 @@ public sealed class MpvPlayerAdapterTests
         var load = await player.LoadAsync(new PlayerLoadRequest(playbackId, media!), timeout.Token);
         Assert.True(load.IsSuccess, load.Error.Code);
         Assert.Equal(PlayerLifecycleState.Playing, load.Value.State);
+        Assert.Contains(diagnostic.Entries, entry => entry.Code == "player.load.begin" && entry.Message.Contains(playbackId.ToString(), StringComparison.Ordinal));
+        Assert.Contains(diagnostic.Entries, entry => entry.Code == "player.load.accepted");
+        Assert.Contains(diagnostic.Entries, entry => entry.Code == "player.event" && entry.Message.Contains("event=start-file", StringComparison.Ordinal));
+        Assert.Contains(diagnostic.Entries, entry => entry.Code == "player.event" && entry.Message.Contains("event=file-loaded", StringComparison.Ordinal));
+        Assert.DoesNotContain(diagnostic.Entries, entry => entry.Message.Contains(media!, StringComparison.Ordinal));
         Assert.InRange(load.Value.Duration!.Value.TotalSeconds, 9.5, 10.5);
         var audio = load.Value.Tracks.Where(x => x.Type == MediaTrackType.Audio).ToArray();
         Assert.Equal(2, audio.Length);
@@ -73,8 +80,14 @@ public sealed class MpvPlayerAdapterTests
         var skippedPlaybackId = Guid.NewGuid();
         var skippedTask = WaitForEndedAsync(player, skippedPlaybackId, timeout.Token);
         Assert.True((await player.LoadAsync(new PlayerLoadRequest(skippedPlaybackId, media!), timeout.Token)).IsSuccess);
+        await Task.Delay(TimeSpan.FromMilliseconds(250), timeout.Token);
+        var afterReplacement = await player.GetStateAsync(timeout.Token);
+        Assert.True(afterReplacement.IsSuccess, afterReplacement.Error.Code);
+        Assert.Equal(PlayerLifecycleState.Playing, afterReplacement.Value.State);
         Assert.True((await player.SkipAsync(timeout.Token)).IsSuccess);
-        Assert.Equal(PlaybackEndReason.Stopped, (await skippedTask).Reason);
+        var skipped = await skippedTask;
+        Assert.Equal(PlaybackEndReason.Stopped, skipped.Reason);
+        Assert.True(skipped.IsUserInitiated);
         Assert.Equal(processId, player.ProcessId);
         Assert.False(Process.GetProcessById(processId).HasExited);
 
@@ -141,6 +154,49 @@ public sealed class MpvPlayerAdapterTests
         Assert.True((await player.StopAsync(timeout.Token)).IsSuccess);
     }
 
+    [Fact]
+    [Trait("Category", "External")]
+    public async Task Replacing_media_while_playing_does_not_end_the_new_playback()
+    {
+        var executable = Environment.GetEnvironmentVariable("KTV_STATION_MPV");
+        var media = Environment.GetEnvironmentVariable("KTV_STATION_MEDIA_FIXTURE");
+        Assert.False(string.IsNullOrWhiteSpace(executable));
+        Assert.False(string.IsNullOrWhiteSpace(media));
+        await using var player = new MpvPlayerAdapter(new PlayerOptions { ExecutablePath = executable!, CommandTimeoutSeconds = 10 });
+        using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(20));
+        using var eventsCancellation = new CancellationTokenSource();
+        var events = new ConcurrentBag<PlayerEvent>();
+        var eventPump = Task.Run(async () =>
+        {
+            try
+            {
+                await foreach (var item in player.WatchEventsAsync(eventsCancellation.Token)) events.Add(item);
+            }
+            catch (OperationCanceledException) when (eventsCancellation.IsCancellationRequested) { }
+        });
+
+        Assert.True((await player.StartAsync(timeout.Token)).IsSuccess);
+        var playbackIds = new List<Guid>();
+        for (var index = 0; index < 4; index++)
+        {
+            var playbackId = Guid.NewGuid();
+            playbackIds.Add(playbackId);
+            var loaded = await player.LoadAsync(new PlayerLoadRequest(playbackId, media!), timeout.Token);
+            Assert.True(loaded.IsSuccess, loaded.Error.Code);
+            Assert.Equal(PlayerLifecycleState.Playing, loaded.Value.State);
+            await Task.Delay(100, timeout.Token);
+        }
+
+        Assert.DoesNotContain(events, item => item is PlaybackEndedEvent ended &&
+            playbackIds.Contains(ended.PlaybackId!.Value) &&
+            ended.Reason is PlaybackEndReason.Completed or PlaybackEndReason.Stopped);
+        Assert.Equal(PlayerLifecycleState.Playing, (await player.GetStateAsync(timeout.Token)).Value.State);
+
+        Assert.True((await player.StopAsync(timeout.Token)).IsSuccess);
+        eventsCancellation.Cancel();
+        await eventPump;
+    }
+
     private static async Task<PlaybackEndedEvent> WaitForEndedAsync(IPlayerAdapter player, Guid playbackId, CancellationToken cancellationToken)
     {
         await foreach (var item in player.WatchEventsAsync(cancellationToken))
@@ -153,5 +209,18 @@ public sealed class MpvPlayerAdapterTests
         await foreach (var item in player.WatchEventsAsync(cancellationToken))
             if (item is PlaybackFailedEvent failure) return failure;
         throw new InvalidOperationException("Player event stream ended before a process failure was reported.");
+    }
+
+    private sealed class RecordingDiagnostic : ILocalDiagnosticLog
+    {
+        public List<DiagnosticLogEntry> Entries { get; } = [];
+        public Task WriteAsync(string level, string code, string message, CancellationToken cancellationToken = default)
+        {
+            Entries.Add(new(DateTimeOffset.UtcNow, level, code, message));
+            return Task.CompletedTask;
+        }
+
+        public Task<IReadOnlyList<DiagnosticLogEntry>> ReadRecentAsync(int count, CancellationToken cancellationToken = default) =>
+            Task.FromResult<IReadOnlyList<DiagnosticLogEntry>>(Entries.TakeLast(count).ToArray());
     }
 }

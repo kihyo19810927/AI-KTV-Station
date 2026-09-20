@@ -28,6 +28,7 @@
 | 2026-09-12 | 队列插歌/重排位置统一分配到全房间历史最小位置之前，避开已播放终态记录的唯一键；WPF 队列命令捕获异常并显示可恢复提示，手机端串行化插歌请求 | Accepted（KTVS-078） |
 | 2026-09-13 | 歌手浏览采用随包离线字典提供分组、基础热度和头像，排序叠加本地点播/收藏/曲目数；日本与韩国保持独立分类，未知歌手归“其他” | Accepted（KTVS-079） |
 | 2026-09-13 | 用户关闭 mpv 视为明确暂停自动续播：当前项结束并挂起队列，只有用户点击播放才恢复；音量设置只发一条 IPC 并乐观更新快照 | Accepted（KTVS-079） |
-| 2026-09-13 | WPF 完整数据用例从内嵌 Server 创建独立异步 scope；歌手统计以 SQL 聚合和短期快照提供，写入主动失效；便携 JSON 曲库通过配置的挂载根路径重映射，不因盘符变化重复导入 | [ADR-0004](../adr/ADR-0004-desktop-operation-scopes.md) |
+| 2026-09-13 | WPF 完整数据用例从内嵌 Server 创建独立异步 scope；歌手统计以 SQL 聚合和短期快照提供，写入主动失效；便携 JSON 曲库通过配置的挂载根路径重映射，不因盘符变化重复导入 | [ADR-0014](../adr/ADR-0014-desktop-operation-scopes.md) |
+| 2026-09-13 | Server 将本机设置、JSON/JSONL 导入和脱敏诊断收敛为 loopback-only 管理接口；托盘启动器仅托管同一 Server 与其 IPlayerAdapter，并以 Edge App 模式打开后续 `/desk` 页面 | [ADR-0015](../adr/ADR-0015-server-management-and-tray.md) |
 
 重大、跨模块的决定在 `docs/adr/` 单独记录；实现变更必须同步更新或 Supersede 对应 ADR。

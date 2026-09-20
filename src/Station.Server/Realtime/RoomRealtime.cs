@@ -98,17 +98,34 @@ public sealed class SignalRRoomRealtimePublisher(
     }
 }
 
+public sealed class RoomPresenceTracker
+{
+    private readonly ConcurrentDictionary<string, (Guid RoomId, Guid GuestId)> connections = new();
+
+    public void Connected(string connectionId, Guid roomId, Guid guestId) =>
+        connections[connectionId] = (roomId, guestId);
+
+    public void Disconnected(string connectionId) => connections.TryRemove(connectionId, out _);
+
+    public IReadOnlySet<Guid> ConnectedGuests(Guid roomId) => connections.Values
+        .Where(value => value.RoomId == roomId)
+        .Select(value => value.GuestId)
+        .ToHashSet();
+}
+
 public sealed class RoomHub(
     RoomAuthenticationService authentication,
     RoomQueueService queue,
     PlaybackControlService playback,
-    RoomRealtimeJournal journal) : Hub
+    RoomRealtimeJournal journal,
+    RoomPresenceTracker presence) : Hub
 {
     public async Task<RoomRealtimeSync> Subscribe(string token, long? afterVersion = null)
     {
         var identity = await authentication.ValidateAsync(token, Context.ConnectionAborted);
         if (identity.IsFailure) throw new HubException(identity.Error.Code);
         await Groups.AddToGroupAsync(Context.ConnectionId, Group(identity.Value.RoomId), Context.ConnectionAborted);
+        presence.Connected(Context.ConnectionId, identity.Value.RoomId, identity.Value.GuestId);
         if (afterVersion is > 0 && journal.TryReadAfter(identity.Value.RoomId, afterVersion.Value, out var events))
         {
             var latestVersion = journal.CurrentVersion(identity.Value.RoomId);
@@ -124,6 +141,12 @@ public sealed class RoomHub(
             queueResult.Value,
             playbackResult.IsSuccess ? playbackResult.Value : null);
         return new(currentVersion, snapshot, []);
+    }
+
+    public override Task OnDisconnectedAsync(Exception? exception)
+    {
+        presence.Disconnected(Context.ConnectionId);
+        return base.OnDisconnectedAsync(exception);
     }
 
     internal static string Group(Guid roomId) => $"room:{roomId:N}";

@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using Station.Application.Common;
+using Station.Application.Configuration;
 using Station.Application.Media;
 using Station.Application.Playback;
 using Station.Application.Queue;
@@ -9,7 +10,7 @@ using Station.Infrastructure.Persistence;
 
 namespace Station.Infrastructure.Playback;
 
-public sealed class EfQueuePreflightService(StationDbContext database, IMediaProbe mediaProbe, IQueueStatusNotifier? notifier = null) : IQueuePreflightService
+public sealed class EfQueuePreflightService(StationDbContext database, IMediaProbe mediaProbe, IQueueStatusNotifier? notifier = null, ILocalDiagnosticLog? diagnosticLog = null) : IQueuePreflightService
 {
     public async Task<bool> ProbeNextWaitingAsync(Guid roomId, CancellationToken cancellationToken = default)
     {
@@ -19,9 +20,11 @@ public sealed class EfQueuePreflightService(StationDbContext database, IMediaPro
             .OrderBy(item => item.Position)
             .FirstOrDefaultAsync(cancellationToken);
         if (item is null) return false;
-        var media = item.Song.MediaFiles.Where(file => file.Availability == AvailabilityStatus.Available
-                && file.MediaSource.IsEnabled && file.MediaSource.Availability == AvailabilityStatus.Available)
-            .OrderBy(file => file.Id).FirstOrDefault();
+        var onlineMedia = item.Song.MediaFiles.Where(file => file.MediaSource.IsEnabled &&
+                file.MediaSource.Availability == AvailabilityStatus.Available)
+            .OrderBy(file => file.Id).ToArray();
+        var media = onlineMedia.FirstOrDefault(file => file.Availability == AvailabilityStatus.Available)
+            ?? onlineMedia.FirstOrDefault(file => file.Availability == AvailabilityStatus.Unreadable);
         if (media is null)
         {
             item.Status = QueueItemStatus.ProbeFailed;
@@ -53,7 +56,12 @@ public sealed class EfQueuePreflightService(StationDbContext database, IMediaPro
         else
         {
             media.LastErrorCode = result.Error.Code;
-            item.Status = QueueItemStatus.ProbeFailed;
+            // ffprobe is advisory for mounted/cloud media. A transient probe
+            // failure must not prevent mpv from attempting the real playback.
+            item.Status = QueueItemStatus.Waiting;
+            if (diagnosticLog is not null)
+                await diagnosticLog.WriteAsync("Warning", "queue.preflight_probe_failed",
+                    $"Queue item {item.Id} will still be handed to the player after three probe attempts: {result.Error.Code}; {result.Error.Message}", cancellationToken);
         }
         await database.SaveChangesAsync(cancellationToken);
         if (notifier is not null) await notifier.NotifyAsync(roomId, item.Id, item.Status, cancellationToken);

@@ -1,7 +1,8 @@
 param(
     [string]$Version = '0.1.0-dev',
     [string]$OutputDirectory = 'artifacts',
-    [string]$SeedDatabasePath
+    [string]$SeedDatabasePath,
+    [ValidateSet('Desktop', 'Tray')][string]$Target = 'Tray'
 )
 
 $ErrorActionPreference = 'Stop'
@@ -16,12 +17,24 @@ if (-not [string]::IsNullOrWhiteSpace($SeedDatabasePath)) {
 $root = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
 $dotnet = 'C:\Program Files\dotnet\dotnet.exe'
 if (-not (Test-Path -LiteralPath $dotnet)) { $dotnet = (Get-Command dotnet.exe -ErrorAction Stop).Source }
-$outputRoot = [IO.Path]::GetFullPath($OutputDirectory, $root)
+$outputRoot = if ([IO.Path]::IsPathRooted($OutputDirectory)) {
+    [IO.Path]::GetFullPath($OutputDirectory)
+}
+else {
+    [IO.Path]::GetFullPath((Join-Path $root $OutputDirectory))
+}
 $artifactName = "AI-KTV-Station-$Version-win-x64"
 $zipPath = Join-Path $outputRoot "$artifactName.zip"
 $checksumPath = "$zipPath.sha256"
 $stagingRoot = Join-Path $outputRoot ".staging-$([Guid]::NewGuid().ToString('N'))"
 $publishRoot = Join-Path $stagingRoot $artifactName
+
+function Get-PortableRelativePath([string]$BasePath, [string]$Path) {
+    # Windows PowerShell 5.1 runs on .NET Framework and has no Path.GetRelativePath.
+    $baseUri = [Uri]::new(($BasePath.TrimEnd('\') + '\'))
+    $pathUri = [Uri]::new($Path)
+    return [Uri]::UnescapeDataString($baseUri.MakeRelativeUri($pathUri).ToString()).Replace('/', '\')
+}
 
 New-Item -ItemType Directory -Path $publishRoot -Force | Out-Null
 try {
@@ -30,10 +43,20 @@ try {
     & npm.cmd run build --prefix (Join-Path $root 'src\Station.Web')
     if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
-    $project = Join-Path $root 'src\Station.Desktop\Station.Desktop.csproj'
+    if ($Target -eq 'Tray') {
+        $project = Join-Path $root 'src\Station.Tray\Station.Tray.csproj'
+        $executableName = 'Station.Tray.exe'
+    }
+    else {
+        $project = Join-Path $root 'src\Station.Desktop\Station.Desktop.csproj'
+        $executableName = 'Station.Desktop.exe'
+    }
     & $dotnet restore $project --runtime win-x64 --locked-mode
     if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-    & $dotnet publish $project --configuration Release --runtime win-x64 --self-contained true --no-restore --output $publishRoot -p:Version=$Version -p:DebugType=None -p:DebugSymbols=false
+    # Some Windows SDK installations intermittently fail while MSBuild resolves
+    # project references in parallel without reporting a usable diagnostic.
+    # A release build is infrequent, so favor deterministic single-node publish.
+    & $dotnet publish $project --configuration Release --runtime win-x64 --self-contained true --no-restore --output $publishRoot -m:1 -p:Version=$Version -p:DebugType=None -p:DebugSymbols=false
     if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
     Copy-Item -LiteralPath (Join-Path $root 'docs\project\WINDOWS-INSTALLATION.md') -Destination (Join-Path $publishRoot 'INSTALL.md')
@@ -105,7 +128,7 @@ try {
         Sort-Object FullName |
         ForEach-Object {
             [pscustomobject]@{
-                Path = [IO.Path]::GetRelativePath($publishRoot, $_.FullName).Replace('\', '/')
+                Path = (Get-PortableRelativePath $publishRoot $_.FullName).Replace('\', '/')
                 Size = $_.Length
                 Sha256 = (Get-FileHash -LiteralPath $_.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
             }
@@ -118,7 +141,7 @@ try {
     $zipHash = (Get-FileHash -LiteralPath $zipPath -Algorithm SHA256).Hash.ToLowerInvariant()
     "$zipHash  $([IO.Path]::GetFileName($zipPath))" | Set-Content -LiteralPath $checksumPath -Encoding ascii
 
-    & (Join-Path $PSScriptRoot 'verify-release-package.ps1') -Package $zipPath -RequireSeedDatabase:(-not [string]::IsNullOrWhiteSpace($SeedDatabasePath))
+    & (Join-Path $PSScriptRoot 'verify-release-package.ps1') -Package $zipPath -ExecutableName $executableName -RequireSeedDatabase:(-not [string]::IsNullOrWhiteSpace($SeedDatabasePath))
     if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
     Write-Output "PACKAGE=$zipPath"
     Write-Output "SHA256=$zipHash"

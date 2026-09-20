@@ -78,7 +78,7 @@ function normalizeSnapshot(data: unknown): RoomRealtimeSnapshot | undefined {
 }
 
 export function RoomRealtimeProvider({ children }: PropsWithChildren) {
-  const { session } = useSession()
+  const { session, setSession } = useSession()
   const [state, setState] = useState(emptyState)
   const [connectionStatus, setConnectionStatus] = useState<ConnectionStatus>('connecting')
   const version = useRef(0)
@@ -96,9 +96,17 @@ export function RoomRealtimeProvider({ children }: PropsWithChildren) {
     connection.onreconnected(() => { setConnectionStatus('connecting'); void subscribe().catch(() => setConnectionStatus('offline')) })
     connection.onclose(() => { if (!disposed) setConnectionStatus('offline') })
     setConnectionStatus('connecting')
+    const expiresAt = Date.parse(session.expiresAt)
+    let expiryTimer: number | undefined
+    const scheduleExpiry = () => {
+      const remaining = Number.isFinite(expiresAt) ? expiresAt - Date.now() : 0
+      if (remaining <= 0) { if (!disposed) setSession(null); return }
+      expiryTimer = window.setTimeout(scheduleExpiry, Math.min(remaining, 2_147_483_647))
+    }
+    scheduleExpiry()
     void connection.start().then(subscribe).catch(() => { if (!disposed) setConnectionStatus('offline') })
-    return () => { disposed = true; connection.off('roomEvent', accept); if (connection.state !== HubConnectionState.Disconnected) void connection.stop() }
-  }, [session])
+    return () => { disposed = true; if (expiryTimer !== undefined) window.clearTimeout(expiryTimer); connection.off('roomEvent', accept); if (connection.state !== HubConnectionState.Disconnected) void connection.stop() }
+  }, [session, setSession])
   return <RoomRealtimeContext.Provider value={{ ...state, connectionStatus, addQueueItem, updateQueueItem }}>{children}</RoomRealtimeContext.Provider>
 }
 

@@ -84,6 +84,21 @@ public sealed class RoomRealtimeTests
     }
 
     [Fact]
+    public void Presence_tracker_only_reports_currently_connected_guests()
+    {
+        var tracker = new RoomPresenceTracker();
+        var room = Guid.NewGuid();
+        var guest = Guid.NewGuid();
+        tracker.Connected("connection-1", room, guest);
+        tracker.Connected("other-room", Guid.NewGuid(), Guid.NewGuid());
+
+        Assert.Equal(guest, Assert.Single(tracker.ConnectedGuests(room)));
+
+        tracker.Disconnected("connection-1");
+        Assert.Empty(tracker.ConnectedGuests(room));
+    }
+
+    [Fact]
     public async Task Invalid_token_cannot_subscribe_or_join_room_group()
     {
         await using var factory = new StationApiTests.ApiFactory();

@@ -12,8 +12,8 @@ public sealed class QueuePreflightStatusTests
 {
     [Theory]
     [InlineData(true, QueueItemStatus.Waiting)]
-    [InlineData(false, QueueItemStatus.ProbeFailed)]
-    public async Task Probe_result_controls_when_a_song_becomes_waiting(bool succeeds, QueueItemStatus expected)
+    [InlineData(false, QueueItemStatus.Waiting)]
+    public async Task Probe_failure_is_advisory_and_does_not_skip_the_song(bool succeeds, QueueItemStatus expected)
     {
         var path = Path.Combine(Path.GetTempPath(), $"ai-ktv-preflight-{Guid.NewGuid():N}.db");
         try
@@ -35,6 +35,7 @@ public sealed class QueuePreflightStatusTests
             Assert.Equal(expected, (await database.QueueItems.SingleAsync()).Status);
             Assert.Equal((item.Id, expected), Assert.Single(notifier.Changes));
             Assert.Equal(succeeds ? 1 : 3, probe.Calls);
+            Assert.Equal(succeeds ? null : "media_probe.failed", (await database.MediaFiles.SingleAsync()).LastErrorCode);
         }
         finally { if (File.Exists(path)) File.Delete(path); }
     }

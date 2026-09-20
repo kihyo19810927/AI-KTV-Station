@@ -1,5 +1,6 @@
 param(
     [Parameter(Mandatory)][string]$Package,
+    [ValidateSet('Station.Desktop.exe', 'Station.Tray.exe')][string]$ExecutableName = 'Station.Tray.exe',
     [switch]$RequireSeedDatabase
 )
 
@@ -18,21 +19,24 @@ $previousSettingsRoot = $env:AI_KTV_STATION_SETTINGS_ROOT
 New-Item -ItemType Directory -Path $extractRoot, $settingsRoot -Force | Out-Null
 try {
     Expand-Archive -LiteralPath $packagePath -DestinationPath $extractRoot
-    $executable = Get-ChildItem -LiteralPath $extractRoot -Filter Station.Desktop.exe -File -Recurse | Select-Object -First 1
-    if (-not $executable) { throw 'Station.Desktop.exe is missing from extracted package.' }
+    $executable = Get-ChildItem -LiteralPath $extractRoot -Filter $ExecutableName -File -Recurse | Select-Object -First 1
+    if (-not $executable) { throw "$ExecutableName is missing from extracted package." }
     $seedDatabase = Join-Path $executable.DirectoryName 'data\station.db'
     if ($RequireSeedDatabase -and -not (Test-Path -LiteralPath $seedDatabase -PathType Leaf)) {
         throw 'Packaged seed database is missing before the application starts.'
     }
 
     $settings = @{
-        Server = @{ BindAddress = '127.0.0.1'; Port = $port }
-        Storage = @{ DataDirectory = 'data' }
-        Player = @{ ExecutablePath = ''; CommandTimeoutSeconds = 10 }
+        Station = @{
+            Server = @{ BindAddress = '127.0.0.1'; Port = $port }
+            Storage = @{ DataDirectory = 'data' }
+            Player = @{ ExecutablePath = ''; CommandTimeoutSeconds = 10 }
+        }
     } | ConvertTo-Json -Depth 4
     $settings | Set-Content -LiteralPath (Join-Path $settingsRoot 'settings.json') -Encoding utf8
     $env:AI_KTV_STATION_SETTINGS_ROOT = $settingsRoot
-    $process = Start-Process -FilePath $executable.FullName -WorkingDirectory $executable.DirectoryName -WindowStyle Hidden -PassThru
+    $arguments = if ($ExecutableName -eq 'Station.Tray.exe') { '--smoke-exit-after=8' } else { '' }
+    $process = Start-Process -FilePath $executable.FullName -ArgumentList $arguments -WorkingDirectory $executable.DirectoryName -WindowStyle Hidden -PassThru
 
     $startupTimeoutSeconds = if ($RequireSeedDatabase) { 90 } else { 20 }
     $deadline = [DateTimeOffset]::UtcNow.AddSeconds($startupTimeoutSeconds)
@@ -53,18 +57,31 @@ try {
         throw "Packaged desktop did not expose a healthy embedded service.$exitDetail$logDetail"
     }
     if (-not (Test-Path -LiteralPath $seedDatabase)) { throw 'Packaged desktop did not initialize its isolated database.' }
-    # /health may respond before XAML is instantiated; validate that the desktop really opened.
-    $windowDeadline = [DateTimeOffset]::UtcNow.AddSeconds(10)
-    do {
-        Start-Sleep -Milliseconds 200
-        $process.Refresh()
-    } while (-not $process.HasExited -and $process.MainWindowHandle -eq 0 -and [DateTimeOffset]::UtcNow -lt $windowDeadline)
-    if ($process.HasExited -or $process.MainWindowHandle -eq 0) { throw 'Desktop window did not open after service startup.' }
-    if (Test-Path -LiteralPath (Join-Path $settingsRoot 'startup-error.txt')) { throw 'Desktop reported a startup error.' }
-    if (-not $process.CloseMainWindow() -or -not $process.WaitForExit(10000)) { throw 'Desktop did not release its process after a normal window close.' }
+    # A tray/server cold start may restore its database, but it must not revive
+    # a historical queue or launch mpv before the host explicitly presses Play.
+    $packagePlayer = Get-Process mpv -ErrorAction SilentlyContinue | Where-Object {
+        $_.Path -and $_.Path.StartsWith($executable.DirectoryName, [StringComparison]::OrdinalIgnoreCase)
+    }
+    if ($packagePlayer) { throw 'Tray cold start unexpectedly launched the packaged mpv player.' }
+    Write-Output 'PACKAGE_COLD_START_IDLE=passed'
+    if ($ExecutableName -eq 'Station.Desktop.exe') {
+        # /health may respond before XAML is instantiated; validate that the desktop really opened.
+        $windowDeadline = [DateTimeOffset]::UtcNow.AddSeconds(10)
+        do {
+            Start-Sleep -Milliseconds 200
+            $process.Refresh()
+        } while (-not $process.HasExited -and $process.MainWindowHandle -eq 0 -and [DateTimeOffset]::UtcNow -lt $windowDeadline)
+        if ($process.HasExited -or $process.MainWindowHandle -eq 0) { throw 'Desktop window did not open after service startup.' }
+        if (Test-Path -LiteralPath (Join-Path $settingsRoot 'startup-error.txt')) { throw 'Desktop reported a startup error.' }
+        if (-not $process.CloseMainWindow() -or -not $process.WaitForExit(10000)) { throw 'Desktop did not release its process after a normal window close.' }
+        Write-Output 'PACKAGE_WINDOW=passed'
+    }
+    else {
+        if (-not $process.WaitForExit(15000)) { throw 'Tray launcher did not exit through its controlled smoke path.' }
+        Write-Output 'PACKAGE_TRAY_LIFECYCLE=passed'
+    }
     if (Get-Process -Id $process.Id -ErrorAction SilentlyContinue) { throw 'Desktop process remained after normal shutdown.' }
     Write-Output 'PACKAGE_PROCESS_CLEANUP=passed'
-    Write-Output 'PACKAGE_WINDOW=passed'
     Write-Output "PACKAGE_SMOKE_PORT=$port"
     Write-Output 'PACKAGE_SMOKE=passed'
 }

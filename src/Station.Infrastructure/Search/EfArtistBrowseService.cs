@@ -26,27 +26,17 @@ public sealed class EfArtistBrowseService(StationDbContext database, ArtistLexic
         var rows = await database.Database.SqlQueryRaw<ArtistStatistics>("""
             WITH plays AS (
                 SELECT SongId, COUNT(*) AS Total FROM PlayHistory GROUP BY SongId
-            ), favorite_entries AS (
-                SELECT SongId FROM Favorites
-                UNION ALL
-                SELECT i.SongId FROM ProfilePlaylistItems i
-                JOIN ProfilePlaylists p ON p.Id = i.ProfilePlaylistId
-                WHERE p.Kind = 'Favorites'
-            ), favorite_totals AS (
-                SELECT SongId, COUNT(*) AS Total FROM favorite_entries GROUP BY SongId
             )
             SELECT MIN(a.Name) AS Name, COUNT(*) AS SongCount,
-                COALESCE(SUM(p.Total), 0) AS PlayCount,
-                COALESCE(SUM(f.Total), 0) AS FavoriteCount
+                COALESCE(SUM(p.Total), 0) AS PlayCount
             FROM SongArtists sa JOIN Artists a ON a.Id = sa.ArtistId
             LEFT JOIN plays p ON p.SongId = sa.SongId
-            LEFT JOIN favorite_totals f ON f.SongId = sa.SongId
             GROUP BY a.Name COLLATE NOCASE
             """).ToListAsync(token).ConfigureAwait(false);
         return rows.Select(row =>
         {
             var metadata = lexicon.Resolve(row.Name);
-            var score = metadata.Popularity * 10 + row.PlayCount * 5 + row.FavoriteCount * 8 + row.SongCount;
+            var score = metadata.Popularity * 10 + row.PlayCount * 5 + row.SongCount;
             return new ArtistBrowseItem(CreateStableId(row.Name), row.Name, row.SongCount, metadata.ImageUrl, metadata.Group, score);
         }).OrderByDescending(x => x.Popularity).ThenByDescending(x => x.SongCount)
             .ThenBy(x => x.Name).ToArray();
@@ -58,6 +48,5 @@ public sealed class EfArtistBrowseService(StationDbContext database, ArtistLexic
         public string Name { get; set; } = "";
         public int SongCount { get; set; }
         public int PlayCount { get; set; }
-        public int FavoriteCount { get; set; }
     }
 }

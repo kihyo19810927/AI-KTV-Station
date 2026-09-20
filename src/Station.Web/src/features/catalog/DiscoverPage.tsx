@@ -6,7 +6,8 @@ import { useSession } from '../../state/session'
 import type { QueueEntry } from '../queue/types'
 
 interface SongSearchItem { songId: string; title: string; artists: string; language?: string; category?: string; quality?: string; year?: number; availability: 'Available' | 'Offline' | 'Unreadable' }
-interface SongSearchPage { items: SongSearchItem[]; total: number; page: number; pageSize: number }
+interface ArtistSearchItem { artistId: string; name: string; songCount: number; popularity: number; imageUrl?: string }
+interface SongSearchPage { items: SongSearchItem[]; total: number; page: number; pageSize: number; artists?: ArtistSearchItem[] }
 interface Filters { artistGroup: string; language: string; category: string; sort: string }
 interface FavoriteSong { songId: string }
 interface ArtistItem { id?: string; artistId?: string; name: string; songCount: number; imageUrl?: string; avatarUrl?: string }
@@ -63,7 +64,7 @@ export function DiscoverPage() {
   const [savedState] = useState(() => loadDiscoverState(storageKey))
   const [text, setText] = useState(savedState?.text ?? '')
   const [submittedText, setSubmittedText] = useState(savedState?.submittedText ?? '')
-  const [searchField, setSearchField] = useState<SearchField>(savedState?.searchField ?? 'Any')
+  const [searchField, setSearchField] = useState<SearchField>('Any')
   const [filters, setFilters] = useState<Filters>(savedState?.filters ?? initialFilters)
   const [page, setPage] = useState(savedState?.page ?? 1)
   const [result, setResult] = useState<SongSearchPage | null>(null)
@@ -129,8 +130,8 @@ export function DiscoverPage() {
     return () => controller.abort()
   }, [api, submittedText, searchField, filters, selectedArtist, page, retry])
 
-  const submitSearch = (field: SearchField) => {
-    setSearchField(field)
+  const submitSearch = () => {
+    setSearchField('Any')
     setSubmittedText(text.trim())
     setPage(1)
     if (browseMode !== 'root' && browseMode !== 'artist-songs') setBrowseMode('root')
@@ -168,16 +169,29 @@ export function DiscoverPage() {
   }
 
   function chooseArtist(artist: ArtistItem) {
-    setText(''); setSubmittedText(''); setSearchField('Artist'); setSelectedArtist(artist.name); setFilters(initialFilters); setBrowseMode('artist-songs')
+    chooseArtistName(artist.name)
+  }
+
+  function chooseArtistName(name: string) {
+    setText(''); setSubmittedText(''); setSearchField('Artist'); setSelectedArtist(name); setFilters(initialFilters); setBrowseMode('artist-songs')
+  }
+
+  function showSongVersions(song: SongSearchItem) {
+    setSelectedArtist('')
+    setSearchField('Any')
+    setText(song.title)
+    setSubmittedText(song.title)
+    setPage(1)
+    setBrowseMode('root')
   }
 
   return <>
     <label className="search-box">
       <Search aria-hidden="true" /><span className="sr-only">搜索歌曲</span>
-      <input value={text} onChange={event => setText(event.target.value)} placeholder="输入关键字后点击按歌名或按歌手" />
+      <input value={text} onChange={event => setText(event.target.value)} onKeyDown={event => { if (event.key === 'Enter') submitSearch() }} placeholder="搜索歌名或歌手" />
     </label>
     <div className="search-scope" role="group" aria-label="搜索范围">
-      {([['Any', '全部'], ['Title', '按歌名'], ['Artist', '按歌手']] as const).map(([value, label]) => <button key={value} className={searchField === value ? 'active' : ''} onClick={() => submitSearch(value)}>{label}</button>)}
+      <button className="active" onClick={submitSearch}>搜索歌名和歌手</button>
     </div>
 
     <section className="browse-menu" aria-label="曲库分类">
@@ -194,9 +208,10 @@ export function DiscoverPage() {
     {error && <section className="catalog-message" role="alert"><p>{error}</p><button onClick={() => setRetry(current => current + 1)}>重试</button></section>}
 
     {!isArtistBrowse && <>
+      {!error && result?.artists && result.artists.length > 0 && <section className="artist-search-results" aria-label="匹配歌手"><h2>热门歌手</h2><div>{result.artists.map(artist => <button key={artist.artistId} onClick={() => chooseArtistName(artist.name)}><strong>{artist.name}</strong><small>{artist.songCount} 首</small></button>)}</div></section>}
       {!error && loading && !result && <section className="catalog-message" aria-live="polite">正在搜索曲库…</section>}
       {!error && !loading && result?.items.length === 0 && <section className="catalog-message"><Music2 aria-hidden="true" /><strong>没有找到歌曲</strong><p>换个歌名、歌手、拼音或筛选条件试试。</p></section>}
-      {!error && result && result.items.length > 0 && <section className="song-list" aria-label="搜索结果">{result.items.map(song => <article className="song-row" key={song.songId}><div><strong>{song.title}</strong><small>{song.artists}{song.language ? ` · ${song.language}` : ''}{song.quality ? ` · ${song.quality}` : ''}</small></div><span className="song-actions"><button className={favorites.has(song.songId) ? 'favorite active' : 'favorite'} aria-label={`${favorites.has(song.songId) ? '取消收藏' : '收藏'} ${song.title}`} onClick={() => void toggleFavorite(song)}><Heart aria-hidden="true" /></button><button className={animatedSongId === song.songId ? 'request-song queued' : 'request-song'} aria-label={`点播 ${song.title}`} onClick={() => void requestSong(song)} disabled={song.availability !== 'Available' || requestingSongId === song.songId}>{requestingSongId === song.songId ? '…' : animatedSongId === song.songId ? '✓' : '＋'}</button></span></article>)}<div className="catalog-pagination"><button onClick={() => setPage(current => Math.max(1, current - 1))} disabled={loading || page <= 1}>上一页</button><span>第 {page} / {totalPages} 页 · 共 {result.total} 首</span><button onClick={() => setPage(current => Math.min(totalPages, current + 1))} disabled={loading || page >= totalPages}>下一页</button></div></section>}
+      {!error && result && result.items.length > 0 && <section className="song-list" aria-label="搜索结果">{result.items.map(song => <article className="song-row" key={song.songId}><div><button className="song-title-button" onClick={() => showSongVersions(song)}>{song.title}</button><small>{song.artists.split(' / ').map((artist, index) => <span key={`${song.songId}-${artist}`}>{index > 0 && ' / '}<button className="artist-link" onClick={() => chooseArtistName(artist)}>{artist}</button></span>)}{song.language ? ` · ${song.language}` : ''}{song.quality ? ` · ${song.quality}` : ''}</small></div><span className="song-actions"><button className={favorites.has(song.songId) ? 'favorite active' : 'favorite'} aria-label={`${favorites.has(song.songId) ? '取消收藏' : '收藏'} ${song.title}`} onClick={() => void toggleFavorite(song)}><Heart aria-hidden="true" /></button><button className={animatedSongId === song.songId ? 'request-song queued' : 'request-song'} aria-label={`点播 ${song.title}`} onClick={() => void requestSong(song)} disabled={song.availability !== 'Available' || requestingSongId === song.songId}>{requestingSongId === song.songId ? '…' : animatedSongId === song.songId ? '✓' : '＋'}</button></span></article>)}<div className="catalog-pagination"><button onClick={() => setPage(current => Math.max(1, current - 1))} disabled={loading || page <= 1}>上一页</button><span>第 {page} / {totalPages} 页 · 共 {result.total} 首</span><button onClick={() => setPage(current => Math.min(totalPages, current + 1))} disabled={loading || page >= totalPages}>下一页</button></div></section>}
     </>}
   </>
 }

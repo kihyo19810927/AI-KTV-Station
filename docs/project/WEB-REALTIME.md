@@ -15,6 +15,7 @@ KTVS-038 使用既有 `/hubs/room` SignalR Hub，让确认 Demo 的连接状态�
 - 增量事件只在版本严格递增时应用，重复或迟到事件被忽略。
 - 支持 `queue.added`、`queue.removed`、`queue.reordered` 和 `playback.changed`；其他事件推进版本但不猜测业务状态。
 - 服务端无法补齐版本缺口时会返回完整快照，客户端使用同一同步入口恢复。
+- 客户端按房间令牌 `expiresAt` 设置本地断开计时器；到期后清除当前标签页会话并停止 SignalR 连接。重连仍通过 `Subscribe` 重新进行服务端令牌校验。
 
 正在播放标题从状态为 `Playing`/`Preparing` 的公开队列项解析；播放进度中不包含媒体路径。当前进度仅随服务端事件/快照更新，连续秒级进度动画可在主控播放体验任务中补充。
 

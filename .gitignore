@@ -6,6 +6,10 @@ tests/**/obj/
 TestResults/
 coverage/
 artifacts/
+# Basic Memory 内容包含本机目录元数据，仅本地保存。
+/Basic-Memory/codex/
+/.hermes.md
+/scripts/duplicates.csv
 **/data/
 .tmp/
 src/Station.Web/node_modules/

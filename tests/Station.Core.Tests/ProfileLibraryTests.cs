@@ -41,6 +41,21 @@ public sealed class ProfileLibraryTests
         Assert.Single(fixture.Database.ProfilePlaylistItems);
     }
 
+    [Fact]
+    public async Task Profile_device_can_set_and_change_a_pin()
+    {
+        await using var fixture = await Fixture.CreateAsync();
+        var created = await fixture.Service.CreateAsync("妈妈", null);
+
+        Assert.True((await fixture.Service.SetPinAsync(created.Profile.Id, created.DeviceToken, null, "1234")).IsSuccess);
+        Assert.Null(await fixture.Service.ActivateAsync(created.Profile.Id, "0000"));
+        var reactivated = await fixture.Service.ActivateAsync(created.Profile.Id, "1234");
+        Assert.NotNull(reactivated);
+        Assert.True((await fixture.Service.SetPinAsync(created.Profile.Id, reactivated!.DeviceToken, "1234", "5678")).IsSuccess);
+        Assert.Null(await fixture.Service.ActivateAsync(created.Profile.Id, "1234"));
+        Assert.NotNull(await fixture.Service.ActivateAsync(created.Profile.Id, "5678"));
+    }
+
     private sealed class Fixture : IAsyncDisposable
     {
         private Fixture(StationDbContext database, Song song) { Database = database; Song = song; Service = new ProfileLibraryService(new EfProfileLibraryRepository(database, TimeProvider.System)); }

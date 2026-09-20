@@ -7,6 +7,9 @@ namespace Station.Infrastructure.Scanning;
 
 public sealed class EfMediaScanRepository(StationDbContext database) : IMediaScanRepository
 {
+    public async Task<IReadOnlyList<ArtistIdentity>> ListArtistsAsync(CancellationToken cancellationToken = default) =>
+        await database.Artists.AsNoTracking().Select(x => new ArtistIdentity(x.Id, x.NormalizedName)).ToArrayAsync(cancellationToken);
+
     public Task<MediaSource?> FindSourceAsync(Guid sourceId, CancellationToken cancellationToken = default) =>
         database.MediaSources.SingleOrDefaultAsync(x => x.Id == sourceId, cancellationToken);
 

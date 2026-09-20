@@ -39,8 +39,11 @@ public sealed class EfRoomLibraryRepository(StationDbContext database) : IRoomLi
             $"SELECT * FROM PlayHistory WHERE RoomSessionId = {roomId} ORDER BY StartedAt DESC, Id DESC LIMIT {pageSize} OFFSET {offset}")
             .AsNoTracking().ToArrayAsync(cancellationToken);
         var songIds = pageRows.Select(x => x.SongId).Distinct().ToArray();
-        var titles = await database.Songs.AsNoTracking().Where(x => songIds.Contains(x.Id)).ToDictionaryAsync(x => x.Id, x => x.Title, cancellationToken);
-        var items = pageRows.Select(x => new PlaybackHistoryEntry(x.Id, x.SongId, titles.GetValueOrDefault(x.SongId, "Unknown song"), x.Outcome, x.StartedAt, x.EndedAt)).ToArray();
+        var songs = await database.Songs.AsNoTracking().Include(x => x.Artists).ThenInclude(x => x.Artist)
+            .Where(x => songIds.Contains(x.Id)).ToDictionaryAsync(x => x.Id, cancellationToken);
+        var items = pageRows.Select(x => songs.TryGetValue(x.SongId, out var song)
+            ? new PlaybackHistoryEntry(x.Id, x.SongId, song.Title, Artists(song), x.Outcome, x.StartedAt, x.EndedAt)
+            : new PlaybackHistoryEntry(x.Id, x.SongId, "Unknown song", string.Empty, x.Outcome, x.StartedAt, x.EndedAt)).ToArray();
         return new(items, page, pageSize, total);
     }
 

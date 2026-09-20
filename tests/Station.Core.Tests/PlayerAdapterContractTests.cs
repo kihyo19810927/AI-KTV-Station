@@ -11,7 +11,7 @@ public sealed class PlayerAdapterContractTests
         var required = new[]
         {
             "StartAsync", "StopAsync", "LoadAsync", "PlayAsync", "PauseAsync", "SeekAsync", "SetVolumeAsync",
-            "SelectAudioTrackAsync", "SelectSubtitleTrackAsync", "GetStateAsync", "WatchEventsAsync",
+            "SelectAudioTrackAsync", "SelectSubtitleTrackAsync", "ShowOverlayAsync", "GetStateAsync", "WatchEventsAsync",
         };
         Assert.All(required, name => Assert.Contains(name, methods));
         Assert.Equal("Station.Application", typeof(IPlayerAdapter).Assembly.GetName().Name);

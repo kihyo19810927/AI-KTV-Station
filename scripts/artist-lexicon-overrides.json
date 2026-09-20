@@ -1,0 +1,16 @@
+{
+  "artists": [
+    {
+      "id": "kr-lyn",
+      "name": "Lyn",
+      "aliases": ["린"],
+      "country": "韩国",
+      "group": "韩国歌手",
+      "popularity": 99,
+      "imageUrl": "http://p1.music.126.net/Rr2e0_RnMe4YUtqkoLqCqg==/109951163379959928.jpg",
+      "source": "curated",
+      "sourceArtistId": "kr-lyn",
+      "replaceByName": true
+    }
+  ]
+}

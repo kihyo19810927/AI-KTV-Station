@@ -1,10 +1,16 @@
 using System.Net;
+using System.Net.Http.Json;
 using System.Net.Sockets;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Station.Application.Common;
+using Station.Application.Catalog;
+using Station.Application.Configuration;
+using Station.Application.Health;
 using Station.Application.Playback;
+using Station.Domain.Models;
+using Station.Infrastructure.Persistence;
 using Station.Server.Hosting;
 
 namespace Station.Core.Tests;
@@ -30,8 +36,57 @@ public sealed class StationEmbeddedHostTests
             using var client = new HttpClient { BaseAddress = new Uri($"http://127.0.0.1:{port}") };
             var response = await client.GetAsync("/health");
             Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+            var managementHealth = await client.GetAsync("/api/manage/health");
+            Assert.Equal(HttpStatusCode.OK, managementHealth.StatusCode);
+            var catalogStats = await client.GetFromJsonAsync<System.Text.Json.JsonDocument>("/api/manage/catalog/stats");
+            Assert.Equal(0, catalogStats!.RootElement.GetProperty("songCount").GetInt64());
+            var desktopFavoriteSongId = Guid.NewGuid();
+            await using (var dbScope = app.Services.CreateAsyncScope())
+            {
+                var database = dbScope.ServiceProvider.GetRequiredService<StationDbContext>();
+                database.Songs.Add(new Song { Id = desktopFavoriteSongId, Title = "电脑收藏测试歌" });
+                database.PlaybackErrors.Add(new PlaybackError
+                {
+                    ErrorCode = "player.unexpected_end_file",
+                    Stage = "Playback",
+                    DiagnosticSummary = "播放器在歌曲完成前结束了媒体（mpv 原因：stop）。",
+                    OccurredAt = DateTimeOffset.UtcNow,
+                });
+                await database.SaveChangesAsync();
+            }
+            Assert.Empty((await client.GetFromJsonAsync<Station.Application.Library.FavoriteSong[]>("/api/manage/library/favorites"))!);
+            Assert.Equal(HttpStatusCode.OK, (await client.PutAsJsonAsync($"/api/manage/library/favorites/{desktopFavoriteSongId}", new { favorite = true })).StatusCode);
+            var desktopFavorites = await client.GetFromJsonAsync<Station.Application.Library.FavoriteSong[]>("/api/manage/library/favorites");
+            Assert.Equal("电脑收藏测试歌", Assert.Single(desktopFavorites!).Title);
+            var playbackFailuresResponse = await client.GetAsync("/api/manage/playback/failures?count=1");
+            var playbackFailuresBody = await playbackFailuresResponse.Content.ReadAsStringAsync();
+            Assert.True(playbackFailuresResponse.IsSuccessStatusCode, $"{playbackFailuresResponse.StatusCode}: {playbackFailuresBody}");
+            var playbackFailures = System.Text.Json.JsonDocument.Parse(playbackFailuresBody);
+            Assert.Equal("player.unexpected_end_file", playbackFailures!.RootElement[0].GetProperty("errorCode").GetString());
+            Assert.Contains("stop", playbackFailures.RootElement[0].GetProperty("diagnosticSummary").GetString(), StringComparison.Ordinal);
+            var qr = await client.GetAsync("/api/manage/qr?content=https%3A%2F%2Fexample.test%2Fjoin");
+            Assert.Equal(HttpStatusCode.OK, qr.StatusCode);
+            Assert.Equal("image/png", qr.Content.Headers.ContentType?.MediaType);
+            Assert.NotEmpty(await qr.Content.ReadAsByteArrayAsync());
+            var ensured = await client.PostAsJsonAsync("/api/manage/room/ensure", new { hostNickname = "主持人", maxQueuedSongsPerGuest = 100 });
+            Assert.Equal(HttpStatusCode.OK, ensured.StatusCode);
+            using var firstRoom = await ensured.Content.ReadFromJsonAsync<System.Text.Json.JsonDocument>();
+            var firstRoomId = firstRoom!.RootElement.GetProperty("room").GetProperty("id").GetString();
+            var joinCode = firstRoom.RootElement.GetProperty("room").GetProperty("joinCode").GetString();
+            var joinUrl = firstRoom.RootElement.GetProperty("joinUrl").GetString();
+            Assert.False(string.IsNullOrWhiteSpace(firstRoom.RootElement.GetProperty("host").GetProperty("token").GetString()));
+            Assert.Matches("^[A-Z0-9]{6}$", joinCode!);
+            Assert.Contains($"/join?code={joinCode}", joinUrl, StringComparison.Ordinal);
+            var restored = await client.PostAsJsonAsync("/api/manage/room/ensure", new { hostNickname = "主持人", maxQueuedSongsPerGuest = 100 });
+            Assert.Equal(HttpStatusCode.OK, restored.StatusCode);
+            using var secondRoom = await restored.Content.ReadFromJsonAsync<System.Text.Json.JsonDocument>();
+            Assert.Equal(firstRoomId, secondRoom!.RootElement.GetProperty("room").GetProperty("id").GetString());
             Assert.Same(player, app.Services.GetRequiredService<IPlayerAdapter>());
             Assert.Contains(app.Services.GetServices<IHostedService>(), service => service.GetType().Name == "RoomPlaybackHostedService");
+            Assert.NotNull(app.Services.GetRequiredService<IStationSettingsStore>());
+            await using var scope = app.Services.CreateAsyncScope();
+            Assert.NotNull(scope.ServiceProvider.GetRequiredService<ICatalogJsonImportService>());
+            Assert.NotNull(scope.ServiceProvider.GetRequiredService<IStationHealthService>());
         }
         finally
         {

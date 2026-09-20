@@ -15,11 +15,25 @@ public interface IPlayerAdapter : IAsyncDisposable
     Task<Result<PlayerSnapshot>> SetVolumeAsync(double volume, CancellationToken cancellationToken = default);
     Task<Result<PlayerSnapshot>> SelectAudioTrackAsync(int streamId, CancellationToken cancellationToken = default);
     Task<Result<PlayerSnapshot>> SelectSubtitleTrackAsync(int? streamId, CancellationToken cancellationToken = default);
+    Task<Result<PlayerSnapshot>> ShowOverlayAsync(PlayerOverlayRequest request, CancellationToken cancellationToken = default) =>
+        Task.FromResult(Result<PlayerSnapshot>.Failure(new Error("player.overlay_unsupported", "The player overlay is not supported.")));
     Task<Result<PlayerSnapshot>> GetStateAsync(CancellationToken cancellationToken = default);
     IAsyncEnumerable<PlayerEvent> WatchEventsAsync(CancellationToken cancellationToken = default);
 }
 
 public sealed record PlayerLoadRequest(Guid PlaybackId, string MediaPath);
+
+public sealed record PlayerOverlayRequest(
+    int Id,
+    int X,
+    int Y,
+    int Width,
+    int Height,
+    int Stride,
+    int DisplayWidth,
+    int DisplayHeight,
+    byte[] Bgra,
+    TimeSpan Duration);
 
 public enum PlayerLifecycleState { Stopped, Idle, Preparing, Playing, Paused, Ended, Failed }
 
@@ -79,8 +93,22 @@ public sealed record PlaybackPausedEvent : PlayerEvent
 }
 public sealed record PlaybackEndedEvent : PlayerEvent
 {
-    public PlaybackEndedEvent(Guid eventId, DateTimeOffset occurredAt, Guid playbackId, PlaybackEndReason reason) : base(eventId, occurredAt, playbackId) => Reason = reason;
+    public PlaybackEndedEvent(
+        Guid eventId,
+        DateTimeOffset occurredAt,
+        Guid playbackId,
+        PlaybackEndReason reason,
+        string? detail = null,
+        bool isUserInitiated = false) : base(eventId, occurredAt, playbackId)
+    {
+        Reason = reason;
+        Detail = detail;
+        IsUserInitiated = isUserInitiated;
+    }
+
     public PlaybackEndReason Reason { get; }
+    public string? Detail { get; }
+    public bool IsUserInitiated { get; }
 }
 public sealed record PlaybackFailedEvent(Guid EventId, DateTimeOffset OccurredAt, Guid? PlaybackId, PlayerFailure Failure) : PlayerEvent(EventId, OccurredAt, PlaybackId);
 public sealed record PlayerTracksChangedEvent : PlayerEvent

@@ -1,5 +1,6 @@
 param(
     [Parameter(Mandatory)][string]$Package,
+    [ValidateSet('Station.Desktop.exe', 'Station.Tray.exe')][string]$ExecutableName = 'Station.Tray.exe',
     [switch]$RequireSeedDatabase
 )
 
@@ -12,7 +13,7 @@ $archive = [IO.Compression.ZipFile]::OpenRead($packagePath)
 try {
     $entries = @($archive.Entries | ForEach-Object FullName)
     foreach ($required in @(
-        'Station.Desktop.exe',
+        $ExecutableName,
         'wwwroot/index.html',
         'INSTALL.md',
         'THIRD-PARTY-NOTICES.md',

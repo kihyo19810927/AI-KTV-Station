@@ -1,14 +1,14 @@
 # 项目状态
 
-更新时间：2026-09-13
+更新时间：2026-09-20
 
 ## 当前基线
 
-- 分支：`codex/KTVS-088-wpf-performance`
-- 版本：`0.1.0-rc.22`（含已验收曲库数据库的本地候选包）
-- 阶段：Phase 10：持续验收问题修复与发布准备
-- 已完成：KTVS-001 至 KTVS-057；KTVS-058 软件验证完成；KTVS-060 至 KTVS-087 用户反馈与回归修复完成
-- 当前任务：KTVS-088 已完成，RC22 等待本地验收与最后一个 WPF PR 审阅；PR 通过后才开始 Web 桌面端
+- 分支：`codex/KTVS-090-tray-package`
+- 版本：`0.1.0-rc.45`（代码、测试与含真实曲库的本地候选包完成）
+- 阶段：Phase 10：持续验收问题修复、托盘启动与 Web 桌面主控
+- 已完成：KTVS-001 至 KTVS-057；KTVS-058 软件验证完成；KTVS-060 至 KTVS-090 用户反馈与回归修复完成；KTVS-091 至 KTVS-109 Web 桌面主控、播放诊断、验收修复、歌手字典与账户搜索收尾完成
+- 当前任务：KTVS-109：账户令牌与统一搜索收尾已完成；RC45 仍为上一候选包，尚未包含 KTVS-103 至 KTVS-109 变更。
 
 ## 调查结果
 
@@ -18,12 +18,79 @@
 - `ffprobe`/`ffmpeg` 可用（来自 `D:\Applications\ffmpeg\bin`，未写入项目配置）。
 - .NET SDK `10.0.400`（绝对路径可用）；mpv 已由 WinGet 安装并可定位。
 
-## KTVS-088 进行中
+## KTVS-088 已完成
 
 - 桌面数据操作已改为通过内嵌 Server 的独立异步作用域在后台执行；读取请求使用 `NoTracking`，写入仍保留完整工作单元。歌手浏览改为 SQLite 聚合和每库 30 秒不可变快照；成功写入曲库、历史或收藏时主动失效。实际 72,295 首快照冷加载 `672.03ms`，后续分组切换 100 次缓存 P50 `0.213ms`、P95 `0.370ms`；真实鼠标手感仍需 Windows 目视验收。
 - 设置新增“115 挂载路径”。便携 JSON/JSONL 导入保留相对路径并在盘符变化时重映射既有 `115 JSON 曲库`，复用既有文件路径，不删除歌曲、收藏、历史或人工修正。
 - `Station.CatalogImport` 的 SQLite 快照异常已改为受控错误码，避免 Windows 弹出未处理异常窗口。
 - RC22：`artifacts/AI-KTV-Station-0.1.0-rc.22-win-x64.zip`，580 项，大小 353,069,531 bytes，SHA-256 `6483940b5cd42a4ebc91263041a35c7a3228908fa7eca04671e6d5afa4b3edf4`。包内只含单个 `data/station.db`，无 WAL/SHM 或用户设置；发布校验、隔离启动、健康、窗口与正常退出进程清理通过。数据库来自所有者 RC21 安装目录的 SQLite 只读快照，未写入源库；候选包不得推送或公开分发。
+
+## KTVS-089 已完成
+
+- `Station.Server` 已读取当前 Windows 用户设置文件，并注册本机设置、JSON/JSONL 导入、健康检查、JSONL 诊断日志和脱敏诊断导出。`/api/manage/*` 路由严格按 loopback 拒绝局域网客户端，因此手机端仍无法获得本机文件路径或管理能力。
+- `Station.Tray` 是纯通知区 WinForms 启动器：启动同一 Server Host 后以 Edge `--app` 打开 `/desk`；退出时调用其注册 `IPlayerAdapter` 的正常停止并释放 Host，不使用 `taskkill /IM mpv.exe` 一类会误伤其他播放器的策略。
+- 自动化验证覆盖管理健康路由、服务注册、托盘首次启动、Edge 失败仍保留 Server、幂等停止和播放器停止；此前候选包已由用户确认通知区托盘可工作。完整 Core 非外部 `186/186`、Desktop `18/18`、Release 构建/格式/依赖方向/运维文档门禁通过。
+
+## KTVS-091 已完成
+
+- `Station.Server` 新增 loopback-only 的 `/api/manage/room/ensure`，为桌面主控幂等创建/恢复房间并签发主持人凭证；响应同时生成局域网加入链接，使用房间码但不把令牌放入 URL。
+- `Station.Web` 新增 `/desk`，直接按批准的 Demo 实现深色紫色侧栏、电脑点歌、并排“按歌名/按歌手”检索按钮、歌星圆形头像卡片、语种/风格筛选、分页、播放状态和队列面板。页面复用现有 REST/SignalR 房间能力，WPF 不承载业务界面。
+- 桌面页启动后自动恢复本地主持房间；歌手卡片按歌手字段检索，队列显示探测/播放状态并提供插播，播放控制复用现有 `/api/playback/*` 接口。
+- `scripts/test-packaged-app.ps1` 同步修复了包冒烟测试的 `Station` 配置层级，并覆盖随机端口；修复托盘启动任务与 smoke 退出调度的竞态，避免托盘进程残留。
+- RC32：`artifacts/AI-KTV-Station-0.1.0-rc.32-win-x64.zip`，450 项，SHA-256 `9198c5ec476e257e38aa5ed576b5802f455541a6012b4995e5c79619a353b5ee`。包含 `/desk`、自包含 .NET、mpv/FFmpeg、许可证材料和 `data/station.db`；隔离启动健康、冷启动不拉起 mpv、托盘生命周期和进程清理通过。因当前机不存在此前指定的外部数据库目录，本包使用 RC30 已验收包中的只读数据库快照。
+- KTVS-091 基线验证：Web TypeScript `tsc -b`、Vitest `34/34`、Vite production build、Server/Tray Release build、嵌入宿主管理路由测试 `1/1`、Desktop `18/18`、Core 非外部 `181/181`、格式门禁和 RC32 包冒烟均通过。真实 Edge App 视觉、触控、局域网手机和长列表体验仍需用户验收。
+
+## KTVS-092 已完成
+
+- `/desk` 继续直接沿用批准的 Demo 结构和视觉变量，不回退到 WPF/XAML；右侧播控补齐播放/暂停、切歌、进度拖动、音量滑动、原唱/伴奏切换和字幕选择。
+- 桌面端增加 `TimeSpan`/数字进度统一换算，避免 `00:01:05` 被 `Number()` 当成无效值；音量更新使用 160ms 防抖并乐观更新，避免拖动时高频请求阻塞 UI。
+- Vitest 新增桌面播控接口回归，覆盖音量、进度、音轨和字幕请求；当前 Web 测试为 `35/35`，TypeScript 和 Vite production build 通过。
+- RC33：`artifacts/AI-KTV-Station-0.1.0-rc.33-win-x64.zip`，450 项，339,239,970 bytes，SHA-256 `afff3a89be2d85c893910b86e7c9496ec2f9ee63e210e4575bbd76b708d9adba`。包含批准 Demo `/desk`、自包含 .NET、mpv/FFmpeg、许可证材料及 `data/station.db` 只读快照；发布校验、冷启动不拉起 mpv、托盘生命周期和进程清理通过。
+
+## KTVS-093 已完成
+
+- `/desk` 前端直接沿用批准 Demo 的桌面视觉和交互结构；歌手 API 返回结果保持原有热度排序，但歌手网格每页最多创建 24 张卡片，超过一页通过“上一页/下一页”切换，避免一次性生成数千个头像、阴影和布局节点导致 UI 卡顿。
+- 新增 Web 回归覆盖 25 位歌手数据：第一页只创建 24 个 `.ktv-artist`，第二页只创建剩余 1 个；无歌手数据重复请求或媒体文件操作。
+- `NowPlaying` 的音量状态同步增加有限值保护，避免后端缺失音量字段时把受控滑块变成非受控输入。
+- KTVS-093 软件验证：Web `36/36`、TypeScript 和 Vite production build 通过；RC34 发布校验和托盘冒烟通过（冷启动待机、托盘生命周期、健康检查和进程清理）。
+- RC34：`artifacts/AI-KTV-Station-0.1.0-rc.34-win-x64.zip`，450 项，339,240,095 bytes，SHA-256 `2a36167d333908652b42086cbea00a8020f67540acbf9ed5ac7ffdeefac3ba65`。包含批准 Demo `/desk`、自包含 .NET、mpv/FFmpeg、许可证材料及 `data/station.db` 只读快照；发布校验 `RELEASE_PACKAGE=passed`、Windows 发布 `WINDOWS_PUBLISH=passed`、包冒烟 `PACKAGE_SMOKE=passed`。
+
+## KTVS-094 已完成
+
+- 修复 `/desk` 桌面 Demo 的颜色变量兼容性：移除不兼容的 `light-dark()`，使用稳定浅色基线并通过 `prefers-color-scheme: dark` 覆盖深色变量；紫色点歌按钮、侧栏、标签和播控按钮恢复可见对比度。
+- 侧栏导航不再只有无感滚动或不可见提示：当前导航项会高亮，房间、曲库、设置、正在播放和队列操作会在页面顶部显示即时反馈；桌面点歌按钮继续直接调用 `/api/queue`。
+- mpv 适配器明确忽略 `end-file(reason=replaced)`，避免 `loadfile replace` 的旧媒体事件被绑定到新播放 ID；真实 Unicode MKV 外部回归增加切换后状态仍为 `Playing` 的检查。
+- KTVS-094 软件验证：Web `38/38`、TypeScript、Vite production build、Server Release、Core 非外部 `181/181`、mpv 外部 `3/3` 通过；RC35 发布包、冷启动待机、托盘生命周期、健康检查和进程清理冒烟通过。
+- RC35：`artifacts/AI-KTV-Station-0.1.0-rc.35-win-x64.zip`，450 项，339,240,361 bytes，SHA-256 `8fb1fd8609d9a61829fd3401460414e1e9fd3b48baba73b2f4694d861293fbb9`。包含稳定颜色基线、桌面导航反馈、连续播放替换事件修复、自包含 .NET、mpv/FFmpeg、许可证材料及已验收曲库 `data/station.db` 快照；`RELEASE_PACKAGE=passed`、`WINDOWS_PUBLISH=passed`、`PACKAGE_SMOKE=passed`。
+
+## KTVS-095 已完成
+
+- `/desk` 视觉基线改为深紫渐变背景、半透明面板、圆角卡片和粉紫渐变操作按钮，移除白色主面板造成的低对比观感；按钮和输入控件统一使用深色背景及高对比文字。
+- 修复侧栏“点击无反应”的实现缺陷：此前除“电脑点歌”外只执行滚动或显示提示，未切换内容视图；现在总览、正在播放、点歌队列、曲库管理、房间与二维码、设置与诊断均有独立桌面内页，返回电脑点歌和关键操作可用。
+- KTVS-095 验证：Web `38/38`、TypeScript `tsc -b`、Vite production build 通过；回归覆盖深色 CSS 基线以及侧栏内页切换。
+- RC36：`artifacts/AI-KTV-Station-0.1.0-rc.36-win-x64.zip`，450 项，339,242,385 bytes，SHA-256 `be108e1f7249c93db695f2896eb7313e9dc7045292dddea661197b3dc435e9be`。包含本次深色 `/desk` 视觉、真实桌面导航内页、自包含 .NET、mpv/FFmpeg、许可证材料及已验收曲库 `data/station.db` 快照；`RELEASE_PACKAGE=passed`、`WINDOWS_PUBLISH=passed`、`PACKAGE_SMOKE=passed`。
+
+## KTVS-096 已完成
+
+- `/desk` 点歌页改为全宽桌面布局：默认显示按热度排序的歌手卡片，搜索改为点击“按歌名/按歌手”后提交，歌曲列表使用“继续加载”而不显示传统页码；右侧常驻队列改为底部迷你播放条，副标题和按钮提高对比度。
+- 播放页补齐当前歌曲、歌手/点歌人、进度、播放控制、队列前瞻、音量和原唱/伴奏状态；重唱、气氛音效和升降调入口先以明确提示保留，待 `IPlayerAdapter` 增加对应能力后再接真实控制。
+- 房间页新增大二维码、复制/保存/刷新、房间码、局域网提示和在线访客；Server 增加 loopback-only 二维码 PNG 与访客查询接口，托盘拉起 Edge 时使用全屏参数。
+- 曲库页改为导入/健康状态控制台；新增本机只读统计接口，首次进入即可显示歌曲、歌手、媒体和探测失败计数，不依赖点歌页默认查询；设置页拆为曲库存储、播放与显示、音频伴奏、房间系统四个 tab，挂载路径放在曲库存储 tab，均通过现有本机管理 API 保存。
+- KTVS-096 软件验证：Core `181/181`、Desktop `18/18`、Web `38/38`、TypeScript、Vite production build、Server Release 构建全部通过；RC39 发布校验与隔离启动冒烟（冷启动待机、托盘生命周期、进程清理）通过。指定数据库已确认存在，源文件大小 `127,692,800` bytes，发布过程未修改源库或媒体。
+- RC39：`artifacts/AI-KTV-Station-0.1.0-rc.39-win-x64.zip`，451 项，333,754,540 bytes，SHA-256 `43cd61086b5407cea967c58f6054d11c754cc368252ce700b97d7629db88d975`；包内含单个 `data/station.db`，无 WAL/SHM，并包含 mpv/FFmpeg 运行文件及许可证材料。数据库来自 `D:\Applications\AI-KTV-Station\data\station.db` 的 SQLite Backup API 只读快照，仅限本地验收/交付，不得推送或公开分发。
+
+## KTVS-097 已完成
+
+- 连续播放根因已修复：mpv `loadfile ... replace` 期间建立替换事件围栏，连续延迟到达的旧媒体非 EOF `end-file` 不再结束当前新歌；显式用户切歌仍保持 `Stopped`，自然 EOF 仍为 `Completed`。应用编排器对 `Replaced` 事件也做了最终保护，不会推进队列。
+- 播放页删除装饰性进度条，仅保留一个可拖动的进度滑块；Web 回归确认页面只渲染一个“播放进度”滑块。
+- 房间页“投到 MV 屏幕”不再是占位通知：Server 生成高对比度 QR 原始 BGRA 位图，通过 `IPlayerAdapter` 的 mpv `overlay-add` 显示在视频左上角，15 秒后 `overlay-remove`；本机管理接口仍仅 loopback 可用。
+- KTVS-097 验证：Core 非外部 `189/189`、Desktop `18/18`、Web `38/38`、TypeScript、Web production build、Server Release 均通过；mpv 外部 `4/4` 通过，新增快速连续换歌回归，确认新播放不会被旧媒体事件结束。真实电视画面、不同 mpv 构建、长队列和实际扫码仍待用户实机验收。
+
+## KTVS-098 已完成
+
+- RC40：`artifacts/AI-KTV-Station-0.1.0-rc.40-win-x64.zip`，451 项，339,407,106 bytes，SHA-256 `aa3c19b4e961726b2d17adfd5961d138e110379bfea3340cc7566abc25597e63`；包含 `Station.Tray.exe`、mpv、Vulkan loader、FFmpeg/ffprobe、许可证材料和单个 `data/station.db`，无 WAL/SHM。
+- 发布校验 `RELEASE_PACKAGE=passed`、Windows 发布 `WINDOWS_PUBLISH=passed`；托盘包冒烟 `PACKAGE_SMOKE=passed`，冷启动待机、Server 健康、托盘生命周期和进程清理均通过。
+- 因用户指定的外部数据库路径当前不存在，RC40 使用 RC39 已验收包内的 `station.db` 只读快照作为种子；数据库大小 `127,692,800` bytes，SHA-256 `3852968bf9356aa6a2b1c9d706737b316c1b3970ef50e26ae14bc8391185cd7e`，源 RC39 包未修改。
 
 ## 最近验证
 
@@ -185,7 +252,88 @@ KTVS-052：安全审查修复了配置监听地址未实际传给 Kestrel，以�
 
 KTVS-053：基于锁文件、已还原包元数据和本机 build 信息完成 .NET/Web/媒体工具依赖清单。本机 Gyan FFmpeg 是 GPLv3 static full build；WinGet mpv CI 的精确组合许可不能仅由版本输出证明。V1 不在 Station 包中捆绑两者，只定位用户独立安装的外部进程。仓库尚无项目自身 LICENSE，任何外部发布前需所有者决定；不阻塞本地开发与 UAT 包。
 
+## KTVS-099 已完成
+
+- mpv 的非 EOF `end-file` 事件现在携带原始原因和是否由用户主动切歌的标记；队列只对非用户主动结束记录 `player.unexpected_end_file`，并保留原有队列推进行为。
+- 播放恢复记录保存用户可读的失败说明；新增 loopback-only `/api/manage/playback/failures` 查询最近播放错误，播放器页显示最近一次异常的说明、错误码和阶段。
+- 桌面 Web 的点歌、插播、播放控制、导入和设置提示改为固定底部圆角 Toast，自动消失，不再占用顶部内容空间；错误提示同样固定显示。
+- KTVS-099 验证：Core 非外部回归 191/191、Web Vitest 39/39、TypeScript、Vite production build、Server/Core 编译通过；真实 mpv/电视设备仍待实机验收。
+
+## KTVS-100 已完成
+
+- 曲库导入和增量扫描现在按标准化歌手名复用已有 `Artist`，不再为每首歌曲重复创建歌手；统计接口按去重后的标准化名称计数。
+- 新增数据库迁移 `20260914172507_CanonicalizeArtists`：先把历史重复艺术家及 `SongArtists` 关系合并到规范记录，再建立 `Artists.NormalizedName` 唯一索引；歌曲、收藏、历史和媒体索引均保留。
+- mpv 播放适配器记录当前 `playlist_entry_id`，旧媒体的 `eof`、`stop`、空原因和顺序异常事件不能结束新媒体；无媒体代次字段的旧构建继续使用替换围栏。真实失败仍保留原始 reason，用户主动切歌不记为异常失败。
+- 指定数据库只读快照迁移结果：`72,295` 首歌曲、`26,910` 位去重歌手、`72,295` 条歌曲-歌手关联；源库未写入。
+- KTVS-100 验证：Core 非外部 `191/191`、Desktop `18/18`、Web `39/39`、TypeScript、Vite、解决方案 Release 构建均通过；真实 mpv 外部 `4/4`，50 轮耐久 `50/50`、重复结束事件 `0`、播放器重启 `0`。
+- RC41：`artifacts/AI-KTV-Station-0.1.0-rc.41-win-x64.zip`，451 项，SHA-256 `07b0c1f87de9e87442b1f4b8c1de5dfffb30ba82c2b5373c322fc277b0bf1d86`；含指定数据库的单个 `data/station.db`，发布校验、托盘冷启动、健康、生命周期和进程清理均通过。
+
 ## 外部阻塞
+
+### KTVS-101 软件改动与证据
+
+- 真实数据库只读调查发现 119 条 `player.command_timeout`，处理时间 10.01–10.39 秒；不能把此前本地生成媒体测试推论为真实挂载环境已修复。
+- 命令超时现在保留 `CommandTimeout` 分类并重试同一歌曲；重试耗尽保留当前请求、暂停自动推进，主持人通过播放按钮恢复。媒体加载完成事件独立等待至少 120 秒。
+- 本机 `logs/station.jsonl` 增加 load.begin、load.accepted、start-file/file-loaded/end-file、忽略旧事件及超时环节；包含播放编号、媒体编号、请求编号和超时命令名，不记录媒体路径。数据库失败说明同步保留具体等待环节。
+- 播放页面优先展示当前歌手图片，失败回退文字；五个播控按钮仅图标并保留悬停提示；原伴唱按音轨顺序直接切换；音量、异常提示使用浮层，成功播放后历史异常不再冒充当前故障。
+- 每次成功加载队列歌曲由后端投送二维码 15 秒，不依赖浏览器页面；复用同一圆角 BGRA 生成器，去掉重复静区，保留四模块扫码静区。
+- 插播/置顶重排后同步全部队列项；已点列表使用完整可用宽度。
+- 验证：Core 非外部 194/194，Web 39/39；真实 mpv 4/4；50 轮连续播放 `50/50`、重复结束事件 `0`、播放器重启 `0`。新增超时重试不消耗下一首、每首开播通知、二维码静区与圆角测试；前端覆盖头像/错误回退、纯图标、直接切轨和旧异常隐藏。
+- RC43：`artifacts/AI-KTV-Station-0.1.0-rc.43-win-x64.zip`，451 项，SHA-256 `62feb24be400213c43ad7f96a69cfa33a4422db718a3682f6a077df6331fecfe`；使用 `D:\Applications\AI-KTV-Station\data\station.db` 的 SQLite 只读快照，发布校验、托盘冷启动、健康、生命周期和进程清理均通过。
+- 真实挂载环境首次超时触发点仍未复现：按用户追加要求提供详细日志供现场追踪，不宣称现场跳歌已彻底消除。
+
+### KTVS-102 汇总验收修复与播放跳过保护
+
+- 队列预探测改为建议性检查：远端挂载文件连续三次 `ffprobe` 失败时记录错误但仍进入 `Waiting`，交给 mpv 做真实加载，不再仅凭探测失败跳过歌曲。曾因临时加载失败标记为 `Unreadable` 的媒体在来源恢复在线后允许再次尝试；可重试的 `MediaLoadFailed` 不再永久降级媒体状态。
+- 诊断日志新增 ffprobe 退出码、精简 stderr、耗时和安全文件名；mpv `end-file(reason=error)` 记录 `error`、`file_error`、`playlist_entry_id`，保留媒体代次围栏。命令/连接/协议超时重试耗尽后停止自动推进，避免连续吞掉后续歌曲。
+- 桌面主控补齐独立“电脑主控”收藏、歌手下钻返回、上一页/下一页、头像 HTTPS 与图片失败首字回退；队列页加入删除、清空、已唱历史和一键再唱，并把宽屏空白用于历史栏。在线成员只统计当前 SignalR 连接，过期访客记录不再显示为在线。
+- 点歌等反馈保持底部圆角 Toast；五个播控继续使用纯图标，原伴唱直接顺序切换音轨；每首成功开播自动投送圆角二维码 15 秒的后端能力继续由回归覆盖。
+- 验证：Core 非外部 `198/198`、真实 mpv/ffprobe `6/6`、Desktop `18/18`、Web `40/40`；TypeScript、Vite production build、全解决方案 Release 构建通过（0 警告/0 错误）。
+- RC45：`artifacts/AI-KTV-Station-0.1.0-rc.45-win-x64.zip`，451 项，334,496,179 bytes，SHA-256 `0de99017c9048cf7d71741d784369f3e31f8f71b4f691a406cfb34791b5f2824`；使用 `D:\Applications\AI-KTV-Station\data\station.db` 的 SQLite 只读快照，发布校验、托盘冷启动、健康、生命周期和进程清理均通过。RC45 额外修复电脑收藏查询在 SQLite 对 `DateTimeOffset` 排序时的 500 错误。
+
+### KTVS-103 歌手字典身份字段与同名歌手支持
+
+- `sync-artist-lexicon.ps1` 输出 Schema V2 数组，保留稳定 ID、显示名、别名、国家或地区、分组、热度、头像、数据来源和来源歌手 ID；兼容旧姓名键输入，并拒绝重复稳定 ID。
+- 字典不再以歌手姓名作为 JSON 唯一键，因此可同时保存不同国家或地区的同名歌手。运行时兼容旧字典和 V2 字典，韩语/日语仅作为同名歌手消歧线索。
+- 新增可审计人工纠错层；Lyn 已纠正为韩国歌手并补充韩文别名 `린`，日本 LiSA 保持独立身份。现有 2,696 条字典已迁移为 V2，未虚构缺失的外部歌手资料。
+- 本任务不修改真实媒体或现有数据库结构；数据库 `Artists.NormalizedName` 的同名身份迁移仍需独立任务处理。
+
+### KTVS-104 歌手详情返回原列表页
+
+- 桌面歌手列表重新加载时不再无条件重置到第一页；从歌手所在分页进入歌曲列表后，“返回歌手列表”恢复原分类和原页码。
+- 新数据页数缩小时会把保存页码限制到有效范围；主动切换歌手分类仍从第一页开始。
+- Web 回归覆盖从第 2 页进入歌手详情并返回，确认仍显示第 2 页及原歌手卡片。
+
+### KTVS-105 队列页已唱列表可见入口
+
+- 已唱历史此前位于待唱队列之后，在窄窗口单列布局和长队列下需要滚过全部待唱歌曲才能看到；改为队列页顶部明确的“待唱 / 已唱”切换。
+- 已唱页显示最近 30 首已完成歌曲并保留一键再唱；清空队列只在待唱页显示，避免与历史操作混淆。
+- Web 回归覆盖待唱与已唱互斥显示、已唱页标题、返回待唱及原队列操作。
+
+### KTVS-106 桌面歌曲列表已点按钮布局修复
+
+- 已点状态同时显示勾选图标和文字时，原 60px 按钮在窄窗口中可能把“已点”折成两行；按钮现保留 64px 最小宽度、水平内边距并禁止换行。
+- Web 回归确认点歌成功后按钮进入带勾选图标的 `queued` 已点状态。
+
+### KTVS-107 访客查看完整房间队列
+
+- 手机“已点”页此前收到完整房间队列后又按当前访客过滤，导致未点歌访客只看到“房间共 65 首”却看不到歌曲；现改为显示完整房间队列。
+- 每首歌显示点播人；插播和删除按钮仍只为当前访客自己的探测中、探测失败或等待歌曲显示，维持服务端权限边界。
+- Web 回归覆盖他人歌曲可见、点播人可见、他人歌曲没有插播和删除入口，以及自己的歌曲仍可删除。
+
+### KTVS-108 主控房间令牌超时恢复入口
+
+- 播放控制遇到房间令牌过期、失效、撤销或房间关闭时，不再直接显示英文服务端消息；弹窗用中文说明队列不会丢失并提供“重新连接房间”。
+- 恢复操作通过本机管理接口复用当前房间并重新签发主持人令牌，成功后主控与实时连接使用新令牌；失败时明确提示重启 AI-KTV Station 后重试。
+- 超时恢复弹窗不会自动消失；Web 回归覆盖 401 超时、点击恢复、令牌更新和成功提示。
+
+### KTVS-109 账户令牌与统一搜索收尾
+
+- 档案设备令牌固定 90 天过期，补齐 PIN 设置、修改、清除、当前设备及全部设备吊销；PIN 使用带随机盐 PBKDF2，并按档案和房间访客执行内存限流。
+- 桌面与手机搜索统一为同时检索歌名和歌手；返回最多 5 位热门歌手建议，歌手和歌曲可继续进入精确浏览，并为连续中文中段词提供零命中回退。
+- 实时连接按房间令牌期限清理当前标签页会话；超过浏览器单次计时上限的期限分段等待，避免计时器溢出导致会话立即失效。
+- 验证通过：Core 非外部 `196/196`、Web `41/41`、TypeScript、Vite production build、解决方案 Release 构建（0 警告、0 错误）。
+- 软件侧已消除“探测失败直接跳歌”路径并加固超时停止策略；真实 115 长队列仍需用户实机验收。如仍失败，新增日志应能给出 ffprobe/mpv 的真实退出细节。
 
 1. 真实 MKV、挂载目录和电视/功放/手机验收需用户后续执行；所有不依赖实机的软件任务已完成。
 2. 正式外部发布前，仓库所有者需确定项目自身许可证或保留权利声明。

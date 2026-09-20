@@ -58,7 +58,8 @@ namespace Station.Infrastructure.Persistence.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("NormalizedName");
+                    b.HasIndex("NormalizedName")
+                        .IsUnique();
 
                     b.ToTable("Artists");
                 });
@@ -312,6 +313,9 @@ namespace Station.Infrastructure.Persistence.Migrations
                         .HasColumnType("TEXT");
 
                     b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTimeOffset>("ExpiresAt")
                         .HasColumnType("TEXT");
 
                     b.Property<DateTimeOffset>("LastUsedAt")

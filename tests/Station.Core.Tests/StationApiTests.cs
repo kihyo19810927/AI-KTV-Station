@@ -132,6 +132,25 @@ public sealed class StationApiTests
         Assert.Contains("id=\"root\"", markup);
     }
 
+    [Fact]
+    public async Task Local_host_can_display_room_qr_overlay_on_the_player()
+    {
+        await using var factory = new ApiFactory();
+        using var client = factory.CreateClient();
+
+        var response = await client.PostAsJsonAsync("/api/manage/room/qr-overlay", new { content = "http://192.168.1.20:5090/join?code=KTV826" });
+        var body = await response.Content.ReadFromJsonAsync<JsonElement>(JsonOptions);
+        var player = Assert.IsType<ApiPlayer>(factory.Services.GetRequiredService<IPlayerAdapter>());
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.True(body.GetProperty("displayed").GetBoolean());
+        Assert.Equal(15, body.GetProperty("durationSeconds").GetInt32());
+        Assert.NotNull(player.LastOverlay);
+        Assert.Equal(7, player.LastOverlay!.Id);
+        Assert.Equal(TimeSpan.FromSeconds(15), player.LastOverlay.Duration);
+        Assert.NotEmpty(player.LastOverlay.Bgra);
+    }
+
     private static void SetBearer(HttpClient client, string token) =>
         client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
 
@@ -198,6 +217,7 @@ public sealed class StationApiTests
     {
         private PlayerSnapshot snapshot = new(PlayerLifecycleState.Playing, Guid.NewGuid(), TimeSpan.FromSeconds(12), TimeSpan.FromMinutes(4), 70, 1, 3,
             [new PlayerTrack(1, MediaTrackType.Audio, "aac", "zho", "伴奏", true), new PlayerTrack(2, MediaTrackType.Audio, "aac", "zho", "原唱", false), new PlayerTrack(3, MediaTrackType.Subtitle, "ass", "zho", "中文", true)]);
+        public PlayerOverlayRequest? LastOverlay { get; private set; }
         public Task<Result<PlayerSnapshot>> GetStateAsync(CancellationToken cancellationToken = default) => Success();
         public Task<Result<PlayerSnapshot>> SetVolumeAsync(double volume, CancellationToken cancellationToken = default) { snapshot = snapshot with { Volume = volume }; return Success(); }
         public Task<Result<PlayerSnapshot>> StartAsync(CancellationToken cancellationToken = default) => Success();
@@ -208,6 +228,7 @@ public sealed class StationApiTests
         public Task<Result<PlayerSnapshot>> SeekAsync(TimeSpan position, CancellationToken cancellationToken = default) { snapshot = snapshot with { Position = position }; return Success(); }
         public Task<Result<PlayerSnapshot>> SelectAudioTrackAsync(int streamId, CancellationToken cancellationToken = default) { snapshot = snapshot with { AudioTrackId = streamId }; return Success(); }
         public Task<Result<PlayerSnapshot>> SelectSubtitleTrackAsync(int? streamId, CancellationToken cancellationToken = default) { snapshot = snapshot with { SubtitleTrackId = streamId }; return Success(); }
+        public Task<Result<PlayerSnapshot>> ShowOverlayAsync(PlayerOverlayRequest request, CancellationToken cancellationToken = default) { LastOverlay = request; return Success(); }
         public async IAsyncEnumerable<PlayerEvent> WatchEventsAsync([System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken = default) { await Task.CompletedTask; yield break; }
         public ValueTask DisposeAsync() => ValueTask.CompletedTask;
         private Task<Result<PlayerSnapshot>> Success() => Task.FromResult(Result<PlayerSnapshot>.Success(snapshot));

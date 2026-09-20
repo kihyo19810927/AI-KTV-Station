@@ -145,15 +145,12 @@ public partial class App : System.Windows.Application
         {
             builder.Services.AddSingleton(options.Scanning);
             builder.Services.AddSingleton(options);
-            builder.Services.AddScoped<IStationHealthService, StationHealthService>();
-            builder.Services.AddScoped<ICatalogAdminRepository, EfCatalogAdminRepository>();
-            builder.Services.AddScoped<ICatalogAdminService, CatalogAdminService>();
-            builder.Services.AddScoped<ICatalogJsonImportService, CatalogJsonImportService>();
             builder.Configuration.AddInMemoryCollection(new Dictionary<string, string?>
             {
                 [$"{StationOptions.SectionName}:Server:BindAddress"] = serverOptions.Server.BindAddress,
                 [$"{StationOptions.SectionName}:Server:Port"] = serverOptions.Server.Port.ToString(System.Globalization.CultureInfo.InvariantCulture),
                 [$"{StationOptions.SectionName}:Storage:DataDirectory"] = serverOptions.Storage.DataDirectory,
+                [$"{StationOptions.SectionName}:Storage:MediaMountRoot"] = serverOptions.Storage.MediaMountRoot,
                 [$"{StationOptions.SectionName}:Player:CommandTimeoutSeconds"] = serverOptions.Player.CommandTimeoutSeconds.ToString(System.Globalization.CultureInfo.InvariantCulture),
             });
         }, services.GetRequiredService<IPlayerAdapter>(), Path.Combine(AppContext.BaseDirectory, "wwwroot"));

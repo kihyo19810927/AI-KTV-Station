@@ -55,6 +55,10 @@ public sealed class MediaScanService(
         var existing = new Dictionary<string, MediaFile>(StringComparer.OrdinalIgnoreCase);
         var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         var lyricsSidecars = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        var artistIds = (await repository.ListArtistsAsync(cancellationToken))
+            .GroupBy(x => x.NormalizedName, StringComparer.OrdinalIgnoreCase)
+            .ToDictionary(x => x.Key, x => x.OrderBy(item => item.Id).First().Id, StringComparer.OrdinalIgnoreCase);
+        var textNormalizer = searchTextNormalizer ?? new InvariantSearchTextNormalizer();
         var settings = scanOptions ?? new ScanOptions();
         var basicOnly = settings.BasicIndexOnly;
         var readNfo = settings.ReadNfo;
@@ -105,7 +109,7 @@ public sealed class MediaScanService(
                             Year = metadata.Year,
                             Quality = metadata.Quality,
                             Availability = AvailabilityStatus.Available,
-                            Artists = metadata.Artists.Select((artist, order) => CreateArtist(artist, order)).ToList(),
+                            Artists = metadata.Artists.Select((artist, order) => CreateArtist(artist, order, textNormalizer, artistIds)).ToList(),
                         },
                     };
                     await repository.AddFileAsync(file, cancellationToken);
@@ -211,7 +215,26 @@ public sealed class MediaScanService(
         progress?.Report(new MediaScanProgress(run.Id, run.Status, run.DiscoveredFiles, run.UpdatedFiles, run.ErrorCount,
             run.IndexedFiles, run.ProbedFiles, run.CachedFiles, run.ProbeAttempts == 0 ? 0 : run.ProbeMilliseconds / run.ProbeAttempts, run.Phase));
 
-    private static SongArtist CreateArtist(string name, int order) => new() { Order = order, Artist = new Artist { Name = name } };
+    private static SongArtist CreateArtist(string name, int order, ISearchTextNormalizer normalizer, IDictionary<string, Guid> artistIds)
+    {
+        var trimmed = name.Trim();
+        var keys = normalizer.CreateKeys(trimmed);
+        if (artistIds.TryGetValue(keys.Normalized, out var artistId))
+            return new SongArtist { Order = order, ArtistId = artistId };
+
+        var artist = new Artist
+        {
+            Name = trimmed,
+            NormalizedName = keys.Normalized,
+            SimplifiedName = keys.Simplified,
+            TraditionalName = keys.Traditional,
+            Pinyin = keys.Pinyin,
+            Initials = keys.Initials,
+            CompactName = keys.Compact,
+        };
+        artistIds[keys.Normalized] = artist.Id;
+        return new SongArtist { Order = order, Artist = artist };
+    }
 
     public static string Fingerprint(MediaSource source, MediaFile file) => Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(
         $"{source.RootPath.Replace('\\', '/').TrimEnd('/').ToUpperInvariant()}/{Normalize(file.RelativePath).ToUpperInvariant()}\n{file.SizeBytes}\n{file.LastWriteTime.UtcTicks}")));

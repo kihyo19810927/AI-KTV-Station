@@ -108,6 +108,7 @@ public sealed class SongSearchPerformanceTests
     {
         public MediaSource Source { get; } = new() { Name = "Generated", RootPath = "fixture", Availability = AvailabilityStatus.Available };
         public int AddedFiles { get; private set; }
+        public Task<IReadOnlyList<ArtistIdentity>> ListArtistsAsync(CancellationToken cancellationToken = default) => Task.FromResult<IReadOnlyList<ArtistIdentity>>([]);
         public Task<MediaSource?> FindSourceAsync(Guid sourceId, CancellationToken cancellationToken = default) => Task.FromResult<MediaSource?>(sourceId == Source.Id ? Source : null);
         public Task<IReadOnlyList<MediaFile>> ListFilesAsync(Guid sourceId, CancellationToken cancellationToken = default) => Task.FromResult<IReadOnlyList<MediaFile>>([]);
         public Task AddFileAsync(MediaFile file, CancellationToken cancellationToken = default) { AddedFiles++; return Task.CompletedTask; }

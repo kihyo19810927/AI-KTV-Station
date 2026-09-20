@@ -11,6 +11,11 @@ public sealed record PlayableQueueItem(
     string MediaPath,
     PlayerFailure? PreflightFailure = null);
 
+public interface IPlaybackStartedObserver
+{
+    Task OnStartedAsync(Guid playbackId, CancellationToken cancellationToken);
+}
+
 public interface IPlaybackQueueStore
 {
     Task<PlayableQueueItem?> GetNextAsync(Guid roomId, CancellationToken cancellationToken = default);
@@ -34,7 +39,8 @@ public sealed class QueuePlaybackOrchestrator(
     IPlaybackQueueStore store,
     PlaybackRecoveryService recovery,
     TimeProvider clock,
-    PlaybackContinuationGate? continuationGate = null)
+    PlaybackContinuationGate? continuationGate = null,
+    IPlaybackStartedObserver? startedObserver = null)
 {
     private readonly SemaphoreSlim gate = new(1, 1);
     private ActivePlayback? active;
@@ -65,6 +71,8 @@ public sealed class QueuePlaybackOrchestrator(
             running = true;
             halted = false;
             lastErrorCode = null;
+            if (continuationGate?.IsSuspended == true)
+                return Result<PlaybackOrchestrationState>.Success(Current);
             var state = await player.GetStateAsync(cancellationToken).ConfigureAwait(false);
             if (state.IsFailure) return Failure(state.Error.Code, state.Error.Message);
             if (state.Value.State == PlayerLifecycleState.Stopped)
@@ -88,7 +96,8 @@ public sealed class QueuePlaybackOrchestrator(
         {
             while (!cancellationToken.IsCancellationRequested)
             {
-                if (Current.QueueItemId is null && continuationGate?.IsSuspended != true)
+                if (halted && continuationGate is { IsSuspended: false }) halted = false;
+                if (!Current.IsHalted && Current.QueueItemId is null && continuationGate?.IsSuspended != true)
                     await StartAsync(targetRoomId, cancellationToken).ConfigureAwait(false);
                 await Task.Delay(TimeSpan.FromMilliseconds(250), clock, cancellationToken).ConfigureAwait(false);
             }
@@ -127,7 +136,25 @@ public sealed class QueuePlaybackOrchestrator(
                     await FinishCurrentAsync(QueueItemStatus.Completed, PlaybackOutcome.Completed, null, cancellationToken).ConfigureAwait(false);
                     await StartNextCoreAsync(cancellationToken).ConfigureAwait(false);
                     break;
-                case PlaybackEndedEvent ended when ended.Reason is PlaybackEndReason.Stopped or PlaybackEndReason.Replaced:
+                case PlaybackEndedEvent ended when ended.Reason == PlaybackEndReason.Replaced:
+                    // Replaced is an internal transition emitted while loading
+                    // the next file. It must never finish the newly active item.
+                    break;
+                case PlaybackEndedEvent ended when ended.Reason == PlaybackEndReason.Stopped:
+                    if (!ended.IsUserInitiated && !string.IsNullOrWhiteSpace(ended.Detail))
+                    {
+                        var failure = new PlayerFailure(
+                            "player.unexpected_end_file",
+                            PlayerFailureKind.Unknown,
+                            false,
+                            $"播放器在歌曲完成前结束了媒体（mpv 原因：{ended.Detail}）。");
+                        lastErrorCode = failure.Code;
+                        await recovery.RecordAsync(
+                            active.Item.MediaFileId == Guid.Empty ? null : active.Item.MediaFileId,
+                            PlaybackFailureStage.Playback,
+                            failure,
+                            cancellationToken).ConfigureAwait(false);
+                    }
                     await FinishCurrentAsync(QueueItemStatus.Skipped, PlaybackOutcome.Skipped, null, cancellationToken).ConfigureAwait(false);
                     await StartNextCoreAsync(cancellationToken).ConfigureAwait(false);
                     break;
@@ -180,8 +207,10 @@ public sealed class QueuePlaybackOrchestrator(
         var loaded = await player.LoadAsync(new PlayerLoadRequest(playbackId, next.MediaPath), cancellationToken).ConfigureAwait(false);
         if (loaded.IsSuccess)
         {
+            lastErrorCode = null;
             active.Status = QueueItemStatus.Playing;
             await store.SetQueueStatusAsync(next.QueueItemId, QueueItemStatus.Playing, null, cancellationToken).ConfigureAwait(false);
+            if (startedObserver is not null) await startedObserver.OnStartedAsync(playbackId, cancellationToken).ConfigureAwait(false);
             return;
         }
         var failure = loaded.ValueOrFailure();
@@ -222,19 +251,27 @@ public sealed class QueuePlaybackOrchestrator(
             var load = await player.LoadAsync(new PlayerLoadRequest(active.PlaybackId, active.Item.MediaPath), cancellationToken).ConfigureAwait(false);
             if (load.IsSuccess)
             {
+                lastErrorCode = null;
                 active.Status = QueueItemStatus.Playing;
                 await store.SetQueueStatusAsync(active.Item.QueueItemId, QueueItemStatus.Playing, null, cancellationToken).ConfigureAwait(false);
+                if (startedObserver is not null) await startedObserver.OnStartedAsync(active.PlaybackId, cancellationToken).ConfigureAwait(false);
                 return;
             }
             await RecoverCoreAsync(load.ValueOrFailure(), cancellationToken).ConfigureAwait(false);
             return;
         }
-        await FinishCurrentAsync(QueueItemStatus.Failed, PlaybackOutcome.Failed, failure.Code, cancellationToken).ConfigureAwait(false);
         if (decision.Action == PlaybackRecoveryAction.HaltPlayback)
         {
             halted = true;
+            continuationGate?.Suspend();
+            await player.StopAsync(cancellationToken).ConfigureAwait(false);
+            // Keep the request at the head of the queue for the host's explicit retry.
+            var retainedStatus = failure.Kind is PlayerFailureKind.CommandTimeout or PlayerFailureKind.ConnectionTimeout or PlayerFailureKind.ProtocolError
+                ? QueueItemStatus.Waiting : QueueItemStatus.Failed;
+            await FinishCurrentAsync(retainedStatus, PlaybackOutcome.Failed, failure.Code, cancellationToken).ConfigureAwait(false);
             return;
         }
+        await FinishCurrentAsync(QueueItemStatus.Failed, PlaybackOutcome.Failed, failure.Code, cancellationToken).ConfigureAwait(false);
         await StartNextCoreAsync(cancellationToken).ConfigureAwait(false);
     }
 
@@ -279,6 +316,13 @@ internal static class PlayerResultExtensions
     {
         if (result.IsSuccess && result.Value.Failure is not null) return result.Value.Failure;
         var error = result.Error;
-        return new PlayerFailure(error.Code, PlayerFailureKind.Unknown, false, error.Message);
+        var kind = error.Code switch
+        {
+            "player.command_timeout" => PlayerFailureKind.CommandTimeout,
+            "player.protocol_error" => PlayerFailureKind.ProtocolError,
+            _ => PlayerFailureKind.Unknown,
+        };
+        return new PlayerFailure(error.Code, kind,
+            kind is PlayerFailureKind.CommandTimeout or PlayerFailureKind.ProtocolError, error.Message);
     }
 }

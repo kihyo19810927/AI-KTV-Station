@@ -27,7 +27,7 @@ export function NowPlaying() {
   const active = queue.find(item => item.status === 'Playing' || item.status === 'Preparing')
   const playbackState = playback?.state ?? state?.state
   useEffect(() => { let disposed = false; const refresh = () => api.get<PlayerState>('/api/playback').then(value => { if (!disposed) setState(value) }).catch(() => undefined); void refresh(); const timer = window.setInterval(refresh, 2000); return () => { disposed = true; window.clearInterval(timer); if (volumeTimer.current) window.clearTimeout(volumeTimer.current) } }, [api])
-  useEffect(() => { if (state && !volumeDragging) setVolumeDraft(state.volume) }, [state?.volume, volumeDragging, state])
+  useEffect(() => { if (state && !volumeDragging && Number.isFinite(state.volume)) setVolumeDraft(state.volume) }, [state?.volume, volumeDragging, state])
   useEffect(() => { if (state && !positionDragging) setPositionDraft(seconds(state.position)) }, [state?.position, positionDragging, state])
   const command = async (path: string, body?: unknown) => { setError(''); try { setState(await api.post<PlayerState>(path, body)) } catch { setError('控制失败，请稍后重试。') } }
   const tracks = Array.isArray(state?.tracks) ? state.tracks : []; const audio = tracks.filter(x => x.type === 'Audio'); const subtitles = tracks.filter(x => x.type === 'Subtitle')
